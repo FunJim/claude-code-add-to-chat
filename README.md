@@ -47,6 +47,8 @@ The user selected these excerpts from earlier in the conversation; their prompt 
 {{/annotations}}
 ```
 
+Values are inserted as-is, apart from `{{annotations_json}}`, which escapes `<`, `>` and `&` so an Excerpt can't close the surrounding tags. If you write a tag-based template, keep in mind that an Excerpt containing `</excerpt>` can break out of it.
+
 Citations (①②…) only appear if your template asks Claude to write `:annotation{index="N"}`, as the default template does.
 
 ## Develop

@@ -105,11 +105,20 @@ function toJson(a: Annotation) {
   return { text: a.text, source: { role: a.source, rowId: a.rowId }, comment: a.comment }
 }
 
+/**
+ * JSON whose strings cannot close the tags around it: an Excerpt holding
+ * `</response-annotations>` would otherwise end the block early and pass
+ * its own text off as the person's request. Still valid JSON.
+ */
+function fencedJson(value: unknown): string {
+  return JSON.stringify(value, null, 2).replace(/[<>&]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
+}
+
 export function renderTemplate(template: string, request: string, annotations: readonly Annotation[]): string {
   const scope: Scope = {
     request,
     count: annotations.length,
-    annotations_json: JSON.stringify(annotations.map(toJson), null, 2),
+    annotations_json: fencedJson(annotations.map(toJson)),
     annotations: annotations.map(a => ({
       index: a.index,
       text: a.text,
