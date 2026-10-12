@@ -1,0 +1,1 @@
+{ "name": "atc-probe", "version": "0.0.1", "description": "Throwaway probe for add-to-chat's open questions", "types": "./types/index.d.ts" }
