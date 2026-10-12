@@ -1,0 +1,13 @@
+{
+  "name": "add-to-chat",
+  "description": "Codex-style \"Add to chat\" for Claude Code's fullscreen transcript",
+  "owner": {
+    "name": "FunJim"
+  },
+  "plugins": [
+    {
+      "name": "add-to-chat",
+      "source": "./add-to-chat"
+    }
+  ]
+}
