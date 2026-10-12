@@ -1,0 +1,16 @@
+{
+  "name": "add-to-chat",
+  "version": "0.1.0",
+  "description": "Select text in the fullscreen transcript and attach it, with an optional comment, to your next prompt",
+  "author": {
+    "name": "FunJim"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "templatePath": {
+      "type": "string",
+      "title": "Annotation template",
+      "description": "Path to a Mustache-subset template file; empty uses the built-in Codex-style template"
+    }
+  }
+}
