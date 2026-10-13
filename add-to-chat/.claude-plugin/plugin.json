@@ -5,6 +5,16 @@
   "author": {
     "name": "FunJim"
   },
+  "homepage": "https://github.com/FunJim/claude-code-add-to-chat",
+  "repository": "https://github.com/FunJim/claude-code-add-to-chat",
+  "license": "MIT",
+  "keywords": [
+    "annotations",
+    "selection",
+    "quote",
+    "codex",
+    "fullscreen"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "templatePath": {

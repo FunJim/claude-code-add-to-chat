@@ -13,11 +13,11 @@ const A: Annotation[] = [
   { index: 2, text: 'two', source: 'you', rowId: 'u1', comment: 'hm' },
   { index: 3, text: 'three', source: 'transcript' },
 ]
-const QUIET: Surroundings = { draft: '', offer: null, pending: [], handled: null }
+const QUIET: Surroundings = { draft: '', pending: [], handled: null }
 
 describe('judging a selection', () => {
   test('an Excerpt in a row is offered', () => {
-    expect(judge({ text: ' npm test ', requestId: 'r1' }, QUIET)).toEqual({ excerpt: { text: 'npm test', requestId: 'r1' } })
+    expect(judge({ text: ' npm test ', requestId: 'r1' }, QUIET)).toEqual({ excerpt: { text: 'npm test', requestId: 'r1' }, key: 'r1\u0000 npm test ' })
   })
   test('nothing selected, or only marks', () => {
     expect(judge(undefined, QUIET)).toEqual({ reason: 'nothing' })
@@ -34,8 +34,8 @@ describe('judging a selection', () => {
     expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toHaveProperty('excerpt')
   })
   test('excerptOf drops the 📎 line and any head of it', () => {
-    expect(excerptOf({ text: 'q\n📎 3 annotations' })).toEqual({ text: 'q', requestId: undefined })
-    expect(excerptOf({ text: 'q\n  📎 3 ann' })).toEqual({ text: 'q', requestId: undefined })
+    expect(excerptOf({ text: 'q\n📎 3 annotations' })).toEqual({ text: 'q' })
+    expect(excerptOf({ text: 'q\n  📎 3 ann' })).toEqual({ text: 'q' })
   })
 })
 

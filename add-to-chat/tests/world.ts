@@ -13,8 +13,6 @@ export type World = {
   submitted: { text: string; context?: readonly string[] }[]
   files: Record<string, string>
   store: Record<string, unknown>
-  /** The text each transcript row last reached the engine with, by requestId. */
-  drawn: Record<string, string>
   /** The props each row last reached the engine with, by requestId. */
   drawnProps: Record<string, unknown>
   /** Prompts the engine's end refuses, as another plugin would. */
@@ -53,7 +51,6 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     submitted: [],
     files: {},
     store: { ...store },
-    drawn: {},
     drawnProps: {},
     clock: mock.clock(on),
   }
@@ -63,8 +60,6 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     return { value: undefined }
   })
   on('ui.render', ($, e) => {
-    const props = e.props as { text?: unknown }
-    if (e.requestId !== undefined && typeof props.text === 'string') w.drawn[e.requestId] = props.text
     if (e.requestId !== undefined) w.drawnProps[e.requestId] = e.props
     const { Box } = $.ui.resolve(e)
     return h(Box, {}) as RenderElement
@@ -97,6 +92,23 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   })
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   return w
+}
+
+type BandMount = {
+  props?: { maxRows?: number; bodyColumns?: number }
+  viewport?: { columns: number; rows: number; isFullscreen: boolean }
+}
+
+/** Mounts the band where the engine draws it, above the prompt. */
+export function mountBand<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, extra: BandMount = {}) {
+  const props = { ...BAND.props, ...extra.props }
+  return $.ui.mount({ plugin: 'add-to-chat', surface, component: BAND.component, props, ...(extra.viewport && { viewport: extra.viewport }) })
+}
+
+/** Selects `text`, in row `requestId` if given, and runs /add-to-chat. */
+export function addText($: Engine, w: World, text: string, requestId?: string) {
+  w.selection = requestId === undefined ? { text } : { text, requestId }
+  return runCommand($, w)
 }
 
 /** Lets the selection poll run long enough for a selection to settle (a second). */
@@ -132,5 +144,5 @@ export async function drawRow(
       ? { text, isFirstOfReply: true, ...extra }
       : { text, origin: { kind: 'composer' }, isExpanded: false, ...extra }
   await $.ui.render({ component, requestId, surface: 'terminal', props } as never)
-  return w.drawn[requestId]!
+  return (w.drawnProps[requestId] as { text: string }).text
 }

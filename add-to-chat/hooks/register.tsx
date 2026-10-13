@@ -3,18 +3,16 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
-import type { AnnotationSource, Original } from '../types'
+import type { Annotation, AnnotationSource, Candidate, Original } from '../types'
 import { appended, commentingAfterRemoving, withComment, without } from './annotations'
 import { bandView } from './band'
-import { circled } from './excerpt'
 import { hashText } from './hash'
-import { SEND_PLACEHOLDER } from './labels'
+import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOTHING_SELECTED, SEND_PLACEHOLDER, addedToast, unreadableTemplate } from './labels'
 import { promptText, replyText } from './rows'
 import { judge, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
 import { annotated, withOriginal } from './send'
 import { DEFAULT_TEMPLATE } from './template'
-import type { Annotation } from '../types'
 
 const pending = atom({ plugin: 'add-to-chat', key: 'pending' } as const, [])
 const candidate = atom({ plugin: 'add-to-chat', key: 'candidate' } as const, null)
@@ -41,73 +39,76 @@ function rememberRole(requestId: string | undefined, role: AnnotationSource) {
 }
 
 async function surroundings($: EngineInterface): Promise<Surroundings> {
-  return {
-    draft: (await $.prompt.read()).text,
-    offer: await read($, candidate),
-    pending: await read($, pending),
-    handled: await read($, handled),
-  }
+  const [prompt, list, key] = await Promise.all([$.prompt.read(), read($, pending), read($, handled)])
+  return { draft: prompt.text, pending: list, handled: key }
 }
 
-/** The draft as it stood when a Comment field opened, by that Annotation's index. */
-type DraftWatch = { index?: number; text?: string }
+/**
+ * What the poll keeps between ticks: whether the draft was empty, and the
+ * draft as it stood when a Comment field opened, by that Annotation's index.
+ */
+type PollWatch = { isDraftEmpty?: boolean; index?: number; draft?: string }
+
+function offerKey(offer: Candidate | null): string | null {
+  return offer === null ? null : selectionKey(offer)
+}
 
 /** One tick of the selection poll: what the band offers, and the draft's state. */
-async function poll($: EngineInterface, draft: DraftWatch) {
-  const [selection, around] = await Promise.all([$.ui.selection(), surroundings($)])
+async function poll($: EngineInterface, watch: PollWatch) {
+  const [selection, around, offered, editing] = await Promise.all([$.ui.selection(), surroundings($), read($, candidate), read($, commenting)])
 
   const isEmpty = around.draft.trim() === ''
-  if ((await read($, isDraftEmpty)) !== isEmpty) await update($, isDraftEmpty, () => isEmpty)
+  if (watch.isDraftEmpty !== isEmpty) {
+    watch.isDraftEmpty = isEmpty
+    await update($, isDraftEmpty, () => isEmpty)
+  }
   // Typing in the prompt after the Comment field opened means the person
   // left it (Esc); Esc itself raises nothing.
-  const editing = await read($, commenting)
-  if (editing === null || editing !== draft.index) {
-    draft.index = editing ?? undefined
-    draft.text = around.draft
-  } else if (around.draft !== draft.text) {
+  if (editing === null || editing !== watch.index) {
+    watch.index = editing ?? undefined
+    watch.draft = around.draft
+  } else if (around.draft !== watch.draft) {
     await update($, commenting, () => null)
   }
 
   // The band previews the Excerpt as it will be kept, marks and 📎 gone.
   const verdict = judge(selection, around)
   const offer = 'excerpt' in verdict ? verdict.excerpt : null
-  if (offer?.text !== around.offer?.text || offer?.requestId !== around.offer?.requestId) {
-    // State holds JSON: a row-less selection has no requestId key at all.
-    await update($, candidate, () => (offer === null ? null : offer.requestId === undefined ? { text: offer.text } : { text: offer.text, requestId: offer.requestId }))
-  }
+  if (offerKey(offer) !== offerKey(offered)) await update($, candidate, () => offer)
+}
+
+/** Done with a selection: it is not offered again until another is made. */
+async function markHandled($: EngineInterface, key: string | undefined) {
+  await Promise.all([key === undefined ? null : update($, handled, () => key), update($, candidate, () => null)])
 }
 
 async function addSelection($: EngineInterface): Promise<{ annotation: Annotation } | Exclude<Verdict, { excerpt: unknown }>> {
-  const selection = await $.ui.selection()
-  const verdict = judge(selection, await surroundings($))
-  if (!('excerpt' in verdict) || selection === undefined) return 'excerpt' in verdict ? { reason: 'nothing' } : verdict
+  const verdict = judge(await $.ui.selection(), await surroundings($))
+  if (!('excerpt' in verdict)) return verdict
 
   const { excerpt } = verdict
   const source = (excerpt.requestId !== undefined && roles.get(excerpt.requestId)) || 'transcript'
   const list = await update($, pending, now => appended(now, excerpt, source))
   const annotation = list.at(-1)!
-  await update($, handled, () => selectionKey(selection))
-  await update($, candidate, () => null)
-  await update($, commenting, () => annotation.index)
+  await Promise.all([markHandled($, verdict.key), update($, commenting, () => annotation.index)])
   return { annotation }
 }
 
 async function ignoreSelection($: EngineInterface) {
   const selection = await $.ui.selection()
-  if (selection !== undefined) await update($, handled, () => selectionKey(selection))
-  await update($, candidate, () => null)
+  await markHandled($, selection === undefined ? undefined : selectionKey(selection))
 }
 
 async function removeAnnotation($: EngineInterface, index: number) {
   const list = await update($, pending, now => without(now, index))
-  await update($, commenting, at => commentingAfterRemoving(at, index))
-  if (list.length === 0) await update($, isListOpen, () => false)
+  await Promise.all([
+    update($, commenting, at => commentingAfterRemoving(at, index)),
+    list.length === 0 ? update($, isListOpen, () => false) : null,
+  ])
 }
 
 async function clearPending($: EngineInterface) {
-  await update($, pending, () => [])
-  await update($, commenting, () => null)
-  await update($, isListOpen, () => false)
+  await Promise.all([update($, pending, () => []), update($, commenting, () => null), update($, isListOpen, () => false)])
 }
 
 async function loadTemplate($: EngineInterface, options: PluginOptions): Promise<string> {
@@ -117,7 +118,7 @@ async function loadTemplate($: EngineInterface, options: PluginOptions): Promise
   try {
     return await $.fs.read(full)
   } catch {
-    $.ui.toast(`add-to-chat: cannot read ${path}; using the built-in template`)
+    $.ui.toast(unreadableTemplate(path))
     return DEFAULT_TEMPLATE
   }
 }
@@ -142,8 +143,8 @@ export const register: Register = (on, options) => {
     await update($, candidate, () => null)
     // A reload drops the previous load's timers and fires session.start
     // again, so this is the only interval running.
-    const draft: DraftWatch = {}
-    $.clock.every(POLL_MS, () => poll($, draft))
+    const watch: PollWatch = {}
+    $.clock.every(POLL_MS, () => poll($, watch))
     return next(e)
   })
 
@@ -159,15 +160,9 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'add-to-chat' }, async ($, e) => {
     const added = await addSelection($)
-    if ('annotation' in added) {
-      $.ui.toast(`Added ${circled(added.annotation.index)} — add an optional comment above the prompt`)
-    } else if (added.reason === 'already') {
-      $.ui.toast('That selection is already added')
-    } else if (e.presentation.isFullscreen) {
-      $.ui.toast('Select text in the transcript first')
-    } else {
-      $.ui.toast('add-to-chat needs fullscreen mode (CLAUDE_CODE_NO_FLICKER=1) to read the selection')
-    }
+    if ('annotation' in added) $.ui.toast(addedToast(added.annotation.index))
+    else if (added.reason === 'already') $.ui.toast(ALREADY_ADDED)
+    else $.ui.toast(e.presentation.isFullscreen ? NOTHING_SELECTED : NEEDS_FULLSCREEN)
     return {}
   })
 
@@ -199,21 +194,29 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.props.origin.kind !== 'composer') return next(e)
     rememberRole(e.requestId, 'you')
-    const original = e.props.isExpanded ? undefined : (await read($, originals))[hashText(e.props.text)]
-    const text = promptText(e.props.text, e.requestId, await read($, pending), original)
+    const [list, map] = await Promise.all([read($, pending), read($, originals)])
+    const original = e.props.isExpanded ? undefined : map[hashText(e.props.text)]
+    const text = promptText(e.props.text, e.requestId, list, original)
     return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || e.surface === 'mobile') return next(e)
+    const [offer, list, editing, isOpen, isEmpty] = await Promise.all([
+      read($, candidate),
+      read($, pending),
+      read($, commenting),
+      read($, isListOpen),
+      read($, isDraftEmpty),
+    ])
     const tree = bandView(
       $.ui.resolve(e),
       {
-        offer: await read($, candidate),
-        pending: await read($, pending),
-        commenting: await read($, commenting),
-        isListOpen: await read($, isListOpen),
-        isDraftEmpty: await read($, isDraftEmpty),
+        offer,
+        pending: list,
+        commenting: editing,
+        isListOpen: isOpen,
+        isDraftEmpty: isEmpty,
         isFullscreen: e.viewport?.isFullscreen === true,
         columns: e.props.bodyColumns,
         maxRows: e.props.maxRows,

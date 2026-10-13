@@ -1,30 +1,18 @@
 // Finding an Excerpt (rendered text, as a mouse copy takes it) inside a row's
-// markdown, and drawing numbered marks into that markdown. See
-// docs/spikes.md §2 for why matching goes through a projection.
+// markdown, and drawing numbered marks and Citations into it. Why matching
+// goes through a projection: docs/design.md, "Marks in the transcript".
+
+import { circled, superscript } from './labels'
 
 /** How a row's markdown is drawn: replies render links, prompts keep them raw. */
 export type RowKind = 'assistant' | 'user'
 
 /** Marks this mod draws; they come along when the person selects over them. */
 // U+200B keeps a mark's backticks from fusing with a neighbouring span's.
-const MARK_CHARS = /[⁽⁾⁰¹²³⁴⁵⁶⁷⁸⁹①-⑳㉑-㉟㊱-㊿\u200b]/g
 const MARK_CHAR = /[⁽⁾⁰¹²³⁴⁵⁶⁷⁸⁹①-⑳㉑-㉟㊱-㊿\u200b]/
-const SUPERSCRIPT = '⁰¹²³⁴⁵⁶⁷⁸⁹'
-
+const MARK_CHARS = new RegExp(MARK_CHAR.source, 'g')
 export function stripMarks(text: string): string {
   return text.replace(MARK_CHARS, '')
-}
-
-/** ①–⑳, ㉑–㉟, ㊱–㊿; past fifty, the number in parentheses. */
-export function circled(n: number): string {
-  if (n >= 1 && n <= 20) return String.fromCodePoint(0x2460 + n - 1)
-  if (n >= 21 && n <= 35) return String.fromCodePoint(0x3251 + n - 21)
-  if (n >= 36 && n <= 50) return String.fromCodePoint(0x32b1 + n - 36)
-  return `(${n})`
-}
-
-export function superscript(n: number): string {
-  return `⁽${[...String(n)].map(d => SUPERSCRIPT[Number(d)]).join('')}⁾`
 }
 
 /**
@@ -78,7 +66,7 @@ function spanClose(md: string, i: number, n: number): number {
  * Projects markdown onto the text the terminal draws for it, keeping each
  * drawn character's offset in the markdown.
  */
-export function project(md: string, kind: RowKind): Projection {
+function project(md: string, kind: RowKind): Projection {
   const out: Projection = { plain: '', map: [], inFence: [], inSpan: [], closers: new Map() }
   const chars: string[] = []
   const emit = (c: string, at: number, fence = false, span = false) => {
@@ -93,7 +81,8 @@ export function project(md: string, kind: RowKind): Projection {
   while (i < md.length) {
     const atLineStart = i === 0 || md[i - 1] === '\n'
     if (atLineStart) {
-      const lineEnd = md.indexOf('\n', i) === -1 ? md.length : md.indexOf('\n', i)
+      const nl = md.indexOf('\n', i)
+      const lineEnd = nl === -1 ? md.length : nl
       const f = FENCE.exec(md.slice(i, lineEnd))
       if (f !== null && (fence === null || f[1]!.startsWith(fence))) {
         fence = fence === null ? f[1]! : null
@@ -128,14 +117,12 @@ export function project(md: string, kind: RowKind): Projection {
         i += run.length
         continue
       }
-      {
-        for (let j = i + run.length; j < close; j += 1) {
-          if (!MARK_CHAR.test(md[j]!)) emit(md[j]!, j, false, true)
-        }
-        out.closers.set(close, close + run.length)
-        i = close + run.length
-        continue
+      for (let j = i + run.length; j < close; j += 1) {
+        if (!MARK_CHAR.test(md[j]!)) emit(md[j]!, j, false, true)
       }
+      out.closers.set(close, close + run.length)
+      i = close + run.length
+      continue
     }
     if (kind === 'assistant' && c === '[') {
       const link = /^\[([^\]\n]*)\]\([^)\s]*(?: +"[^"]*")?\)/.exec(md.slice(i))
@@ -176,19 +163,14 @@ type Placement = { at: number; isInCode: boolean }
 
 /**
  * Where to insert a mark right after the first occurrence of `excerpt` in
- * `md`: past any delimiter the match closes, so the mark never lands inside a
- * link; `isInCode` when the match ends in a code span, where the mark goes
- * inside it, bare, and takes the span's colour. Undefined when it is not
- * found or ends in a code block.
+ * the projected markdown: past any delimiter the match closes, so the mark
+ * never lands inside a link; `isInCode` when the match ends in a code span,
+ * where the mark goes inside it, bare, and takes the span's colour.
+ * Undefined when it is not found or ends in a code block.
  */
-export function markOffset(md: string, excerpt: string, kind: RowKind): number | undefined {
-  return place(md, excerpt, kind)?.at
-}
-
-function place(md: string, excerpt: string, kind: RowKind): Placement | undefined {
+function place(p: Projection, excerpt: string): Placement | undefined {
   const words = stripMarks(excerpt).split(/\s+/).filter(Boolean)
   if (words.length === 0) return undefined
-  const p = project(md, kind)
   const found = new RegExp(words.map(escapeRegExp).join('\\s+')).exec(p.plain)
   if (found === null) return undefined
   const last = found.index + found[0].length - 1
@@ -197,6 +179,11 @@ function place(md: string, excerpt: string, kind: RowKind): Placement | undefine
   const isInCode = p.inSpan[last]!
   if (!isInCode) for (let end = p.closers.get(at); end !== undefined; end = p.closers.get(at)) at = end
   return { at, isInCode }
+}
+
+/** The markdown offset a mark for `excerpt` goes at; for tests. */
+export function markOffset(md: string, excerpt: string, kind: RowKind): number | undefined {
+  return place(project(md, kind), excerpt)?.at
 }
 
 export type Mark = { index: number; text: string }
@@ -209,10 +196,11 @@ const BLOCK_START = /^ {0,3}(#|>|[-*+] |\d+[.)] |`{3}|~{3}|\|)/
  */
 export function drawMarks(md: string, marks: readonly Mark[], kind: RowKind): string {
   if (marks.length === 0) return md
+  const projection = project(md, kind)
   const placed: { at: number; mark: string }[] = []
   const unplaced: string[] = []
   for (const m of marks) {
-    const p = place(md, m.text, kind)
+    const p = place(projection, m.text)
     if (p === undefined) unplaced.push(circled(m.index))
     else placed.push({ at: p.at, mark: p.isInCode ? superscript(m.index) : codeMark(superscript(m.index), md, p.at) })
   }
@@ -226,31 +214,6 @@ export function drawMarks(md: string, marks: readonly Mark[], kind: RowKind): st
   return text
 }
 
-/** Offsets [start, end) of code spans and fenced code blocks. */
-function codeRanges(md: string): [number, number][] {
-  const ranges: [number, number][] = []
-  const fenced = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm
-  for (const f of md.matchAll(fenced)) ranges.push([f.index, f.index + f[0].length])
-  let i = 0
-  while (i < md.length) {
-    const fence = ranges.find(([a, b]) => i >= a && i < b)
-    if (fence !== undefined) {
-      i = fence[1]
-      continue
-    }
-    if (md[i] !== '`') {
-      i += 1
-      continue
-    }
-    let n = 0
-    while (md[i + n] === '`') n += 1
-    const close = spanClose(md, i, n)
-    if (close !== -1) ranges.push([i, close + n])
-    i = close === -1 ? i + n : close + n
-  }
-  return ranges
-}
-
 const DIRECTIVE = /:annotation\{index="(\d+)"\}/g
 
 /**
@@ -259,8 +222,7 @@ const DIRECTIVE = /:annotation\{index="(\d+)"\}/g
  */
 export function drawCitations(md: string): string {
   if (!md.includes(':annotation{')) return md
-  const code = codeRanges(md)
-  return md.replace(DIRECTIVE, (whole: string, n: string, at: number) =>
-    code.some(([a, b]) => at >= a && at < b) ? whole : codeMark(circled(Number(n)), md, at),
-  )
+  const p = project(md, 'assistant')
+  const inCode = new Set(p.map.filter((_, k) => p.inFence[k] || p.inSpan[k]))
+  return md.replace(DIRECTIVE, (whole: string, n: string, at: number) => (inCode.has(at) ? whole : codeMark(circled(Number(n)), md, at)))
 }

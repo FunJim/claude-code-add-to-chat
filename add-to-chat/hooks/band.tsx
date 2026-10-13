@@ -6,25 +6,27 @@
 // whatever the selection: a band that grew when text got selected would push
 // the transcript up under a mouse still dragging, and the drag's end would
 // land a row lower. Rows below it come and go on clicks only.
-import type { BoxProps, ButtonProps, ElementConstructor, InputProps, RenderChildren, RenderElement, TextProps } from 'claude-code'
+import type { BoxProps, ButtonProps, Color, ElementConstructor, InputProps, RenderChildren, RenderElement, TextProps } from 'claude-code'
 
-import type { Annotation, Candidate } from '../types'
-import { circled } from './excerpt'
+import type { Annotation, AnnotationSource, Candidate } from '../types'
 import {
   ADD_LABEL,
+  BAND_BAR,
   COMMENT_PLACEHOLDER,
   COMMENT_PLACEHOLDER_SHORT,
   IDLE_HINT,
   IDLE_HINT_SHORT,
   IGNORE_LABEL,
+  SAVE_LABEL,
   SEND_HINT,
-  SENT_HINT,
-  SENT_HINT_SHORT,
-  SOURCE_COLOR,
   SOURCE_LABEL,
-  clipLine,
+  chipLabels,
+  circled,
+  sendLabels,
 } from './labels'
-import { cells, preview } from './text'
+import { preview, width } from './text'
+
+const SOURCE_COLOR: Record<AnnotationSource, Color> = { claude: 'claude', you: 'suggestion', transcript: 'subtle' }
 
 /** The elements the band draws with, from `$.ui.resolve(e)`. */
 export type BandElements = {
@@ -57,10 +59,6 @@ export type BandActions = {
   send: () => unknown
 }
 
-function width(text: string): number {
-  return [...text].reduce((n, c) => n + cells(c), 0)
-}
-
 /** The band's tree; undefined when it has nothing to show. */
 export function bandView(el: BandElements, v: BandValues, act: BandActions): RenderElement | undefined {
   if (!v.isFullscreen && v.offer === null && v.pending.length === 0 && v.commenting === null) return undefined
@@ -72,7 +70,7 @@ export function bandView(el: BandElements, v: BandValues, act: BandActions): Ren
   // Fragment inside a Box breaks the row's layout.
   const row = (key: string, children: RenderChildren[], spread = false) => (
     <Box key={key}>
-      <Text color="claude">▎ </Text>
+      <Text color="claude">{BAND_BAR} </Text>
       <Box width={room} justifyContent={spread ? 'space-between' : 'flex-start'}>
         {children}
       </Box>
@@ -83,16 +81,16 @@ export function bandView(el: BandElements, v: BandValues, act: BandActions): Ren
   // right; cut to fit, never wrapped, so it stays one row. Where room is
   // short the right side and the ✕ shrink first, so the preview keeps some.
   const count = v.pending.length
-  const send = v.isDraftEmpty ? [`${SEND_HINT}[ Send ]`, '[ Send ]'] : [room >= 110 ? SENT_HINT : SENT_HINT_SHORT, SENT_HINT_SHORT]
-  const chip = [`${clipLine(count)} ${v.isListOpen ? '▾' : '▸'}`, `📎 ${count} ${v.isListOpen ? '▾' : '▸'}`]
+  const [send, sendShort] = sendLabels(v.isDraftEmpty)
+  const [chip, chipShort] = chipLabels(count, v.isListOpen)
   const layouts =
     count === 0
       ? [{ chip: '', send: '', ignore: IGNORE_LABEL }, { chip: '', send: '', ignore: '✕' }]
       : [
-          { chip: chip[0]!, send: send[0]!, ignore: IGNORE_LABEL },
-          { chip: chip[0]!, send: send[1]!, ignore: IGNORE_LABEL },
-          { chip: chip[1]!, send: send[1]!, ignore: IGNORE_LABEL },
-          { chip: chip[1]!, send: send[1]!, ignore: '✕' },
+          { chip, send, ignore: IGNORE_LABEL },
+          { chip, send: sendShort, ignore: IGNORE_LABEL },
+          { chip: chipShort, send: sendShort, ignore: IGNORE_LABEL },
+          { chip: chipShort, send: sendShort, ignore: '✕' },
         ]
   const addWidth = width(ADD_LABEL) + 4 // drawn as [ label ]
   const fits = (l: (typeof layouts)[number]) => {
@@ -107,7 +105,7 @@ export function bandView(el: BandElements, v: BandValues, act: BandActions): Ren
       v.offer !== null ? (
         <Box gap={1}>
           <Button key="add" variant="primary" label={ADD_LABEL} onPress={act.add} />
-          <Text italic>“{preview(v.offer.text, Math.max(2, head0.preview))}”</Text>
+          <Text italic>“{preview(v.offer.text, head0.preview)}”</Text>
           <Button key="ignore" plain onPress={act.ignore}>
             <Text dimColor>{head0.ignore}</Text>
           </Button>
@@ -149,7 +147,7 @@ export function bandView(el: BandElements, v: BandValues, act: BandActions): Ren
       <Input
         key={`comment-${editing}`}
         placeholder={room >= 72 ? COMMENT_PLACEHOLDER : COMMENT_PLACEHOLDER_SHORT}
-        submitLabel="save"
+        submitLabel={SAVE_LABEL}
         autoFocus
         onSubmit={value => act.comment(editing, value)}
       />,

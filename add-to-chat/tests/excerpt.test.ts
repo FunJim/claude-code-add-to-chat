@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { circled, drawCitations, drawMarks, markOffset, stripMarks } from '../hooks/excerpt'
+import { drawCitations, drawMarks, markOffset, stripMarks } from '../hooks/excerpt'
+import { circled } from '../hooks/labels'
 
-// The reply and selections measured in docs/spikes.md §2.
+// The reply and selections measured in docs/claude-code-notes.md, "Matching Excerpts against markdown".
 const REPLY =
   'Run `npm test` before you **commit the change**, then read [the guide](https://example.com/guide) for details. Plain sentence for MARKTEST here.\n\nSecond paragraph with *italic words* and a `foo_bar()` call.\n\n- list item one\n- list item two with `code`'
 const PROMPT =

@@ -3,36 +3,39 @@
 // the selection and the state and acts on the answer.
 import type { Annotation, Candidate } from '../types'
 import { stripMarks } from './excerpt'
-import { bandLines } from './labels'
+import { BAND_BAR, bandLines, isClipLineHead } from './labels'
+import { oneLine } from './text'
 
-export type Selection = { text: string; requestId?: string }
+/** What `$.ui.selection()` gives; a Candidate is one kept to offer. */
+export type Selection = Candidate
 
 export function selectionKey(s: Selection): string {
   return `${s.requestId ?? ''}\u0000${s.text}`
 }
 
 /**
- * The Excerpt a selection holds: its text with marks and the `📎` line (this
- * mod's own, any head of it) gone; null when nothing is left.
+ * The Excerpt a selection holds: its text with marks and `📎` lines (this
+ * mod's own, any head of one) gone; null when nothing is left. Plain JSON,
+ * fit for state: no `requestId` key when it lies in no row.
  */
 export function excerptOf(s: Selection | undefined): Selection | null {
   if (s === undefined) return null
   const text = stripMarks(s.text)
     .split('\n')
-    .filter(line => !/^\s*📎( \d*( a(n(n(o(t(a(t(i(o(n(s)?)?)?)?)?)?)?)?)?)?)?)?\s*$/.test(line))
+    .filter(line => !isClipLineHead(line))
     .join('\n')
     .trim()
-  return text === '' ? null : { text, requestId: s.requestId }
+  if (text === '') return null
+  return s.requestId === undefined ? { text } : { text, requestId: s.requestId }
 }
 
 function flatten(text: string): string {
-  return text.replace(/▎/g, '').replace(/\s+/g, ' ').trim()
+  return oneLine(text.replaceAll(BAND_BAR, ''))
 }
 
 /** What the band and the prompt box hold while a selection is judged. */
 export type Surroundings = {
   draft: string
-  offer: Candidate | null
   pending: readonly Annotation[]
   /** `selectionKey` of the selection last added or ignored. */
   handled: string | null
@@ -43,13 +46,14 @@ export type Surroundings = {
  * itself rather than in the transcript: its text is the draft's or the
  * band's own.
  */
-export function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean {
+function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean {
   if (excerpt.requestId !== undefined) return false
   const text = flatten(excerpt.text)
   return flatten(around.draft).includes(text) || bandLines(around.pending).some(line => flatten(line).includes(text))
 }
 
-export type Verdict = { excerpt: Selection } | { reason: 'nothing' | 'already' }
+/** An Excerpt to offer, with the key that marks its selection handled; or why not. */
+export type Verdict = { excerpt: Selection; key: string } | { reason: 'nothing' | 'already' }
 
 /**
  * What to do with a selection: offer (and add) its Excerpt, or not —
@@ -59,7 +63,8 @@ export type Verdict = { excerpt: Selection } | { reason: 'nothing' | 'already' }
 export function judge(selection: Selection | undefined, around: Surroundings): Verdict {
   const excerpt = excerptOf(selection)
   if (selection === undefined || excerpt === null || isOutsideTranscript(excerpt, around)) return { reason: 'nothing' }
-  if (selectionKey(selection) === around.handled) return { reason: 'already' }
+  const key = selectionKey(selection)
+  if (key === around.handled) return { reason: 'already' }
   if (around.pending.some(a => a.text === excerpt.text && a.rowId === excerpt.requestId)) return { reason: 'already' }
-  return { excerpt }
+  return { excerpt, key }
 }
