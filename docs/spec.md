@@ -42,9 +42,16 @@ Claude Code mod，对标 Codex App 的 "Add to chat"：在 fullscreen TUI 里用
 
 ### 2. 收录（Add to chat）
 - `session.start` 时启动 `$.clock.every(250, …)` 轮询选区。热重载会再次触发 `session.start`，要防止重复启动或者先取消旧的。
-- 拿到非空选区，并且它的 `text + requestId` 和"最近一次已收录或已忽略"的不同时，band 显示 `[Add to chat] "<Excerpt 预览，截断>" [×]`。`[×]` 表示忽略这个选区。选区本身不会消失（见上表），没有这个按钮的话，按钮会一直挂到下一个 turn 结束。
+- fullscreen 终端里，band **始终有一行头行**：没有选区时显示暗色提示 `select text in the transcript to add it to chat · /add-to-chat`，选中后同一行变成 `[✚ Add to chat] "<Excerpt 预览>" ✕ ignore`；有待发送的 Annotation 时，计数 `📎 N annotations ▸` 和 `[ Send ]` 放在这一行右侧。这一行按宽度截断，从不折行，所以 band 的高度不会随选区变化。
+  - 原因（e2e 测出来的）：拖选还没松开时选区就已经能读到。如果 band 此时多出一行，transcript 停在底部时会被往上顶一行，按住的鼠标就落到下一行，选区随之跳行。插件拿不到"已松开"的信号，所以只能让高度不随选区变化。
+  - 评论框和展开的列表只在点击之后出现（那时拖选已经结束）。
+  - 非 fullscreen 时读不到选区，band 只在有待发送的 Annotation 时出现。
+- 拿到非空选区，并且它的 `text + requestId` 和"最近一次已收录或已忽略"的不同时，头行提供这个选区。`[×]` 表示忽略这个选区。选区本身不会消失（见上表），没有这个按钮的话，按钮会一直挂到下一个 turn 结束。
 - 选区回到 `undefined`，或者和已收录/已忽略的相同时，按钮消失。"最近一次已收录或已忽略"**跨提交保留**：从提交到 turn 结束这段时间里，选区还会返回刚收录的那段。**同一选区不能重复收录**，这是可以接受的。
-- Excerpt 存储前先去掉第 5、9 节的标记字符（`⁽⁾⁰-⁹`、`①-⑳`），因为它们会被一起选进来。
+- Excerpt 存储前先去掉第 5、9 节的标记字符（`⁽⁾⁰-⁹`、`①-⑳`、`㉑-㊿`、U+200B），以及紧凑行里的 `📎 N annotations` 行（包括它的任意前缀），因为它们会被一起选进来。band 预览显示的就是清理后的 Excerpt。
+- 以下情况不提供 Add 按钮，`/add-to-chat` 也会拒绝：
+  - 同一行、同样文字的 Excerpt 已经在待发送列表里；
+  - 选区没有 `requestId`，而且文字来自输入框草稿或 band 自己画的内容。
 - `/add-to-chat` 做的事和点按钮相同，作为键盘方式的入口。结果用 toast 告知，命令不输出文本（命令输出会进入模型上下文）。
 - 点击后**立即**创建 Annotation（Comment 为空），编号为当前待发送数 + 1。
 
@@ -60,12 +67,17 @@ Claude Code mod，对标 Codex App 的 "Add to chat"：在 fullscreen TUI 里用
 
 ### 5. 原文中的编号标记
 - `AssistantMessage` / `UserMessage` 的 render hook：如果该行 `requestId` 上有待发送的 Annotation，就在 `props.text`（markdown）里找 Excerpt，在**第一次出现**的位置后面插入 `⁽ⁿ⁾`。找不到时，在行首加 `ⁿ`（①②…）。
-- 匹配算法（依据见 `spikes.md` §2）：把 markdown 投影成渲染后的纯文本，同时保留每个字符到原文的偏移映射，再用空白不敏感的方式搜索 Excerpt。投影规则按行类型区分：`AssistantMessage` 去掉 `` ` `` `*` `~`、单词边界上的 `_`，`[text](url)` → `text`；`UserMessage` 只去掉 `` ` `` `*` `~`。插入点放在匹配结尾之后，并越过紧跟着的闭合标记（`` ` ``、`**`、`](url)`），这样不会插进行内代码或链接内部；如果落在代码块里，退回到行首。
+- 匹配算法（依据见 `spikes.md` §2、§7）：代码片段按 CommonMark 规则识别（开头和结尾是等长的反引号串，不跨段落；没有配对的反引号按普通字符处理）；`~~删除线~~` 在终端里带波浪号显示，所以不去掉 `~`；单词内部的 `_` 只在两边都是字母或数字时才算。把 markdown 投影成渲染后的纯文本，同时保留每个字符到原文的偏移映射，再用空白不敏感的方式搜索 Excerpt。投影规则按行类型区分：`AssistantMessage` 去掉 `` ` `` `*` `~`、单词边界上的 `_`，`[text](url)` → `text`；`UserMessage` 只去掉 `` ` `` `*` `~`。插入点放在匹配结尾之后，并越过紧跟着的闭合标记（`` ` ``、`**`、`](url)`），这样不会插进行内代码或链接内部；如果落在代码块里，退回到行首。
 - 标记用行内代码包起来（`` `⁽ⁿ⁾` ``），借终端给行内代码上的颜色实现"彩色"。
 - prompt 发出后，所有标记清除，编号从 1 重新开始。
 
 ### 6. 管理
-band 上的 chip 显示 `N annotation(s)`，点击展开列表，每行是 `① You: "…" — comment [×]`，`[×]` 删除该条。删除后剩余条目重新编号。不支持编辑。
+band 上的 chip 显示 `📎 N annotation(s) ▸ show`，点击展开列表，每行是 `① You  “…” — comment  ✕`，`✕` 删除该条。删除后剩余条目重新编号。不支持编辑。
+
+band 的样式：每行左侧是 Claude 橙色的 `▎`；次要操作（`✕ ignore`、`[ Send ]`、提示文字）靠右对齐；编号用 Claude 橙色加粗；Source 按来源上色（Claude 用 `claude`，You 用 `suggestion`，Transcript 用 `subtle`）；Excerpt 用斜体弯引号；Comment 用暗色。
+- 行数按 `maxRows` 分配：选区按钮、评论框、汇总行三行按优先级显示，最多 `maxRows` 行；展开的列表只在还有空余行时显示，过长时由引擎滚动。
+- `/clear`（`session.end` 的 reason 为 `clear`）清空待发送列表。
+- 热重载后，`session.start` 先清一次 `candidate`，让 band 用新代码重绘。
 
 ### 7. 发送：Annotation Template
 - `userConfig.templatePath`（可选字符串）指定模板文件，用 `$.fs.read` 读取；不配置时使用内置默认模板。
@@ -111,7 +123,7 @@ The user selected these excerpts from earlier in the conversation; their prompt 
 - 有 Annotation 且草稿为空时，band 显示 `[Send]`。点击后调用 `$.prompt.fill({ text: "(see annotations)" })`，用户再按 Enter，走正常的 composer 路径，第 7 节照常处理。
 
 ### 9. Citation
-`AssistantMessage` render hook 把回复里的 `:annotation{index="N"}` 替换成彩色的 `ⁿ`（①②…），原始指令不显示。Citation 标记**永久保留**，和第 5 节的清除无关。编号只在对应的那条 prompt 内有效。
+`AssistantMessage` render hook 把回复里的 `:annotation{index="N"}` 替换成彩色的 `ⁿ`（①…⑳㉑…㊿），原始指令不显示；代码里的指令保持原样。`turn.complete` 时调用 `$.ui.invalidate('ui.render')`，避免长回复停留在流式输出时画的样子。Citation 标记**永久保留**，和第 5 节的清除无关。编号只在对应的那条 prompt 内有效。
 
 ## 测试清单（`claude plugin test`）
 

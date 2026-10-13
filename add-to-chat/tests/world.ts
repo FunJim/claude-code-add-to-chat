@@ -15,6 +15,10 @@ export type World = {
   store: Record<string, unknown>
   /** The text each transcript row last reached the engine with, by requestId. */
   drawn: Record<string, string>
+  /** The props each row last reached the engine with, by requestId. */
+  drawnProps: Record<string, unknown>
+  /** Prompts the engine's end refuses, as another plugin would. */
+  dropWhen?: (text: string) => boolean
   clock: ReturnType<typeof mock.clock>
 }
 
@@ -50,6 +54,7 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     files: {},
     store: { ...store },
     drawn: {},
+    drawnProps: {},
     clock: mock.clock(on),
   }
   on('store.get', ($, e) => ({ value: w.store[e.key] }))
@@ -60,6 +65,7 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   on('ui.render', ($, e) => {
     const props = e.props as { text?: unknown }
     if (e.requestId !== undefined && typeof props.text === 'string') w.drawn[e.requestId] = props.text
+    if (e.requestId !== undefined) w.drawnProps[e.requestId] = e.props
     const { Box } = $.ui.resolve(e)
     return h(Box, {}) as RenderElement
   })
@@ -81,9 +87,11 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   // As in a session: a click leaves the keyboard with the prompt.
   on('ui.focus', () => ({ deny: 'that site does not hold the keyboard' }))
   on('prompt.submit', ($, e) => {
+    if (w.dropWhen?.(e.text)) return { drop: 'refused' }
     w.submitted.push({ text: e.text, context: e.context })
     return { text: e.text, context: e.context, origin: e.origin }
   })
@@ -91,9 +99,9 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   return w
 }
 
-/** Lets the selection poll run once. */
+/** Lets the selection poll run long enough for a selection to settle (a second). */
 export async function tick(w: World) {
-  await w.clock.advance(250)
+  for (let i = 0; i < 4; i += 1) await w.clock.advance(250)
 }
 
 export function submit($: Engine, text: string) {

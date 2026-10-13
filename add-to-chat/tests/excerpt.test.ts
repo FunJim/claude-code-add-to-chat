@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { drawCitations, drawMarks, markOffset, stripMarks } from '../hooks/excerpt'
+import { circled, drawCitations, drawMarks, markOffset, stripMarks } from '../hooks/excerpt'
 
 // The reply and selections measured in docs/spikes.md §2.
 const REPLY =
@@ -25,6 +25,16 @@ describe('matching an Excerpt in markdown', () => {
     })
   }
 
+  test('strikethrough is drawn with its tildes, so they match', () => {
+    const md = 'with __bold__, _italic_, ~~struck~~ and `snake_case_name`.'
+    expect(drawMarks(md, [{ index: 1, text: '~~struck~~' }], 'assistant')).toBe(
+      'with __bold__, _italic_, ~~struck~~`⁽¹⁾` and `snake_case_name`.',
+    )
+    expect(drawMarks(md, [{ index: 2, text: 'bold, italic' }], 'assistant')).toBe(
+      'with __bold__, _italic_`⁽²⁾`, ~~struck~~ and `snake_case_name`.',
+    )
+  })
+
   test('a prompt row keeps link syntax', () => {
     const excerpt = 'Run npm test before you commit the change, then read [the guide](https://example.com/guide) for details.'
     expect(markOffset(PROMPT, excerpt, 'user')).toBeDefined()
@@ -33,12 +43,22 @@ describe('matching an Excerpt in markdown', () => {
 
   test('the mark goes after closing delimiters, never inside them', () => {
     expect(drawMarks(REPLY, [{ index: 1, text: 'commit the change' }], 'assistant')).toContain('**commit the change**`⁽¹⁾`,')
-    expect(drawMarks(REPLY, [{ index: 2, text: 'npm test' }], 'assistant')).toContain('`npm test``⁽²⁾`')
+    expect(drawMarks(REPLY, [{ index: 2, text: 'npm test' }], 'assistant')).toContain('`npm test⁽²⁾`')
     expect(drawMarks(REPLY, [{ index: 3, text: 'the guide' }], 'assistant')).toContain('(https://example.com/guide)`⁽³⁾` for')
   })
 
   test('a match ending mid code span gets a bare mark inside the span', () => {
     expect(drawMarks(REPLY, [{ index: 1, text: 'Run npm' }], 'assistant')).toStartWith('Run `npm⁽¹⁾ test`')
+  })
+
+  test('a match ending a code span marks inside it, never fusing backticks', () => {
+    expect(drawMarks('Prefer `const` over `let` when', [{ index: 1, text: 'Prefer const over let' }], 'assistant')).toBe(
+      'Prefer `const` over `let⁽¹⁾` when',
+    )
+  })
+
+  test('a mark right before a code span keeps its own backticks apart', () => {
+    expect(drawMarks('foo`bar`', [{ index: 1, text: 'foo' }], 'assistant')).toBe('foo`⁽¹⁾`\u200b`bar`')
   })
 
   test('an opening delimiter after the match stays put', () => {
@@ -74,8 +94,32 @@ describe('matching an Excerpt in markdown', () => {
     expect(markOffset(marked, 'commit the change, then read', 'assistant')).toBeDefined()
   })
 
+  test('circled numbers run to fifty', () => {
+    expect([1, 20, 21, 35, 36, 50, 51].map(circled)).toEqual(['①', '⑳', '㉑', '㉟', '㊱', '㊿', '(51)'])
+    expect(stripMarks('a㉕b㊿c')).toBe('abc')
+  })
+
   test('stripMarks removes superscript and circled marks', () => {
-    expect(stripMarks('a⁽¹²⁾ b ③')).toBe('a b ')
+    expect(stripMarks('a⁽¹²⁾ b ③\u200b')).toBe('a b ')
+  })
+})
+
+describe('code spans as CommonMark reads them', () => {
+  test('an unmatched run of backticks is literal and swallows nothing', () => {
+    const md = 'the body of `greet` in the ```py block.\n:annotation{index="15"} Final line with `code`.'
+    expect(drawCitations(md)).toBe('the body of `greet` in the ```py block.\n`⑮` Final line with `code`.')
+  })
+
+  test('a span closes only on a run of the same length', () => {
+    expect(drawCitations('``a ` b`` :annotation{index="1"}')).toBe('``a ` b`` `①`')
+  })
+
+  test('a span does not cross a paragraph break', () => {
+    expect(drawCitations('open ` here\n\n:annotation{index="2"} and ` there')).toBe('open ` here\n\n`②` and ` there')
+  })
+
+  test('literal backticks still match an Excerpt that shows them', () => {
+    expect(markOffset('Use ```py fences for code.', 'Use ```py fences', 'assistant')).toBeDefined()
   })
 })
 
