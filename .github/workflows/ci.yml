@@ -15,8 +15,8 @@ jobs:
       # The mod API is early access: pin the build the tests were written against.
       CLAUDE_CODE_VERSION: 2.1.296
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
