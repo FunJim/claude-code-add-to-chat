@@ -1,0 +1,39 @@
+name: Bug report
+description: Something add-to-chat does wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you selected (which kind of row), what you clicked or typed.
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Code version
+      description: "`claude --version`"
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal and OS
+      description: e.g. iTerm2 3.6 on macOS 26, inside tmux
+  - type: dropdown
+    id: fullscreen
+    attributes:
+      label: Fullscreen mode (CLAUDE_CODE_NO_FLICKER=1)?
+      options: ["Yes", "No", "Not sure"]
+  - type: textarea
+    id: template
+    attributes:
+      label: Custom Annotation Template, if any
+      render: text

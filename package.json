@@ -3,7 +3,14 @@
   "private": true,
   "type": "module",
   "description": "add-to-chat: a Claude Code mod, its unit tests and its end-to-end showcase",
-  "engines": { "node": ">=23.6" },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FunJim/claude-code-add-to-chat.git"
+  },
+  "engines": {
+    "node": ">=23.6"
+  },
   "scripts": {
     "test": "claude plugin test add-to-chat",
     "validate": "claude plugin validate . && claude plugin validate add-to-chat",
