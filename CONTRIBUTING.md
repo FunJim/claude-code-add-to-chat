@@ -40,7 +40,7 @@ add-to-chat/                  the mod (what gets installed)
   .claude-plugin/plugin.json  manifest, userConfig, types
   hooks/register.tsx          engine glue: every hook and every `$` call
   hooks/*.ts(x)               pure modules: selection, annotations, rows, send,
-                              band (view), excerpt (markdown matching, marks,
+                              pane (the view), excerpt (markdown matching, marks,
                               Citations), template, text (terminal cells), labels, hash
   types/index.d.ts            the PluginState contract
   tests/                      unit tests; world.ts stands in for the engine

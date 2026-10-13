@@ -167,9 +167,14 @@ export class HerdrHost implements Host {
     return new HerdrPane(this, paneId)
   }
 
-  /** Ends what runs in a pane (twice ctrl+c quits Claude Code) and waits for its shell. */
+  /**
+   * Ends what runs in a pane and waits for its shell: Esc gives the keyboard
+   * back to the prompt (a mod's pane may hold it), then twice ctrl+c quits.
+   */
   async release(paneId: string) {
     for (let attempt = 0; attempt < 4 && !(await this.isShellIdle(paneId)); attempt += 1) {
+      await this.herdr('pane', 'send-keys', paneId, 'esc')
+      await sleep(150)
       await this.herdr('pane', 'send-keys', paneId, 'ctrl+c')
       await sleep(250)
       await this.herdr('pane', 'send-keys', paneId, 'ctrl+c')

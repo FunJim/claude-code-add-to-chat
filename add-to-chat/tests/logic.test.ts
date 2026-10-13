@@ -2,7 +2,8 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { Annotation } from '../types'
-import { appended, commentingAfterRemoving, marksFor, withComment, without } from '../hooks/annotations'
+import { appended, marksFor, withComment, without } from '../hooks/annotations'
+import { shownTab, tabAfterRemoving } from '../hooks/pane'
 import { promptText, replyText } from '../hooks/rows'
 import { excerptOf, judge, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
@@ -28,9 +29,10 @@ describe('judging a selection', () => {
     expect(judge({ text: 'one', requestId: 'r1' }, { ...QUIET, pending: A })).toEqual({ reason: 'already' })
     expect(judge({ text: 'one', requestId: 'r2' }, { ...QUIET, pending: A })).toHaveProperty('excerpt')
   })
-  test("the draft's and the band's own words", () => {
+  test("the draft's and the pane's own words", () => {
     expect(judge({ text: 'my draft' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '② You “two” — hm' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '② You ✕ from your' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
+    expect(judge({ text: 'Comment: hm' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toHaveProperty('excerpt')
   })
   test('rowSource: replies, typed prompts, tool rows, and Claude Code\'s own', () => {
@@ -56,9 +58,11 @@ describe('editing the list', () => {
     expect(withComment(A, 1, '  why? ')[0]!.comment).toBe('why?')
     expect(withComment(A, 2, '   ')[1]!.comment).toBeUndefined()
   })
-  test('without renumbers, and the open Comment field follows', () => {
+  test('without renumbers', () => {
     expect(without(A, 1).map(a => [a.index, a.text])).toEqual([[1, 'two'], [2, 'three']])
-    expect([commentingAfterRemoving(3, 1), commentingAfterRemoving(1, 1), commentingAfterRemoving(1, 2), commentingAfterRemoving(null, 1)]).toEqual([2, null, 1, null])
+  })
+  test('the open tab follows a removal', () => {
+    expect([tabAfterRemoving(3, 1), tabAfterRemoving(1, 1), tabAfterRemoving(1, 2), shownTab(3, 2), shownTab(0, 2)]).toEqual([2, 1, 1, 2, 1])
   })
   test('marksFor picks the row', () => {
     expect(marksFor(A, 'u1').map(a => a.index)).toEqual([2])

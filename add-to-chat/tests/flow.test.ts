@@ -2,59 +2,184 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
-import { XML_TEMPLATE, addText, drawRow, mountBand, runCommand, start, submit, tick } from './world'
+import { XML_TEMPLATE, addText, drawBand, drawRow, mountPane, runCommand, start, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-/** Writes a Comment through the band's field. */
-async function commentThroughBand($: Engine, index: number, text: string) {
-  const ui = await mountBand($)
-  await ui.input({ key: `comment-${index}`, text })
-  await ui.unmount()
-}
+type Mounted = Awaited<ReturnType<typeof mountPane<'terminal'>>>
 
 /** Sends a prompt and resolves the annotations JSON the model was given. */
-async function submitted($: Engine, w: Awaited<ReturnType<typeof start>>): Promise<{ text: string; source: { role: string } }[]> {
+async function submitted($: Engine, w: Awaited<ReturnType<typeof start>>): Promise<{ text: string; source: { role: string }; annotation?: string }[]> {
   await submit($, 'q')
   return JSON.parse(w.submitted.at(-1)!.text.split('<response-annotations>\n')[1]!.split('\n</response-annotations>')[0]!)
 }
 
-/** The shown text of the band's list row for one Annotation. */
-async function listRow(ui: { find: (q: { key: string }) => Promise<{ text: string } | undefined> }, index: number) {
-  return (await ui.find({ key: `row-${index}` }))?.text ?? ''
+/** Everything a mounted pane shows, with tab `index` open (the current one if omitted). */
+async function shown(pane: Mounted, index?: number): Promise<string> {
+  if (index !== undefined) await pane.press({ key: `show-${index}` })
+  const buttons = (await pane.findAll({ type: 'Button' })).map(b => b.text).join(' ')
+  const text = (await pane.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+  return `${buttons}\n${text}`
 }
+
+/** Everything the pane shows, mounted for the look. */
+async function paneText($: Engine, index?: number): Promise<string> {
+  const pane = await mountPane($)
+  const text = await shown(pane, index)
+  await pane.unmount()
+  return text
+}
+
+/** How many tabs a mounted pane has: the pending Annotations. */
+async function tabsOf(pane: Mounted): Promise<number> {
+  return (await pane.findAll({ type: 'Button' })).filter(b => b.key?.startsWith('show-')).length
+}
+
+/** How many tabs the pane has, mounted for the count. */
+async function tabCount($: Engine): Promise<number> {
+  const pane = await mountPane($)
+  const tabs = await tabsOf(pane)
+  await pane.unmount()
+  return tabs
+}
+
+/** Writes a Comment in the pane's field for Annotation `index`. */
+async function commentInPane($: Engine, index: number, text: string) {
+  const pane = await mountPane($)
+  await pane.press({ key: `show-${index}` })
+  await pane.input({ key: `comment-${index}`, text })
+  await pane.unmount()
+}
+
 const REPLY = 'Run `npm test` before you **commit the change**.'
 
-describe('adding a selection', () => {
+describe('the pane', () => {
   for (const surface of SURFACES) {
-    test(`Add to chat makes an Annotation with its Source (${surface})`, async ($, on) => {
+    test(`a hint, then the offer, then Add to chat makes a tab (${surface})`, async ($, on) => {
       const w = await start($, on)
       await drawRow($, w, 'AssistantMessage', 'r1', REPLY)
-      const ui = await mountBand($, surface)
-      expect(await ui.find({ key: 'add' })).toBeUndefined()
+      const pane = await mountPane($, surface)
+      expect(await pane.find({ key: 'add' })).toBeUndefined()
+      expect(await pane.find({ type: 'Text', text: /Select text in the transcript/ })).toBeDefined()
 
       w.selection = { text: 'npm test before you commit', requestId: 'r1' }
       await tick(w)
-      expect((await ui.find({ type: 'Text', text: /npm test before you commit/ }))).toBeDefined()
+      expect(await pane.find({ type: 'Text', text: /npm test before you commit/ })).toBeDefined()
 
-      await ui.press({ key: 'add' })
-      expect(await ui.find({ key: 'add' })).toBeUndefined()
-      expect(await ui.find({ key: 'comment-1' })).toBeDefined()
+      await pane.press({ key: 'add' })
+      expect(await pane.find({ key: 'add' })).toBeUndefined()
+      expect(await pane.find({ key: 'show-1' })).toBeDefined()
+      const text = (await pane.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+      expect(text).toContain('“npm test before you commit”')
+      expect(text).toContain("from Claude's reply")
+      expect(w.status.at(-1)).toBe('📎 1 annotation')
 
-      await ui.input({ key: 'comment-1', text: 'is this needed?' })
-      expect(await ui.find({ key: 'comment-1' })).toBeUndefined()
-      expect((await ui.find({ key: 'list' }))?.text).toContain('1 annotation')
-
-      await ui.press({ key: 'list' })
-      expect(await listRow(ui, 1)).toMatch(/① Claude\s+“npm test before you commit” — is this needed\?/)
+      await pane.input({ key: 'comment-1', text: 'is this needed?' })
+      expect((await submitted($, w))[0]!.annotation).toBe('is this needed?')
+      expect(w.status.at(-1)).toBeUndefined()
 
       // The same selection keeps being returned; it is not offered again.
       await tick(w)
-      expect(await ui.find({ key: 'add' })).toBeUndefined()
-      await ui.unmount()
+      expect(await pane.find({ key: 'add' })).toBeUndefined()
+      await pane.unmount()
     })
   }
 
+  test('the offer keeps to one row, cut to the pane\'s width', async ($, on) => {
+    const w = await start($, on)
+    w.selection = { text: 'a phrase long enough to need far more room than a narrow pane has to give it', requestId: 'r1' }
+    await tick(w)
+    const pane = await mountPane($, 'terminal', 36)
+    const offer = (await pane.find({ key: 'offer' }))?.text ?? ''
+    expect(offer).toContain('…”')
+    expect(offer).toContain('✕')
+    expect(offer).not.toContain('ignore')
+  })
+
+  test('one tab per Annotation, the last added open; closing a tab removes it and renumbers the rest', async ($, on) => {
+    const w = await start($, on)
+    await drawRow($, w, 'UserMessage', 'u1', 'my earlier idea about caching')
+    await addText($, w, 'a long excerpt that the pane shows whole, every word of it, never cut', 'r1')
+    await addText($, w, 'earlier idea', 'u1')
+    await addText($, w, 'third', 'r1')
+    const pane = await mountPane($)
+    expect(await shown(pane)).toContain('“third”')
+    const first = await shown(pane, 1)
+    expect(first).toContain('every word of it, never cut”')
+    expect(first).toContain('① Transcript')
+    expect(await shown(pane, 2)).toContain('from your prompt')
+    await pane.press({ key: 'close-1' })
+    expect(await shown(pane, 1)).toContain('“earlier idea”')
+    expect(await shown(pane, 2)).toContain('“third”')
+    expect(await pane.find({ key: 'show-3' })).toBeUndefined()
+    expect(w.status.at(-1)).toBe('📎 2 annotations')
+  })
+
+  test('the pane stays open with nothing pending, and says so', async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'one', 'r1')
+    const pane = await mountPane($)
+    await pane.press({ key: 'close-1' })
+    expect(await shown(pane)).toContain('Nothing added yet.')
+    expect(w.status.at(-1)).toBeUndefined()
+  })
+
+  test('the band\'s first fullscreen drawing opens the pane; the main screen does not', async ($, on) => {
+    const w = await start($, on)
+    await drawBand($, false)
+    expect(w.panes.has('add-to-chat')).toBe(false)
+    await drawBand($)
+    expect(w.panes.has('add-to-chat')).toBe(true)
+    // The band itself is Claude Code's: add-to-chat draws nothing there.
+    expect(w.drawnProps.band).toBeDefined()
+  })
+
+  test('/add-to-chat opens the pane, and adds the selection when there is one', async ($, on) => {
+    const w = await start($, on)
+    await runCommand($, w)
+    expect(w.panes.has('add-to-chat')).toBe(true)
+    expect(w.toasts).toEqual([])
+    await addText($, w, 'npm test', 'r1')
+    expect(w.toasts.at(-1)).toMatch(/Added ①/)
+  })
+
+  test('/add-to-chat outside fullscreen says fullscreen is needed and opens nothing', async ($, on) => {
+    const w = await start($, on)
+    w.isFullscreen = false
+    const ran = await runCommand($, w)
+    expect(ran.text).toBeUndefined()
+    expect(w.toasts.at(-1)).toMatch(/fullscreen/)
+    expect(w.panes.has('add-to-chat')).toBe(false)
+  })
+
+  for (const surface of SURFACES) {
+    test(`with an empty draft, Send fills the prompt (${surface})`, async ($, on) => {
+      const w = await start($, on)
+      await addText($, w, 'npm test', 'r1')
+      await tick(w)
+      const pane = await mountPane($, surface)
+      await pane.press({ key: 'send' })
+      expect(w.fills).toEqual(['(see annotations)'])
+      await tick(w)
+      expect(await pane.find({ key: 'send' })).toBeUndefined()
+    })
+  }
+
+  test('ignoring a selection takes the offer away until another selection', async ($, on) => {
+    const w = await start($, on)
+    const pane = await mountPane($)
+    w.selection = { text: 'not this', requestId: 'r1' }
+    await tick(w)
+    await pane.press({ key: 'ignore' })
+    await tick(w)
+    expect(await pane.find({ key: 'add' })).toBeUndefined()
+    w.selection = { text: 'this one', requestId: 'r1' }
+    await tick(w)
+    expect(await pane.find({ key: 'add' })).toBeDefined()
+  })
+})
+
+describe('adding a selection', () => {
   test('a prompt row is Source user, a tool row tool, a notification system; outside any row, transcript', async ($, on) => {
     const w = await start($, on)
     await drawRow($, w, 'UserMessage', 'u1', 'my earlier idea about caching')
@@ -67,58 +192,35 @@ describe('adding a selection', () => {
     expect((await submitted($, w)).map(a => a.source.role)).toEqual(['user', 'tool', 'system', 'transcript'])
   })
 
-  test('the Comment field stays open after /add-to-chat clears the prompt', async ($, on) => {
-    const w = await start($, on)
-    w.draft = '/add-to-chat'
-    await tick(w)
-    w.selection = { text: 'npm test', requestId: 'r1' }
-    w.draft = ''
-    await runCommand($, w)
-    await tick(w)
-    await tick(w)
-    const ui = await mountBand($)
-    expect(await ui.find({ key: 'comment-1' })).toBeDefined()
-
-    // Typing in the prompt means the person left the field.
-    w.draft = 'now my question'
-    await tick(w)
-    expect(await ui.find({ key: 'comment-1' })).toBeUndefined()
-  })
-
   test('an Excerpt already pending is not offered or added again', async ($, on) => {
     const w = await start($, on)
     await addText($, w, 'npm test', 'r1')
     await addText($, w, 'something else', 'r1')
     w.selection = { text: 'npm test', requestId: 'r1' }
     await tick(w)
-    const ui = await mountBand($)
-    expect(await ui.find({ key: 'add' })).toBeUndefined()
+    const pane = await mountPane($)
+    expect(await pane.find({ key: 'add' })).toBeUndefined()
     await runCommand($, w)
     expect(w.toasts.at(-1)).toMatch(/already added/)
-    expect((await ui.find({ key: 'list' }))?.text).toContain('2 annotations')
+    expect(await tabsOf(pane)).toBe(2)
     // The same words in another row are another Excerpt.
     w.selection = { text: 'npm test', requestId: 'r2' }
     await tick(w)
-    expect(await ui.find({ key: 'add' })).toBeDefined()
+    expect(await pane.find({ key: 'add' })).toBeDefined()
   })
 
   describe('selections that are not transcript text are not offered', () => {
     test('the 📎 line under a rewritten prompt', async ($, on) => {
       const w = await start($, on)
-      w.selection = { text: '📎 2 annotations', requestId: 'u1' }
-      await tick(w)
-      await runCommand($, w)
-      expect(w.toasts.at(-1)).toMatch(/Select text/)
+      await addText($, w, '📎 2 annotations', 'u1')
       await addText($, w, '📎 2 annot', 'u1')
-      expect(w.toasts.at(-1)).toMatch(/Select text/)
+      expect(await tabCount($)).toBe(0)
       w.selection = { text: 'my question\n  📎', requestId: 'u1' }
       await tick(w)
-      const band = await mountBand($)
-      expect(await band.find({ type: 'Text', text: '“my question”' })).toBeDefined()
+      const pane = await mountPane($)
+      expect(await pane.find({ type: 'Text', text: '“my question”' })).toBeDefined()
       await runCommand($, w)
-      const ui = await mountBand($)
-      await ui.press({ key: 'list' })
-      expect(await listRow(ui, 1)).toMatch(/“my question”/)
+      expect(await shown(pane)).toContain('“my question”')
     })
 
     test('the draft in the prompt box', async ($, on) => {
@@ -126,83 +228,33 @@ describe('adding a selection', () => {
       w.draft = 'DRAFT-TEXT here in the prompt box'
       w.selection = { text: 'DRAFT-TEXT here' }
       await tick(w)
-      const ui = await mountBand($)
-      expect(await ui.find({ key: 'add' })).toBeUndefined()
+      const pane = await mountPane($)
+      expect(await pane.find({ key: 'add' })).toBeUndefined()
       await runCommand($, w)
-      expect(w.toasts.at(-1)).toMatch(/Select text/)
+      expect(await tabsOf(pane)).toBe(0)
     })
 
-    test("the band's own words", async ($, on) => {
+    test("the pane's own words", async ($, on) => {
       const w = await start($, on)
       await addText($, w, 'npm test', 'r1')
-      for (const text of ['Add an optional comment', '📎 1 annotation ▸', '① Transcript   “npm test”', 'nothing to add?', 'select text in the transcript']) {
-        w.selection = { text }
-        await tick(w)
-        await runCommand($, w)
-        expect(w.toasts.at(-1)).toMatch(/Select text/)
+      await commentInPane($, 1, 'why?')
+      for (const text of ['Select text in the transcript', '① Transcript ✕', 'from the transcript', '“npm test”', 'Comment: why?', 'Nothing to type?', 'They go with your next prompt']) {
+        await addText($, w, text)
       }
+      expect(await tabCount($)).toBe(1)
     })
 
-    test('a selection spanning rows that is not band text is still offered, and stays offered', async ($, on) => {
+    test('a selection spanning rows that is not pane text is still offered, and stays offered', async ($, on) => {
       const w = await start($, on)
       w.draft = 'unrelated draft'
       w.selection = { text: 'end of one reply\n\nstart of the next' }
       await tick(w)
-      const ui = await mountBand($)
-      expect(await ui.find({ key: 'add' })).toBeDefined()
-      // Its preview in the band is not band text that hides it again.
+      const pane = await mountPane($)
+      expect(await pane.find({ key: 'add' })).toBeDefined()
+      // Its preview in the pane is not pane text that hides it again.
       await tick(w)
-      expect(await ui.find({ key: 'add' })).toBeDefined()
+      expect(await pane.find({ key: 'add' })).toBeDefined()
     })
-  })
-
-  test('a narrow band shrinks its words before the preview', async ($, on) => {
-    const w = await start($, on)
-    await addText($, w, 'first', 'r1')
-    w.selection = { text: 'a phrase long enough to need some room', requestId: 'r1' }
-    await tick(w)
-    const ui = await mountBand($, 'terminal', { props: { bodyColumns: 78 } })
-    const head = (await ui.find({ key: 'head' }))?.text ?? ''
-    // "nothing to add?" goes first; the preview keeps a dozen cells.
-    expect(head).toMatch(/“a phrase long en…”/)
-    expect(head).toContain('📎 1 annotation ▸')
-    expect(head).not.toContain('nothing to add?')
-  })
-
-  describe('in the fullscreen terminal the head row is always there, one row high', () => {
-    const FULL = { viewport: { columns: 102, rows: 40, isFullscreen: true } }
-    for (const surface of SURFACES) {
-      test(`hint, then the offer, then the count, in the same row (${surface})`, async ($, on) => {
-        const w = await start($, on)
-        const ui = await mountBand($, surface, FULL)
-        const rows = async () => (await ui.findAll({ type: 'Box' })).filter(b => b.key === 'head' || b.key === 'comment' || b.key?.startsWith('row-')).length
-        expect(await ui.find({ type: 'Text', text: /select text in the transcript/ })).toBeDefined()
-        expect(await rows()).toBe(1)
-        w.selection = { text: 'Ran the subagent', requestId: 'r1' }
-        await tick(w)
-        expect(await ui.find({ key: 'add' })).toBeDefined()
-        expect(await rows()).toBe(1)
-        await ui.press({ key: 'add' })
-        await ui.input({ key: 'comment-1', text: '' })
-        w.selection = { text: 'something else', requestId: 'r1' }
-        await tick(w)
-        expect((await ui.find({ key: 'head' }))?.text).toMatch(/✚ Add to chat“something else”.*📎 1 annotation ▸/)
-        expect(await rows()).toBe(1)
-      })
-    }
-  })
-
-  test('ignoring a selection hides the button until another selection', async ($, on) => {
-    const w = await start($, on)
-    const ui = await mountBand($)
-    w.selection = { text: 'not this', requestId: 'r1' }
-    await tick(w)
-    await ui.press({ key: 'ignore' })
-    await tick(w)
-    expect(await ui.find({ key: 'add' })).toBeUndefined()
-    w.selection = { text: 'this one', requestId: 'r1' }
-    await tick(w)
-    expect(await ui.find({ key: 'add' })).toBeDefined()
   })
 
   test('/clear drops pending Annotations', async ($, on) => {
@@ -211,47 +263,6 @@ describe('adding a selection', () => {
     await $.session.end({ reason: 'clear', sessionId: 's1' } as never)
     await submit($, 'fresh start')
     expect(w.submitted[0]).toEqual({ text: 'fresh start', context: undefined })
-  })
-
-  test('a band with one row shows the most needed one, never the list', async ($, on) => {
-    const w = await start($, on)
-    await addText($, w, 'npm test', 'r1')
-    const ui = await mountBand($, 'terminal', { props: { maxRows: 1 } })
-    // The Comment field while it is open…
-    expect(await ui.find({ key: 'comment-1' })).toBeDefined()
-    expect(await ui.find({ key: 'head' })).toBeUndefined()
-    // …then the head row; the list never fits.
-    await ui.input({ key: 'comment-1', text: 'ok' })
-    await ui.press({ key: 'list' })
-    expect(await ui.find({ key: 'head' })).toBeDefined()
-    expect(await ui.find({ key: 'row-1' })).toBeUndefined()
-  })
-
-  test('removing renumbers the rest', async ($, on) => {
-    const w = await start($, on)
-    for (const text of ['first', 'second', 'third']) {
-      await addText($, w, text, 'r1')
-    }
-    const ui = await mountBand($)
-    await ui.press({ key: 'list' })
-    await ui.press({ key: 'remove-1' })
-    expect((await ui.find({ key: 'list' }))?.text).toContain('2 annotations')
-    expect(await listRow(ui, 1)).toMatch(/① Transcript\s+“second”/)
-    expect(await listRow(ui, 2)).toMatch(/② Transcript\s+“third”/)
-  })
-
-  test('/add-to-chat with no selection outside fullscreen says fullscreen is needed', async ($, on) => {
-    const w = await start($, on)
-    w.isFullscreen = false
-    const ran = await runCommand($, w)
-    expect(ran.text).toBeUndefined()
-    expect(w.toasts.at(-1)).toMatch(/fullscreen/)
-  })
-
-  test('/add-to-chat in fullscreen with nothing selected asks for a selection', async ($, on) => {
-    const w = await start($, on)
-    await runCommand($, w)
-    expect(w.toasts.at(-1)).toMatch(/Select text/)
   })
 })
 
@@ -388,14 +399,13 @@ describe('sending', () => {
     await addText($, w, 'npm test', 'r1')
     const dropped = await submit($, 'DROP me')
     expect(dropped).toEqual({ drop: 'refused' })
-    const ui = await mountBand($)
-    expect((await ui.find({ key: 'list' }))?.text).toContain('1 annotation')
+    expect(await tabCount($)).toBe(1)
   })
 
   test('text that looks like template tags is sent as written', async ($, on) => {
     const w = await start($, on)
     await addText($, w, 'use {{request}} and {{#annotations}}x{{/annotations}}', 'r1')
-    await commentThroughBand($, 1, 'a "quoted" comment\twith <tags> & {{count}}')
+    await commentInPane($, 1, 'a "quoted" comment\twith <tags> & {{count}}')
     await submit($, 'why?')
     const json = JSON.parse(w.submitted[0]!.text.split('<response-annotations>\n')[1]!.split('\n</response-annotations>')[0]!)
     expect(json[0]).toEqual({
@@ -410,22 +420,8 @@ describe('sending', () => {
     for (let i = 1; i <= 52; i += 1) {
       await addText($, w, `excerpt ${i}`, 'r1')
     }
-    const ui = await mountBand($, 'terminal', { props: { maxRows: 60 } })
-    await ui.press({ key: 'list' })
-    expect(await listRow(ui, 50)).toContain('㊿')
-    expect(await listRow(ui, 52)).toContain('(52)')
+    expect(await paneText($, 50)).toContain('㊿ Transcript')
+    expect(await paneText($, 52)).toContain('(52) Transcript')
   })
 
-  for (const surface of SURFACES) {
-    test(`with an empty draft, Send fills the prompt (${surface})`, async ($, on) => {
-      const w = await start($, on)
-      await addText($, w, 'npm test', 'r1')
-      await tick(w)
-      const ui = await mountBand($, surface)
-      await ui.press({ key: 'send' })
-      expect(w.fills).toEqual(['(see annotations)'])
-      await tick(w)
-      expect(await ui.find({ key: 'send' })).toBeUndefined()
-    })
-  }
 })

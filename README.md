@@ -8,10 +8,18 @@
 Codex's "Add to chat", for Claude Code. In the fullscreen terminal, select any text in the transcript (a line of Claude's reply, one of your own earlier prompts, a tool's output), add an optional comment, and it goes with your next prompt as a numbered annotation. Claude answers each one and cites it as ①②… in its reply.
 
 ```
-⏺ The quick brown fox⁽¹⁾ jumps over the lazy dog, and Paris is the capital of France.
-
-▎ [ ✚ Add to chat ] “capital of France” ✕ ignore            📎 1 annotation ▸ sent with your next prompt ↵
-────────────────────────────────────────────────────────────────────────────────────────────────────────
+⏺ The quick brown fox⁽¹⁾ jumps over the   │                                          ✕
+  lazy dog.                                │[ ✚ Add to chat ] “capital of France” ✕ ignore
+                                           │────────────────────────────────────────────
+  Paris is the capital of France.          │1: ① Claude ✕
+                                           │
+                                           │① Claude from Claude's reply
+                                           │“quick brown fox”
+                                           │
+                                           │Comment: which animal is this?
+                                           │────────────────────────────────────────────
+                                           │They go with your next prompt ↵
+───────────────────────────────────────────────────────────────────────────────────────────
 ❯ for each annotation, answer its comment or say what it refers to
 ```
 
@@ -43,16 +51,16 @@ Answer `y` to add the marketplace, then pick a scope. Start Claude Code with `CL
 
 ## Use
 
-A one-row band sits above the prompt: `▎ select text in the transcript to add it to chat`.
+A pane sits beside the transcript, open from the start (in a terminal under 144 columns, run `/add-to-chat` once to open it; under 110 it sits above the prompt instead). Its first row says `Select text in the transcript to add it.`
 
-1. **Select** text in the transcript with the mouse. The band's row becomes `[ ✚ Add to chat ] "…" ✕ ignore`. Click the button, or run `/add-to-chat`.
-2. **Comment** (optional): click the `Add an optional comment…` field that opens, type, press Enter. Or just go on.
-3. Repeat. Each annotated text gets a mark like `⁽¹⁾` in the transcript; `📎 N annotations ▸` at the right of the band opens the list, where `✕` removes one.
+1. **Select** text in the transcript with the mouse. The pane's first row becomes `[ ✚ Add to chat ] "…" ✕ ignore`. Click the button, or run `/add-to-chat`.
+2. The annotation gets a **tab** (`1: ① Claude ✕   2: ② You ✕`). The open tab shows the whole excerpt, where it came from, and a **Comment** field: click it, type, press Enter. Or leave it empty.
+3. Repeat. Each annotated text gets a mark like `⁽¹⁾` in the transcript. Close a tab with its `✕` to remove that annotation. The status line shows `📎 N annotations`.
 4. **Send** your prompt as usual. Your message shows as what you typed plus `📎 N annotations`; ctrl+o shows what the model received. With nothing to type, `[ Send ]` puts `(see annotations)` in the prompt for you to send.
 
 Claude's reply cites what it answers: `:annotation{index="1"}` in its text is drawn as ①.
 
-The band stays one row high whatever you select. A band that grew when text got selected would push the transcript up under a mouse still dragging, and the selection would jump a line.
+The pane opens before you select anything and its first row never grows, so nothing moves under a mouse still dragging. Closed with its `✕`, it stays closed until you run `/add-to-chat`.
 
 ## The Annotation Template
 

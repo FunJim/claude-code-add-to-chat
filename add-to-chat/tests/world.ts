@@ -15,6 +15,10 @@ export type World = {
   store: Record<string, unknown>
   /** The props each row last reached the engine with, by requestId. */
   drawnProps: Record<string, unknown>
+  /** Each status line the plugin set, undefined when it cleared it. */
+  status: (string | undefined)[]
+  /** The ids of the panes open. */
+  panes: Set<string>
   /** Prompts the engine's end refuses, as another plugin would. */
   dropWhen?: (text: string) => boolean
   clock: ReturnType<typeof mock.clock>
@@ -52,6 +56,8 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     files: {},
     store: { ...store },
     drawnProps: {},
+    panes: new Set(),
+    status: [],
     clock: mock.clock(on),
   }
   on('store.get', ($, e) => ({ value: w.store[e.key] }))
@@ -65,7 +71,20 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     return h(Box, {}) as RenderElement
   })
   on('ui.selection', () => ({ value: w.selection }))
+  on('ui.open', ($, e) => {
+    w.panes.add(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('ui.close', ($, e) => {
+    w.panes.delete(e.id)
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({ value: [...w.panes].map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })) }))
   on('prompt.read', () => ({ value: { text: w.draft, cursor: w.draft.length } }))
+  on('ui.status', ($, e) => {
+    w.status.push(e.text)
+    return { value: undefined }
+  })
   on('ui.toast', ($, e) => {
     w.toasts.push(e.text)
     return { value: undefined }
@@ -94,15 +113,15 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   return w
 }
 
-type BandMount = {
-  props?: { maxRows?: number; bodyColumns?: number }
-  viewport?: { columns: number; rows: number; isFullscreen: boolean }
+/** Draws the band above the prompt, where add-to-chat draws nothing but opens its pane. */
+export function drawBand($: Engine, isFullscreen = true) {
+  return $.ui.render({ component: 'AbovePrompt', requestId: 'band', surface: 'terminal', viewport: { columns: 120, rows: 40, isFullscreen }, props: BAND.props } as never)
 }
 
-/** Mounts the band where the engine draws it, above the prompt. */
-export function mountBand<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, extra: BandMount = {}) {
-  const props = { ...BAND.props, ...extra.props }
-  return $.ui.mount({ plugin: 'add-to-chat', surface, component: BAND.component, props, ...(extra.viewport && { viewport: extra.viewport }) })
+/** Mounts the add-to-chat pane, docked beside a fullscreen transcript. */
+export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, columns = 60) {
+  const props = { title: 'Add to chat', isFocused: false, bodyColumns: columns, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 30 }, view: {} }
+  return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'Pane', requestId: 'add-to-chat', props, viewport: { columns: 160, rows: 40, isFullscreen: true } })
 }
 
 /** Selects `text`, in row `requestId` if given, and runs /add-to-chat. */

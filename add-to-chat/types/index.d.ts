@@ -28,9 +28,12 @@ declare module 'claude-code' {
       candidate: Candidate | null
       /** `selectionKey` of the selection last added or ignored; outlives a submit. */
       handled: string | null
-      /** The index whose Comment field the band shows. */
-      commenting: number | null
-      isListOpen: boolean
+      /** Whether the pane is open, as the poll last saw `$.ui.panes()`. */
+      isPaneOpen: boolean
+      /** The person closed the pane: it stays closed until /add-to-chat. */
+      isPaneDismissed: boolean
+      /** The index of the Annotation whose tab the pane shows. */
+      paneTab: number
       isDraftEmpty: boolean
       /** Keyed by `hashText` of the rewritten prompt; mirrored in `$.store`. */
       originals: Record<string, Original>

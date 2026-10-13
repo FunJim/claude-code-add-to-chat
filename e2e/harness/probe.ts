@@ -5,7 +5,7 @@ import type { Annotation, Candidate as Selection } from '../../add-to-chat/types
 import { waitFor } from './exec.ts'
 
 export type { Annotation, Selection }
-export type AddToChatState = { pending: Annotation[]; candidate: Selection | null; commenting: number | null }
+export type AddToChatState = { pending: Annotation[]; candidate: Selection | null; paneTab: number }
 export type Row = { component: string; requestId?: string; text?: string }
 
 type Event =
@@ -51,7 +51,7 @@ export class ProbeLog {
 
   async state(): Promise<AddToChatState> {
     const last = (await this.of('state')).at(-1)
-    return { pending: last?.pending ?? [], candidate: last?.candidate ?? null, commenting: last?.commenting ?? null }
+    return { pending: last?.pending ?? [], candidate: last?.candidate ?? null, paneTab: last?.paneTab ?? 1 }
   }
 
   async pending(): Promise<Annotation[]> {

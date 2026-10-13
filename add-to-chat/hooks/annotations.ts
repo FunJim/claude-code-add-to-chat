@@ -16,10 +16,6 @@ export function without(list: readonly Annotation[], index: number): Annotation[
   return list.filter(a => a.index !== index).map((a, i) => ({ ...a, index: i + 1 }))
 }
 
-/** Which Comment field stays open once Annotation `index` is removed. */
-export function commentingAfterRemoving(at: number | null, index: number): number | null {
-  return at === null || at === index ? null : at > index ? at - 1 : at
-}
 
 export function marksFor(list: readonly Annotation[], requestId: string | undefined): Annotation[] {
   return list.filter(a => a.requestId !== undefined && a.requestId === requestId)

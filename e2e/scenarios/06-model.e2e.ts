@@ -12,7 +12,8 @@ import type { Context } from '../harness/scenario.ts'
 import { annotationsJson } from '../harness/transcript.ts'
 
 const MODEL = 'model'
-const LINE = 'The quick brown fox jumps over the lazy dog, and Paris is the capital of France.'
+// Two short paragraphs, so neither wraps in a transcript the pane narrows.
+const LINE = 'The quick brown fox jumps over the lazy dog.\n\nParis is the capital of France.'
 
 /**
  * One cheap reply to select from. The line sits in a file, not in the
@@ -91,7 +92,7 @@ describe(MODEL, () => {
     await claude.add('lazy dog')
     await claude.comment(1, 'rewrite this part with a cat')
     await ctx.step(`[ Send ] fills the prompt with “${SEND_PLACEHOLDER}”; Enter sends it`)
-    await claude.clickInBand('[ Send ]', { dx: 3 })
+    await claude.clickInPane('[ Send ]', { dx: 3 })
     await waitFor('the filled prompt', async () => (await claude.draft()) === SEND_PLACEHOLDER, { timeoutMs: 5_000 })
     await claude.send()
     const x = await exchange(claude, SEND_PLACEHOLDER)

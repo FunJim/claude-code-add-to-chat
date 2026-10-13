@@ -5,10 +5,18 @@
 把 Codex 的 "Add to chat" 搬到 Claude Code。在 fullscreen 终端里，用鼠标选中 transcript 里的任意文字（Claude 回复里的一句话、你之前发过的 prompt、工具的输出），可以附上一句评论，它会作为带编号的 annotation 随下一条 prompt 一起发出。Claude 会逐条回应，并在回复里用 ①② 标出引用的是哪一条。
 
 ```
-⏺ The quick brown fox⁽¹⁾ jumps over the lazy dog, and Paris is the capital of France.
-
-▎ [ ✚ Add to chat ] “capital of France” ✕ ignore            📎 1 annotation ▸ sent with your next prompt ↵
-────────────────────────────────────────────────────────────────────────────────────────────────────────
+⏺ The quick brown fox⁽¹⁾ jumps over the   │                                          ✕
+  lazy dog.                                │[ ✚ Add to chat ] “capital of France” ✕ ignore
+                                           │────────────────────────────────────────────
+  Paris is the capital of France.          │1: ① Claude ✕
+                                           │
+                                           │① Claude from Claude's reply
+                                           │“quick brown fox”
+                                           │
+                                           │Comment: which animal is this?
+                                           │────────────────────────────────────────────
+                                           │They go with your next prompt ↵
+───────────────────────────────────────────────────────────────────────────────────────────
 ❯ for each annotation, answer its comment or say what it refers to
 ```
 
@@ -40,16 +48,16 @@
 
 ## 使用
 
-输入框上方有一行 band：`▎ select text in the transcript to add it to chat`。
+transcript 旁边有一个面板，会话开始时自动打开（终端窄于 144 列时需要执行一次 `/add-to-chat` 打开；窄于 110 列时面板显示在输入框上方）。面板第一行显示 `Select text in the transcript to add it.`。
 
-1. **选中**：用鼠标在 transcript 里选中一段文字，band 这一行会变成 `[ ✚ Add to chat ] "…" ✕ ignore`。点按钮，或者执行 `/add-to-chat`。
-2. **评论**（可选）：点击随后出现的 `Add an optional comment…` 输入框，输入后按 Enter。不想写可以直接跳过。
-3. 可以重复多次。每段被收录的文字在 transcript 里会带上 `⁽¹⁾` 这样的标记。band 右侧的 `📎 N annotations ▸` 可以展开列表，用 `✕` 删除某一条。
+1. **选中**：用鼠标在 transcript 里选中一段文字，面板第一行会变成 `[ ✚ Add to chat ] "…" ✕ ignore`。点按钮，或者执行 `/add-to-chat`。
+2. 每条 annotation 会有一个 **tab**（`1: ① Claude ✕   2: ② You ✕`）。当前 tab 显示完整的原文、来源和一个 **Comment** 输入框：点击后输入，按 Enter 保存。也可以留空。
+3. 可以重复多次。每段被收录的文字在 transcript 里会带上 `⁽¹⁾` 这样的标记。点 tab 上的 `✕` 会删除这条 annotation。状态栏会显示 `📎 N annotations`。
 4. **发送**：像平常一样发送 prompt。transcript 里你的消息显示为你输入的内容加一行 `📎 N annotations`，按 ctrl+o 可以看到模型实际收到的完整内容。如果没有要输入的内容，点 `[ Send ]` 会在输入框里填上 `(see annotations)`，再按 Enter 发送即可。
 
 Claude 回复里的 `:annotation{index="1"}` 会显示为 ①。
 
-无论选中什么，band 都只占一行。如果选中文字时 band 变高，正在拖选的鼠标下方的 transcript 会被往上顶，选区就会错开一行。
+面板在选中任何文字之前就已经打开，而且第一行始终只占一行，所以拖选时鼠标下方的内容不会移动。用面板上的 `✕` 关闭后，它会保持关闭，直到你再执行 `/add-to-chat`。
 
 ## Annotation Template（注释模板）
 

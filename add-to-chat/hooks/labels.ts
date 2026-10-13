@@ -1,5 +1,5 @@
-// What the mod draws in its own words and numbers, shared by the band, the
-// rows, the toasts and the selection filter (which must know the band's
+// What the mod draws in its own words and numbers, shared by the pane, the
+// rows, the toasts and the selection filter (which must know the pane's
 // words to tell them from transcript text). A leaf module: the end-to-end
 // harness imports it too.
 import type { Annotation, AnnotationSource } from '../types'
@@ -21,36 +21,45 @@ export function superscript(n: number): string {
 
 export const SOURCE_LABEL: Record<AnnotationSource, string> = { assistant: 'Claude', user: 'You', tool: 'Tool', system: 'System', transcript: 'Transcript' }
 
-/** The accent bar each band row starts with. */
-export const BAND_BAR = '▎'
+/** Where each Source's Excerpt was selected, as the pane says it. */
+export const SOURCE_HINT: Record<AnnotationSource, string> = {
+  assistant: "from Claude's reply",
+  user: 'from your prompt',
+  tool: "from a tool's row",
+  system: "from Claude Code's own row",
+  transcript: 'from the transcript',
+}
+
+/** The pane's title, and its tab when other panes are open beside it. */
+export const PANE_TITLE = 'Add to chat'
 export const ADD_LABEL = '✚ Add to chat'
 export const IGNORE_LABEL = '✕ ignore'
-export const COMMENT_PLACEHOLDER = 'Add an optional comment… (click here to type, Enter to save)'
-export const COMMENT_PLACEHOLDER_SHORT = 'Optional comment (click, Enter saves)'
+/** What the pane's first row says while nothing is selected. */
+export const IDLE_HINT = 'Select text in the transcript to add it.'
+export const NEEDS_FULLSCREEN_HINT = 'Selections show here in fullscreen (CLAUDE_CODE_NO_FLICKER=1).'
+export const PANE_EMPTY = 'Nothing added yet.'
+export const COMMENT_LABEL = 'Comment'
+export const COMMENT_PLACEHOLDER = 'optional; type and press Enter'
 /** The Comment field's submit label; the engine draws it as `⏎ save`. */
 export const SAVE_LABEL = 'save'
-export const SEND_HINT = 'nothing to add? '
-export const SENT_HINT = 'sent with your next prompt ↵'
-export const SENT_HINT_SHORT = '↵ sends them'
-/** What the head row says in fullscreen while nothing is selected. */
-export const IDLE_HINT = 'select text in the transcript to add it to chat · /add-to-chat'
-export const IDLE_HINT_SHORT = 'select text to add it to chat'
+export const CLOSE_TAB = '✕'
+export const SEND_HINT = 'Nothing to type?'
+export const SENT_HINT = 'They go with your next prompt ↵'
 /** What `[ Send ]` puts in an empty prompt box. */
 export const SEND_PLACEHOLDER = '(see annotations)'
 
 export const ALREADY_ADDED = 'That selection is already added'
-export const NOTHING_SELECTED = 'Select text in the transcript first'
 export const NEEDS_FULLSCREEN = 'add-to-chat needs fullscreen mode (CLAUDE_CODE_NO_FLICKER=1) to read the selection'
 
 export function addedToast(index: number): string {
-  return `Added ${circled(index)} — add an optional comment above the prompt`
+  return `Added ${circled(index)}: a Comment can go with it in the pane`
 }
 
 export function unreadableTemplate(path: string): string {
   return `add-to-chat: cannot read ${path}; using the built-in template`
 }
 
-/** `📎 N annotations`: a rewritten prompt row's second line, and the band's count. */
+/** `📎 N annotations`: a rewritten prompt row's second line, and the status line. */
 export function clipLine(count: number): string {
   return `📎 ${count} annotation${count === 1 ? '' : 's'}`
 }
@@ -62,39 +71,27 @@ export function isClipLineHead(line: string): boolean {
   return head === '📎' || (count !== undefined && clipLine(Number(count)).startsWith(head))
 }
 
-/** The count chip that opens the list, long and short. */
-export function chipLabels(count: number, isListOpen: boolean): [string, string] {
-  const arrow = isListOpen ? '▾' : '▸'
-  return [`${clipLine(count)} ${arrow}`, `📎 ${count} ${arrow}`]
-}
-
-/** Beside the chip: `[ Send ]` for an empty prompt, else a hint; long and short. */
-export function sendLabels(isDraftEmpty: boolean): [string, string] {
-  return isDraftEmpty ? [`${SEND_HINT}[ Send ]`, '[ Send ]'] : [SENT_HINT, SENT_HINT_SHORT]
-}
-
-/** A list row's words, without its padding. */
-export function listRowText(a: Annotation): string {
-  return `${circled(a.index)} ${SOURCE_LABEL[a.source]} “${a.text}”${a.comment === undefined ? '' : ` — ${a.comment}`}`
+/** One Annotation's tab in the pane: its number and Source. */
+export function tabLabel(a: Annotation): string {
+  return `${circled(a.index)} ${SOURCE_LABEL[a.source]}`
 }
 
 /**
- * Every line of words the band can draw for this list, but the offer: a
- * selection that matches the offer's preview is the offer's own selection.
+ * Every line of words the pane can draw for this list, but the offer: a
+ * selection that matches the offer's preview is the offer's own.
  */
-export function bandLines(list: readonly Annotation[]): string[] {
+export function paneLines(list: readonly Annotation[]): string[] {
   return [
     ADD_LABEL,
     IGNORE_LABEL,
-    COMMENT_PLACEHOLDER,
-    COMMENT_PLACEHOLDER_SHORT,
-    `⏎ ${SAVE_LABEL}`,
-    ...sendLabels(true),
-    ...sendLabels(false),
     IDLE_HINT,
-    IDLE_HINT_SHORT,
-    ...chipLabels(list.length, false),
-    ...chipLabels(list.length, true),
-    ...list.map(listRowText),
+    NEEDS_FULLSCREEN_HINT,
+    PANE_EMPTY,
+    `${COMMENT_LABEL}: ${COMMENT_PLACEHOLDER} ⏎ ${SAVE_LABEL}`,
+    `${SEND_HINT} [ Send ]`,
+    SENT_HINT,
+    ...list.map(a => `${tabLabel(a)} ${CLOSE_TAB} ${SOURCE_HINT[a.source]}`),
+    ...list.map(a => `“${a.text}”`),
+    ...list.flatMap(a => (a.comment === undefined ? [] : [`${COMMENT_LABEL}: ${a.comment}`])),
   ]
 }

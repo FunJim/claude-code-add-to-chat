@@ -4,6 +4,10 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- The add-to-chat pane replaces the band above the prompt. Open from the start of a fullscreen session (or with `/add-to-chat`), it offers the selection in its first row and shows a tab per annotation: the whole excerpt, where it came from, and its comment, editable there. Closing a tab removes the annotation. The status line shows `📎 N annotations` while any are pending.
+
 ### Changed
 
 - `{{annotations_json}}` is compact JSON, and each item is `{"text","source":{"role","requestId"},"annotation"}`: `rowId` is now `requestId`, the comment is `annotation`.

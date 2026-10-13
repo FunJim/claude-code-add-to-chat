@@ -1,11 +1,11 @@
 # End-to-end tests and showcase
 
-Real Claude Code sessions with add-to-chat loaded, driven the way a person uses it: dragging the mouse over transcript text, pressing the band's buttons, typing Comments and prompts. Each run checks what the model was sent and how it answered.
+Real Claude Code sessions with add-to-chat loaded, driven the way a person uses it: dragging the mouse over transcript text, pressing the pane's buttons, typing Comments and prompts. Each run checks what the model was sent and how it answered.
 
 ```sh
 npm run e2e          # Herdr if installed: every scenario (~8 min)
 npm run e2e:tmux     # tmux: the basic scenarios (~1.5 min)
-node e2e/run.ts --only 'band|model'   # scenarios whose group or title matches
+node e2e/run.ts --only 'pane|model'   # scenarios whose group or title matches
 node e2e/run.ts --keep                # leave the sessions up afterwards…
 node e2e/run.ts --stop                # …and take them down later
 node e2e/run.ts --list
@@ -47,14 +47,14 @@ run.ts                 the one command: driver, live view, node:test run, report
 harness/
   terminal.ts          Terminal and Host: what scenarios drive, whatever the driver
   herdr.ts tmux.ts     the two drivers
-  claude.ts            ClaudeSession: launch, scroll, select, add, comment, list, send…
-  mouse.ts screen.ts   SGR mouse input; finding text by terminal cell
+  claude.ts            ClaudeSession: launch, scroll, select, add, comment, pane, send…
+  mouse.ts screen.ts   SGR mouse input; finding text by terminal cell, in the transcript or the pane
   probe.ts             reading the probe's log
   transcript.ts        reading the session's JSONL: what the model was sent
   fixtures.ts          sandboxes under $TMPDIR/atc-e2e; recording and installing the fixture transcript
   scenario.ts          scenario(): a node:test test with narration, evidence, cleanup
   report.ts            report.md and results.json
-scenarios/*.e2e.ts     band, rows, filters, layout, lifecycle, model
+scenarios/*.e2e.ts     pane, rows, filters, layout, lifecycle, model
 fixtures/              the sandbox project, the XML template, the transcript and its rows
 probe/                 the test-only plugin
 ```
@@ -62,12 +62,12 @@ probe/                 the test-only plugin
 ## Writing a scenario
 
 ```ts
-scenario('band', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
+scenario('pane', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
   const claude = await ctx.launchFixture()          // or ctx.launch({ name }) for a fresh session
   await ctx.step('add a phrase from the reply')     // narration, shown live and in the report
   const added = await claude.add('so reading it failed')   // scrolls to it, drags over it, presses Add
   assert.equal(added.source, 'claude')
-  await ctx.evidence('band', (await claude.band()).join('\n'))
+  await ctx.evidence('pane', (await claude.pane()).join('\n'))
 })
 ```
 
@@ -75,4 +75,4 @@ scenario('band', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
 - Set `usesModel: true` when it calls haiku.
 - Select text from inside a line, not at its end.
 - Prefer assertions on the probe's state (`claude.probe.pending()`) and the transcript (`claude.transcript()`) over screen text.
-- Match the band's words through `add-to-chat/hooks/labels.ts` (`ADD_LABEL`, `clipLine(n)`, …), not literals.
+- Match the pane's words through `add-to-chat/hooks/labels.ts` (`ADD_LABEL`, `clipLine(n)`, …), not literals.

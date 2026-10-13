@@ -7,6 +7,7 @@ import type { ClaudeSession } from '../harness/claude.ts'
 import { OTHER_ROWS, REPLY_ROWS } from '../fixtures/rows.ts'
 import type { FixtureRow } from '../fixtures/rows.ts'
 import { assert, scenario } from '../harness/scenario.ts'
+import { textIn, transcriptArea } from '../harness/screen.ts'
 import type { Context } from '../harness/scenario.ts'
 
 const ROWS = 'rows'
@@ -41,7 +42,8 @@ async function checkMarks(ctx: Context, claude: ClaudeSession, rows: readonly Fi
     } else if (row.mark === 'head') {
       // An Excerpt the markdown cannot place is marked at the head of its row.
       await claude.scrollTo(circled(index))
-      const head = (await claude.screen()).split('\n').find(r => r.includes(circled(index)))
+      const screen = await claude.screen()
+      const head = textIn(screen, transcriptArea(screen)).find(r => r.includes(circled(index)))
       assert.match(head ?? '', /^⏺ [①-⑳㉑-㊿]+/, `${row.kind}: marked at the head of the reply`)
     }
   }
@@ -59,8 +61,8 @@ describe(ROWS, () => {
   scenario(ROWS, 'tools, notifications, bash mode, commands and plugin prompts: added with Source tool, system or transcript', { drivers: ['herdr'], timeoutMs: 420_000 }, async ctx => {
     const claude = await ctx.launchFixture()
     await addEach(ctx, claude, OTHER_ROWS)
-    await claude.openList()
-    await ctx.evidence('band', (await claude.band()).join('\n'))
+    await claude.openPane()
+    await ctx.evidence('screen with the pane', await claude.screen())
   })
 
   scenario(ROWS, 'a reply and a prompt row: added with their Sources (basic)', { drivers: ['tmux'] }, async ctx => {

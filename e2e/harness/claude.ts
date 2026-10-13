@@ -5,14 +5,14 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-import { ADD_LABEL, SAVE_LABEL, circled } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, CLOSE_TAB, COMMENT_LABEL, SAVE_LABEL, circled, tabLabel } from '../../add-to-chat/hooks/labels.ts'
 import { oneLine } from '../../add-to-chat/hooks/text.ts'
 import { retry, sleep, waitFor } from './exec.ts'
 import { PLUGIN_DIR, PROBE_DIR } from './fixtures.ts'
 import { Mouse } from './mouse.ts'
 import { ProbeLog } from './probe.ts'
 import type { Annotation, Selection } from './probe.ts'
-import { bandRows, isBandRow, isRule, locate } from './screen.ts'
+import { isRule, locate, paneArea, textIn, transcriptArea } from './screen.ts'
 import type { Host, Key, Slot, Terminal } from './terminal.ts'
 import { Transcript, transcriptPath } from './transcript.ts'
 
@@ -42,13 +42,15 @@ export class ClaudeSession {
   readonly term: Terminal
   readonly probe: ProbeLog
   readonly mouse: Mouse
+  readonly isFullscreen: boolean
 
-  private constructor(name: string, cwd: string, term: Terminal, probe: ProbeLog) {
+  private constructor(name: string, cwd: string, term: Terminal, probe: ProbeLog, isFullscreen: boolean) {
     this.name = name
     this.cwd = cwd
     this.term = term
     this.probe = probe
     this.mouse = new Mouse(term)
+    this.isFullscreen = isFullscreen
   }
 
   static async launch(host: Host, runDir: string, o: LaunchOptions): Promise<ClaudeSession> {
@@ -76,7 +78,7 @@ export class ClaudeSession {
     ]
     const env = { CLAUDE_CODE_NO_FLICKER: fullscreen ? '1' : '0', ATC_PROBE_LOG: probeFile }
     const term = await host.spawn({ name: o.name, cwd: o.cwd, argv, env, slot: o.slot })
-    const session = new ClaudeSession(o.name, o.cwd, term, new ProbeLog(probeFile))
+    const session = new ClaudeSession(o.name, o.cwd, term, new ProbeLog(probeFile), fullscreen)
     await session.ready()
     return session
   }
@@ -94,6 +96,17 @@ export class ClaudeSession {
     // Startup notices come and go for a moment; a drag over a moving
     // screen selects what moved under it.
     await this.waitStill(1_500, 10_000)
+    // The pane opens by itself only from 144 columns (110 once opened by
+    // hand); /add-to-chat opens it at any width.
+    if (this.isFullscreen) await this.openPane()
+  }
+
+  /** Opens the add-to-chat pane if it is not showing, and waits for the transcript to settle beside it. */
+  async openPane() {
+    if (paneArea(await this.screen()) !== undefined) return
+    await this.command('/add-to-chat')
+    await waitFor(`the pane on ${this.name}`, async () => paneArea(await this.screen()) !== undefined, { timeoutMs: 5_000 })
+    await this.waitStill()
   }
 
   /**
@@ -120,39 +133,56 @@ export class ClaudeSession {
     return this.term.screen()
   }
 
-  async band(): Promise<string[]> {
-    return bandRows(await this.screen())
-  }
-
+  /** Where `text` shows in the transcript (not the pane, which may hold the same words). */
   async find(text: string, nth = 1) {
     const screen = await this.screen()
-    const spot = locate(screen, text, nth)
-    if (spot === undefined) throw new NotOnScreen(`"${text}" (#${nth}) is not on ${this.name}'s screen:\n${screen}`)
+    const spot = locate(screen, text, nth, transcriptArea(screen))
+    if (spot === undefined) throw new NotOnScreen(`"${text}" (#${nth}) is not in ${this.name}'s transcript:\n${screen}`)
     return spot
   }
 
-  /** Where `text` shows in the band (its rows only: the transcript may hold the same words). */
-  async findInBand(text: string) {
+  /** Where `text` shows in the prompt box. */
+  async findInPrompt(text: string) {
     const screen = await this.screen()
-    const spot = locate(screen, text, 1, isBandRow)
-    if (spot === undefined) throw new NotOnScreen(`"${text}" is not in ${this.name}'s band:\n${screen}`)
+    const rows = screen.split('\n')
+    const rules = rows.flatMap((row, i) => (isRule(row) ? [i + 1] : []))
+    const area = rules.length < 2 ? undefined : { top: rules.at(-2)! + 1, bottom: rules.at(-1)! - 1, left: 1, right: 10_000 }
+    const spot = area === undefined ? undefined : locate(screen, text, 1, area)
+    if (spot === undefined) throw new NotOnScreen(`"${text}" is not in ${this.name}'s prompt box:\n${screen}`)
     return spot
   }
 
-  /** Clicks inside `text` in the band, `dx` cells from its start. */
-  async clickInBand(text: string, { dx = 1 } = {}) {
-    const spot = await this.findInBand(text)
+  /** The pane's rows as drawn, or none while it is closed. */
+  async pane(): Promise<string[]> {
+    const screen = await this.screen()
+    const area = paneArea(screen)
+    return area === undefined ? [] : textIn(screen, area)
+  }
+
+  /** Whether the pane shows `text`, wrapped over rows or not. */
+  async paneShows(text: string): Promise<boolean> {
+    return oneLine((await this.pane()).join(' ')).includes(oneLine(text))
+  }
+
+  /** Where `text` shows in the pane. */
+  async findInPane(text: string) {
+    const screen = await this.screen()
+    const area = paneArea(screen)
+    const spot = area === undefined ? undefined : locate(screen, text, 1, area)
+    if (spot === undefined) throw new NotOnScreen(`"${text}" is not in ${this.name}'s pane:\n${screen}`)
+    return spot
+  }
+
+  /** Clicks inside `text` in the pane, `dx` cells from its start. */
+  async clickInPane(text: string, { dx = 1 } = {}) {
+    const spot = await this.findInPane(text)
     await this.mouse.click({ x: spot.x + dx, y: spot.y })
   }
 
-  async bandShows(text: string): Promise<boolean> {
-    return (await this.band()).some(row => row.includes(text))
-  }
-
-  /** Whether the band offers the selection, given a second (four polls) to do so. */
+  /** Whether the pane offers the selection, given a second (four polls) to do so. */
   async offers(): Promise<boolean> {
     await sleep(1_000)
-    return this.bandShows(ADD_LABEL)
+    return this.paneShows(ADD_LABEL)
   }
 
   async isShowing(text: string): Promise<boolean> {
@@ -177,15 +207,11 @@ export class ClaudeSession {
 
   /**
    * The rows of the transcript that are fully drawn: below the pinned prompt
-   * at the top, above the band (or the prompt box) at the bottom, with a row
+   * at the top, above the pane (or the prompt box) at the bottom, with a row
    * of margin. A selection on an edge row carries no requestId.
    */
   private transcriptRows(screen: string): { top: number; bottom: number } {
-    const rows = screen.split('\n')
-    const firstBand = rows.findIndex(isBandRow)
-    const firstRule = rows.findIndex(isRule)
-    const end = firstBand !== -1 ? firstBand : firstRule !== -1 ? firstRule : rows.length
-    return { top: 3, bottom: end - 3 }
+    return { top: 3, bottom: transcriptArea(screen).bottom - 2 }
   }
 
   /**
@@ -196,7 +222,7 @@ export class ClaudeSession {
     let search: 'up' | 'down' = 'up'
     let screen = await this.screen()
     for (let step = 0; step < 80; step += 1) {
-      const spot = locate(screen, text, nth)
+      const spot = locate(screen, text, nth, transcriptArea(screen))
       const { top, bottom } = this.transcriptRows(screen)
       const where = spot === undefined ? 'away' : spot.y < top ? 'high' : spot.y > bottom ? 'low' : 'in'
       if (where === 'in') return
@@ -258,13 +284,13 @@ export class ClaudeSession {
     return this.probe.selection()
   }
 
-  /** Presses the band's Add to chat; resolves the Annotation it made. */
+  /** Presses the pane's Add to chat; resolves the Annotation it made. */
   async addSelected(): Promise<Annotation> {
     const before = (await this.probe.pending()).length
-    await this.waitShowing(ADD_LABEL, 5_000)
+    await waitFor(`the offer in ${this.name}'s pane`, () => this.paneShows(ADD_LABEL), { timeoutMs: 5_000 })
     return retry(
       `Add to chat on ${this.name}`,
-      () => this.clickInBand(ADD_LABEL, { dx: 2 }),
+      () => this.clickInPane(ADD_LABEL, { dx: 2 }),
       async () => {
         const list = await this.probe.pending()
         return list.length > before ? list.at(-1) : undefined
@@ -278,11 +304,11 @@ export class ClaudeSession {
     return this.addSelected()
   }
 
-  /** Types a Comment into the open Comment field (clicking it to take the keyboard). */
+  /** Types a Comment into Annotation `index`'s field in the pane (clicking it to take the keyboard). */
   async comment(index: number, text: string) {
-    // The field follows its number, whichever placeholder fits.
-    await retry(`the Comment field to take the keyboard on ${this.name}`, () => this.clickInBand(`${circled(index)} `, { dx: 3 }), () =>
-      this.isShowing(`⏎ ${SAVE_LABEL}`),
+    await this.showTab(index)
+    await retry(`the Comment field to take the keyboard on ${this.name}`, () => this.clickInPane(`${COMMENT_LABEL}: `, { dx: COMMENT_LABEL.length + 3 }), () =>
+      this.paneShows(`⏎ ${SAVE_LABEL}`),
     )
     await this.type(text)
     await sleep(200)
@@ -290,26 +316,29 @@ export class ClaudeSession {
     await waitFor(`Comment ${index} to be saved`, async () => (await this.probe.pending())[index - 1]?.comment === text, { timeoutMs: 5_000 })
   }
 
-  /** Opens the list with the count chip at the right of the head row. */
-  async openList() {
-    const isOpen = async () => (await this.band())[0]?.includes('▾') ?? false
-    if (await isOpen()) return
-    await retry(`the list to open on ${this.name}`, () => this.clickInBand('📎', { dx: 0 }), isOpen)
+  /** Annotation `index`'s tab label in the pane. */
+  private async tabLabelOf(index: number): Promise<string> {
+    const annotation = (await this.probe.pending())[index - 1]
+    if (annotation === undefined) throw new Error(`no Annotation ${circled(index)} on ${this.name}`)
+    return tabLabel(annotation)
   }
 
-  /** Removes Annotation `index` with its ✕ in the open list. */
+  /** Shows Annotation `index`'s tab in the pane. */
+  async showTab(index: number) {
+    const excerpt = (await this.probe.pending())[index - 1]!.text
+    const isShown = () => this.paneShows(`“${excerpt}”`)
+    if (await isShown()) return
+    const label = await this.tabLabelOf(index)
+    await retry(`tab ${circled(index)} to show on ${this.name}`, () => this.clickInPane(label), isShown)
+  }
+
+  /** Removes Annotation `index` by closing its tab in the pane. */
   async remove(index: number) {
-    await this.openList()
     const before = (await this.probe.pending()).length
+    const label = await this.tabLabelOf(index)
     await retry(
-      `✕ to remove ${circled(index)} on ${this.name}`,
-      async () => {
-        const rows = (await this.screen()).split('\n')
-        const y = rows.findIndex(row => isBandRow(row) && row.includes(`  ${circled(index)} `)) + 1
-        if (y === 0) throw new NotOnScreen(`no list row ${circled(index)} on ${this.name}`)
-        const spot = locate(rows[y - 1]!, '✕', (rows[y - 1]!.match(/✕/g) ?? []).length)!
-        await this.mouse.click({ x: spot.x, y })
-      },
+      `closing tab ${circled(index)} on ${this.name}`,
+      () => this.clickInPane(`${label} ${CLOSE_TAB}`, { dx: label.length + 1 }),
       async () => (await this.probe.pending()).length < before,
     )
   }
@@ -329,7 +358,7 @@ export class ClaudeSession {
    * (a key there can move a selection).
    */
   async clearDraft() {
-    if (await this.bandShows(`⏎ ${SAVE_LABEL}`)) {
+    if (await this.paneShows(`⏎ ${SAVE_LABEL}`)) {
       await this.press('escape')
       await sleep(400)
     }

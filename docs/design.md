@@ -2,7 +2,7 @@
 
 How add-to-chat behaves and why. Terms (Annotation, Excerpt, Source, Comment, Citation, Annotation Template) are defined in the [glossary](glossary.md). The Claude Code behaviours this design rests on, and how they were measured, are in [claude-code-notes.md](claude-code-notes.md). Decisions with alternatives worth recording are in [adr/](adr/).
 
-The model is Codex's "Add to chat": select text → a floating "Add to chat" button → an optional "Add an optional comment…" field → numbered bubbles ①② on the selected text → an "N annotations" chip above the input → send.
+The model is Codex's "Add to chat": select text → a floating "Add to chat" button → an optional "Add an optional comment…" field → numbered bubbles ①② on the selected text → an "N annotations" chip above the input → send. In a terminal the floating parts live in a pane beside the transcript.
 
 ## Requirements
 
@@ -17,40 +17,59 @@ The model is Codex's "Add to chat": select text → a floating "Add to chat" but
 
 A selection outlives its highlight: Esc, a click elsewhere or typing take the highlight down, but `$.ui.selection()` keeps returning it until text is selected again or the next prompt's turn ends. So the mod remembers the `text + requestId` it last added or ignored (`handled`), and offers a selection only when it differs. `handled` survives a submit: between submit and the end of that turn the selection still returns what was just added. Selecting the same text in the same row twice cannot add it twice; that is accepted.
 
-### The band
+### The pane
 
-In the fullscreen terminal a band sits above the prompt with one head row that is always there:
+add-to-chat draws in a pane (`$.ui.open`, id `add-to-chat`), not in the band above the prompt. In a fullscreen terminal from 110 columns it docks beside the transcript; narrower, it is framed above the prompt.
 
-- nothing selected: a dim hint, `select text in the transcript to add it to chat · /add-to-chat`;
-- a selection to offer: `[ ✚ Add to chat ] "<Excerpt preview>" ✕ ignore`;
-- Annotations pending: `📎 N annotations ▸` and the send hint (or `[ Send ]`, see [An empty prompt](#an-empty-prompt)) at the right.
+```
+                                                        ✕
+[ ✚ Add to chat ] “so reading it failed” ✕ ignore
+────────────────────────────────────────────────────────
+1: ① Claude ✕   2: ② You ✕
 
-The head row is cut to fit, never wrapped, so the band's height does not change with the selection. A selection is readable while the mouse is still dragging; a band that grew a row then would push a transcript scrolled to the bottom up under the mouse, and the selection would jump a line ([ADR 0002](adr/0002-one-row-band.md)). Rows below the head (the Comment field, the list) appear only after a click, when no drag is in progress. Outside fullscreen nothing can be selected, and the band shows only while Annotations are pending.
+② You from your prompt
+“Read the file missing.txt”
 
-When the row is narrow, the right side shrinks first, in order: drop `nothing to add?`, then the short chip `📎 N ▸`, then `✕` alone; the preview keeps at least 12 cells.
+Comment: optional; type and press Enter
+────────────────────────────────────────────────────────
+Nothing to type? [ Send ]
+```
+
+Its first row is always there and always one row high:
+
+- nothing selected: a dim hint, `Select text in the transcript to add it.`;
+- a selection to offer: `[ ✚ Add to chat ] "<Excerpt preview>" ✕ ignore`, the preview cut to fit.
+
+A selection is readable while the mouse is still dragging, so whatever the poll sees must not move the transcript: an offer that added a row to an inline pane, or a pane that docked in the middle of a drag and narrowed the transcript, would move the text under the mouse. So the offer takes the hint's row, and the pane opens by itself when the session starts, before anything is selected ([ADR 0005](adr/0005-everything-in-a-pane.md)): the band's first fullscreen drawing calls `$.ui.open`. Claude Code places a pane opened unasked only from 144 columns (110 once the person opened it by hand); below that it waits until `/add-to-chat` opens it. If the person closes the pane (its `✕`, ctrl+x x), it stays closed until they run `/add-to-chat`. Outside fullscreen nothing can be selected, and the pane does not open.
+
+Below the first row, which change only on clicks:
+
+- **Tabs**: one per pending Annotation, `① Claude`, `② You`…; the first nine answer to their digit while the pane has the keyboard. The open tab is the one added last, until another is picked. A tab's `✕` closes it, which removes its Annotation and renumbers the rest.
+- **The open tab**: the whole Excerpt, wrapped, where it was selected, and its Comment ([Comment](#comment)).
+- **The footer**: `[ Send ]` with an empty prompt ([An empty prompt](#an-empty-prompt)), else `They go with your next prompt ↵`.
+
+With nothing pending, the pane says `Nothing added yet.` under the first row. The status line shows `📎 N annotations` while any are pending, so they are not forgotten with the pane closed.
 
 `✕ ignore` marks the selection handled. Without it a selection one doesn't want would stay offered until the next turn ends.
 
 ### What can be added
 
-The Excerpt is the selection's text with the mod's own drawing removed: the marks and Citations of [Marks](#marks-in-the-transcript) (`⁽⁾⁰-⁹`, `①-⑳`, `㉑-㊿`, U+200B) and the `📎 N annotations` line of a rewritten prompt row (and any head of it), all of which get selected along with the text. The band previews the Excerpt as it will be kept.
+The Excerpt is the selection's text with the mod's own drawing removed: the marks and Citations of [Marks](#marks-in-the-transcript) (`⁽⁾⁰-⁹`, `①-⑳`, `㉑-㊿`, U+200B) and the `📎 N annotations` line of a rewritten prompt row (and any head of it), all of which get selected along with the text. The pane previews the Excerpt as it will be kept.
 
-No offer is made, and `/add-to-chat` refuses, when:
+No offer is made, and `/add-to-chat` adds nothing, when:
 
 - the same text from the same row is already pending;
-- the selection has no `requestId` and its text comes from the prompt draft or from the band itself.
+- the selection has no `requestId` and its text comes from the prompt draft or from the pane itself.
 
-`/add-to-chat` does what the button does, from the keyboard. It answers with a toast and no output: command output enters the model's context.
+`/add-to-chat` opens the pane (again) and adds the selection if there is one to add, from the keyboard. It answers with a toast and no output: command output enters the model's context.
 
-Adding creates the Annotation at once, with no Comment, numbered one past the pending count.
+Adding creates the Annotation at once, with no Comment, numbered one past the pending count, and opens its tab.
 
 ## Comment
 
-After adding, the band shows an `Input` (placeholder `Add an optional comment… (click here to type, Enter to save)`). Enter stores the Comment (empty means none). Esc returns the keyboard to the prompt and keeps the Annotation without a Comment.
+The open tab has an `Input` labelled `Comment`, holding the Annotation's Comment. Enter stores it (empty removes it); it can be changed at any time before sending.
 
-A mouse click on a band `Button` does not give the band the keyboard: `autoFocus` and `$.ui.focus` cannot move it. The mod still calls `$.ui.focus` (it works when the band holds focus via ctrl+x tab); mouse users click the field, and the placeholder says so.
-
-Esc raises no event. So while the field is open, a change to the prompt draft (the person went back to typing, or pressed `[ Send ]`) closes it. The draft as it stood when the field opened is the baseline, so `/add-to-chat` clearing its own command from the draft does not count as leaving.
+A mouse click on a `Button` does not give the pane the keyboard: `autoFocus` and `$.ui.focus` cannot move it there. After Add the mod still calls `$.ui.focus` on the new tab's field (it works when the pane holds the keyboard); mouse users click the field.
 
 ## Source
 
@@ -82,13 +101,9 @@ The mark goes after the match's end, past closing markup right after it (`` ` ``
 
 After the prompt is sent the marks go and numbering restarts at 1.
 
-## Managing the list
+## Style
 
-`📎 N annotations ▸` opens the list; each row is `① You  "…" — comment  ✕`, and `✕` removes it, renumbering the rest. Annotations cannot be edited.
-
-Style: each row starts with a Claude-orange `▎`; numbers are bold orange; Sources are coloured (Claude orange for `assistant`, `suggestion` for `user`, `subtle` for the rest); Excerpts are italic in curly quotes; Comments and secondary actions are dim.
-
-The band gets `maxRows` rows. The head row and the Comment field come first (with a single row, the field while it is open); the list goes below only with a row to spare and scrolls when long. A short terminal would otherwise spend its one row on the engine's "n more".
+Numbers are bold orange; Sources are coloured (Claude orange for `assistant`, `suggestion` for `user`, `subtle` for the rest); Excerpts are italic in curly quotes; Comments, hints and secondary actions are dim; tabs not open are dim.
 
 ## Sending: the Annotation Template
 
@@ -130,7 +145,7 @@ The `AssistantMessage` render hook replaces `:annotation{index="N"}` in a reply 
 ## Lifecycle
 
 - `/clear` ends the session (`session.end`, reason `clear`) with no new `session.start`; the rows the pending Annotations point at are gone, so the list and the offer are cleared.
-- A reload keeps `$.state` but the band does not redraw until state changes, so `session.start` clears the offer and the first poll writes it again.
+- A reload keeps `$.state` but the pane does not redraw until state changes, so `session.start` clears the offer and the first poll writes it again. The pane itself stays open.
 - A turn in progress: an Annotation added then goes with the queued prompt, which Claude Code folds into the running turn.
 - `/compact` keeps the pending list.
 
@@ -141,10 +156,11 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | Key | Holds |
 |---|---|
 | `pending` | the Annotations to send |
-| `candidate` | the selection the band offers, or `null` |
+| `candidate` | the selection the pane offers, or `null` |
 | `handled` | the key of the selection last added or ignored |
-| `commenting` | the index whose Comment field is open, or `null` |
-| `isListOpen` | whether the list is shown |
+| `isPaneOpen` | whether the pane is open, as the poll last saw `$.ui.panes()` |
+| `isPaneDismissed` | the person closed the pane; it stays closed until `/add-to-chat` |
+| `paneTab` | the index of the Annotation whose tab the pane shows |
 | `isDraftEmpty` | whether the prompt draft is empty |
 | `originals` | rewritten prompt hash → `{ text, count }`, mirrored in `$.store` |
 
@@ -156,7 +172,9 @@ The API (`claude-code.d.ts`, laid by the engine in `add-to-chat/.claude-plugin/t
 |---|---|
 | the selection | `$.ui.selection()` |
 | the poll | `$.clock.every(ms, fn)` |
-| the band | `ui.render` on `AbovePrompt`; `Box`, `Text`, `Button`, `Input` from `$.ui.resolve(e)` |
+| the pane | `$.ui.open`, `$.ui.panes`, `ui.render` on `Pane`, `ui.close`; `Box`, `Text`, `Button`, `Input` from `$.ui.resolve(e)` |
+| opening it at the start | `ui.render` on `AbovePrompt` (drawing nothing), `viewport.isFullscreen` |
+| the pending count | `$.ui.status` |
 | marks, Citations, compact prompt rows | `ui.render` on `AssistantMessage`, `UserMessage` |
 | rewriting or adding to the prompt | `prompt.submit` |
 | `[ Send ]` and the draft | `$.prompt.fill`, `$.prompt.read` |
