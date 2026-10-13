@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-14
+
 ### Changed
 
 - A cleaner pane: tabs read `1: Claude`, the number once, the open one bold and underlined, the others dim; the excerpt sits in a frame, upright and unquoted, under its number and where it came from (`① from Claude's reply`); the comment field reads `Add an optional comment…`, the footer `[ Send ] now, or type a prompt and press ↵`.
@@ -33,6 +35,7 @@ First release, for Claude Code 2.1.296.
 - The Annotation Template: a Codex-style default, or a Mustache-subset file (`templatePath`) that replaces the prompt or rides beside it as context.
 - Prompt rows drawn as what was typed plus `📎 N annotations`, kept across `--resume`.
 
-[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/FunJim/claude-code-add-to-chat/releases/tag/v0.1.0
