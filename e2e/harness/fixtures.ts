@@ -57,19 +57,34 @@ function isMachineContext(entry: { type?: string; subtype?: string; attachment?:
 
 /**
  * A recorded session made fit to commit: machine context dropped (each
- * child relinked to the dropped entry's parent, so the chain holds) and
- * the session id, paths and home folder replaced by placeholders.
+ * child relinked to the dropped entry's parent, so the chain holds), API
+ * request ids numbered, thinking signatures emptied, and the session id, paths and home folder
+ * replaced by placeholders.
  */
 export function forFixture(jsonl: string, { sessionId, cwd }: { sessionId: string; cwd: string }): string {
   const entries = jsonl.split('\n').filter(Boolean).map(line => JSON.parse(line) as Record<string, any>)
   const parentOf = new Map<string, string | null>()
   for (const e of entries) if (isMachineContext(e) && typeof e.uuid === 'string') parentOf.set(e.uuid, e.parentUuid ?? null)
+  // API request ids and the model's name say which gateway served the
+  // recording; numbered ids and the requested model say enough.
+  const requests = new Map<string, string>()
   const kept = entries
     .filter(e => !isMachineContext(e))
     .map(e => {
       let parent = e.parentUuid
       while (typeof parent === 'string' && parentOf.has(parent)) parent = parentOf.get(parent)
-      return e.parentUuid === undefined ? e : { ...e, parentUuid: parent }
+      const out: Record<string, any> = e.parentUuid === undefined ? { ...e } : { ...e, parentUuid: parent }
+      if (typeof e.requestId === 'string') {
+        if (!requests.has(e.requestId)) requests.set(e.requestId, `req_fixture_${requests.size + 1}`)
+        out.requestId = requests.get(e.requestId)
+      }
+      if (typeof e.message?.model === 'string' && typeof e.requestedModel === 'string') out.message = { ...e.message, model: e.requestedModel }
+      // Thinking signatures are opaque to everyone but the API that made
+      // them, and carry its routing; a resumed fixture never calls a model.
+      if (Array.isArray(e.message?.content)) {
+        out.message = { ...out.message, content: e.message.content.map((b: Record<string, any>) => (b.type === 'thinking' ? { ...b, signature: '' } : b)) }
+      }
+      return out
     })
   return kept
     .map(e => JSON.stringify(e))
