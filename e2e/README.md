@@ -51,7 +51,7 @@ harness/
   mouse.ts screen.ts   SGR mouse input; finding text by terminal cell
   probe.ts             reading the probe's log
   transcript.ts        reading the session's JSONL: what the model was sent
-  fixtures.ts          sandboxes under /tmp/atc-e2e, installing the recorded transcript
+  fixtures.ts          sandboxes under $TMPDIR/atc-e2e, installing the recorded transcript
   scenario.ts          scenario(): a node:test test with narration, evidence, cleanup
   report.ts            report.md and results.json
 scenarios/*.e2e.ts     band, rows, filters, layout, lifecycle, model
