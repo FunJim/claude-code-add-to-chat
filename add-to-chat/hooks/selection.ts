@@ -68,7 +68,8 @@ export type Surroundings = {
  */
 function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean {
   if (excerpt.requestId !== undefined) return false
-  const text = flatten(excerpt.text)
+  // A selection across the Excerpt's frame in the pane picks up its border.
+  const text = flatten(excerpt.text.replace(/[│╭╮╰╯─]/g, ' '))
   return flatten(around.draft).includes(text) || paneLines(around.pending).some(line => flatten(line).includes(text))
 }
 

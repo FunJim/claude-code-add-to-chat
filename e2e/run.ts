@@ -21,7 +21,7 @@ import { junit, spec } from 'node:test/reporters'
 
 import { MODEL } from './harness/claude.ts'
 import { run } from './harness/exec.ts'
-import { E2E_DIR, E2E_PREFIX, REPO_DIR, removeSandboxes } from './harness/fixtures.ts'
+import { E2E_DIR, E2E_PREFIX, REPO_DIR, keptDockColumns, removeSandboxes } from './harness/fixtures.ts'
 import { HerdrHost, closeViewers, openViewer } from './harness/herdr.ts'
 import { summarize, verdict, writeReport } from './harness/report.ts'
 import { setWorld } from './harness/scenario.ts'
@@ -64,6 +64,16 @@ if (args.stop) {
 }
 
 if (!(await has('tmux'))) throw new Error('tmux is required (both drivers host their terminals in it)')
+
+// A dock width the person dragged is kept for every session, these too, and
+// beats the width the pane asks for; the scenarios are laid out for that one.
+const kept = await keptDockColumns()
+if (kept !== undefined) {
+  throw new Error(
+    `~/.claude.json keeps a dragged pane dock width (pluginPanes.dockColumns: ${kept}), which every session uses instead of the ` +
+      `width add-to-chat asks for, and the scenarios are laid out for. Remove that key (with Claude Code closed) and run again.`,
+  )
+}
 const driver = (args.driver ?? ((await has('herdr')) ? 'herdr' : 'tmux')) as Driver
 if (driver !== 'herdr' && driver !== 'tmux') throw new Error(`--driver herdr|tmux, not ${driver}`)
 

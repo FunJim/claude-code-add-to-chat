@@ -5,7 +5,7 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-import { ADD_LABEL, CLOSE_TAB, COMMENT_LABEL, SAVE_LABEL, circled, tabLabel } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, CLOSE_TAB, COMMENT_LABEL, SAVE_LABEL, circled, drawnTab } from '../../add-to-chat/hooks/labels.ts'
 import { oneLine } from '../../add-to-chat/hooks/text.ts'
 import { retry, sleep, waitFor } from './exec.ts'
 import { PLUGIN_DIR, PROBE_DIR } from './fixtures.ts'
@@ -15,6 +15,11 @@ import type { Annotation, Selection } from './probe.ts'
 import { isRule, locate, paneArea, textIn, transcriptArea } from './screen.ts'
 import type { Host, Key, Slot, Terminal } from './terminal.ts'
 import { Transcript, transcriptPath } from './transcript.ts'
+
+/** How the pane's open tab starts its Excerpt: in a frame, its first line's head after the border. */
+export function framed(excerpt: string): string {
+  return `│ ${excerpt.split('\n')[0]!.slice(0, 40)}`
+}
 
 /** The model every session runs on: the cheapest that follows the template. */
 export const MODEL = 'haiku'
@@ -316,29 +321,29 @@ export class ClaudeSession {
     await waitFor(`Comment ${index} to be saved`, async () => (await this.probe.pending())[index - 1]?.comment === text, { timeoutMs: 5_000 })
   }
 
-  /** Annotation `index`'s tab label in the pane. */
-  private async tabLabelOf(index: number): Promise<string> {
+  /** Annotation `index`'s tab as the pane draws it, `1: Claude`. */
+  private async tabOf(index: number): Promise<string> {
     const annotation = (await this.probe.pending())[index - 1]
     if (annotation === undefined) throw new Error(`no Annotation ${circled(index)} on ${this.name}`)
-    return tabLabel(annotation)
+    return drawnTab(annotation)
   }
 
   /** Shows Annotation `index`'s tab in the pane. */
   async showTab(index: number) {
     const excerpt = (await this.probe.pending())[index - 1]!.text
-    const isShown = () => this.paneShows(`“${excerpt}”`)
+    const isShown = () => this.paneShows(framed(excerpt))
     if (await isShown()) return
-    const label = await this.tabLabelOf(index)
-    await retry(`tab ${circled(index)} to show on ${this.name}`, () => this.clickInPane(label), isShown)
+    const tab = await this.tabOf(index)
+    await retry(`tab ${circled(index)} to show on ${this.name}`, () => this.clickInPane(tab, { dx: tab.length - 2 }), isShown)
   }
 
   /** Removes Annotation `index` by closing its tab in the pane. */
   async remove(index: number) {
     const before = (await this.probe.pending()).length
-    const label = await this.tabLabelOf(index)
+    const tab = await this.tabOf(index)
     await retry(
       `closing tab ${circled(index)} on ${this.name}`,
-      () => this.clickInPane(`${label} ${CLOSE_TAB}`, { dx: label.length + 1 }),
+      () => this.clickInPane(`${tab} ${CLOSE_TAB}`, { dx: tab.length + 1 }),
       async () => (await this.probe.pending()).length < before,
     )
   }

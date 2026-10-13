@@ -4,6 +4,7 @@
 import { describe } from 'node:test'
 
 import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, IDLE_HINT, IGNORE_LABEL, PANE_EMPTY, addedToast } from '../../add-to-chat/hooks/labels.ts'
+import { framed } from '../harness/claude.ts'
 import { waitFor } from '../harness/exec.ts'
 import { paneArea } from '../harness/screen.ts'
 import { assert, scenario } from '../harness/scenario.ts'
@@ -42,12 +43,12 @@ describe(PANE, () => {
     await claude.comment(1, 'why 42?')
     await ctx.step('add a second one from a prompt row: its tab opens')
     await claude.add('Read the file missing.txt')
-    for (const words of ['① Claude', '② You', 'from your prompt', '“Read the file missing.txt”']) {
+    for (const words of ['1: Claude', '2: You', '② from your prompt', framed('Read the file missing.txt')]) {
       assert.ok(await claude.paneShows(words), `the pane shows ${words}`)
     }
     await ctx.step('tab ① shows its whole Excerpt and its Comment')
     await claude.showTab(1)
-    assert.ok(await claude.paneShows('“replied SUB-OK the answer is 42”'))
+    assert.ok(await claude.paneShows(framed('replied SUB-OK the answer is 42')))
     assert.ok(await claude.paneShows('Comment: why 42?'))
     await ctx.evidence('screen with two tabs', await claude.screen())
   })
@@ -67,8 +68,8 @@ describe(PANE, () => {
     await claude.remove(1)
     const list = await claude.probe.pending()
     assert.deepEqual(list.map(a => [a.index, a.text]), [[1, 'so reading it failed'], [2, '混合中文']])
-    assert.ok(await claude.paneShows('① Claude'))
-    assert.equal(await claude.paneShows('③'), false)
+    assert.ok(await claude.paneShows('2: Claude'))
+    assert.equal(await claude.paneShows('3: '), false)
   })
 
   scenario(PANE, '/add-to-chat adds the selection, and never the same Excerpt twice', { drivers: ['herdr'] }, async ctx => {

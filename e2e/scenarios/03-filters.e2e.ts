@@ -23,7 +23,7 @@ describe(FILTERS, () => {
     const claude = await ctx.launchFixture()
     await claude.add('so reading it failed')
     await claude.comment(1, 'mine')
-    for (const words of [IDLE_HINT.slice(0, 20), SOURCE_HINT.assistant, '“so reading it', `${COMMENT_LABEL}: mine`]) {
+    for (const words of [IDLE_HINT.slice(0, 20), SOURCE_HINT.assistant, 'so reading it', `${COMMENT_LABEL}: mine`]) {
       await ctx.step(`select “${words}” in the pane`)
       const spot = await claude.findInPane(words)
       await claude.mouse.drag({ x: spot.x, y: spot.y }, { x: spot.x + spot.width - 1, y: spot.y })

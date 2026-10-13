@@ -1,7 +1,7 @@
 // The engine glue: every call on `$` lives here (the engine follows `$`
 // only within this file); the decisions are the pure modules beside it.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, PluginOptions, Register } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register, UiPane } from 'claude-code'
 
 import type { Annotation, AnnotationSource, Candidate, Original } from '../types'
 import { appended, withComment, without } from './annotations'
@@ -45,7 +45,7 @@ async function surroundings($: EngineInterface): Promise<Surroundings> {
 }
 
 /** What the poll last wrote, so it writes state only on a change. */
-type PollWatch = { isDraftEmpty?: boolean; isPaneOpen?: boolean }
+type PollWatch = { isDraftEmpty?: boolean; isPaneOpen?: boolean; isPaneDrawn?: boolean }
 
 function offerKey(offer: Candidate | null): string | null {
   return offer === null ? null : selectionKey(offer)
@@ -64,6 +64,11 @@ async function poll($: EngineInterface, watch: PollWatch) {
   if (watch.isPaneOpen !== isOpen) {
     watch.isPaneOpen = isOpen
     await update($, isPaneOpen, () => isOpen)
+  }
+  const isDrawn = isPaneDrawn(panes)
+  if (watch.isPaneDrawn !== isDrawn) {
+    watch.isPaneDrawn = isDrawn
+    showCount($, around.pending, isDrawn)
   }
 
   // The pane previews the Excerpt as it will be kept, marks and 📎 gone.
@@ -86,7 +91,7 @@ async function addSelection($: EngineInterface): Promise<{ annotation: Annotatio
   const list = await update($, pending, now => appended(now, excerpt, source))
   const annotation = list.at(-1)!
   await Promise.all([markHandled($, verdict.key), update($, paneTab, () => annotation.index)])
-  showCount($, list)
+  showCount($, list, isPaneDrawn(await $.ui.panes()))
   return { annotation }
 }
 
@@ -95,18 +100,24 @@ async function ignoreSelection($: EngineInterface) {
   await markHandled($, selection === undefined ? undefined : selectionKey(selection))
 }
 
-/** The pending count in the status line, where it shows with the pane closed too. */
-function showCount($: EngineInterface, list: readonly Annotation[]) {
-  $.ui.status(list.length === 0 ? undefined : clipLine(list.length))
+/** Whether the pane is drawn now: open, and placed by the surface. */
+function isPaneDrawn(panes: readonly UiPane[]): boolean {
+  return panes.some(p => p.id === PANE_ID && p.isPlaced)
+}
+
+/** The pending count in the status line, while the pane, which shows it as tabs, is not drawn. */
+function showCount($: EngineInterface, list: readonly Annotation[], isDrawn: boolean) {
+  $.ui.status(list.length === 0 || isDrawn ? undefined : clipLine(list.length))
 }
 
 async function removeAnnotation($: EngineInterface, index: number) {
-  const [list] = await Promise.all([update($, pending, now => without(now, index)), update($, paneTab, at => tabAfterRemoving(at, index))])
-  showCount($, list)
+  const [list, , panes] = await Promise.all([update($, pending, now => without(now, index)), update($, paneTab, at => tabAfterRemoving(at, index)), $.ui.panes()])
+  showCount($, list, isPaneDrawn(panes))
 }
 
 async function clearPending($: EngineInterface) {
-  showCount($, await update($, pending, () => []))
+  await update($, pending, () => [])
+  showCount($, [], false)
 }
 
 /** Opens the pane at the person's asking: placed at any width, and no longer dismissed. */
@@ -145,9 +156,9 @@ export const register: Register = (on, options) => {
     // A reload keeps state but not the pane's drawing: clearing the offer
     // makes the first poll write it again, so the new code draws it.
     await update($, candidate, () => null)
-    showCount($, await read($, pending))
     // A reload drops the previous load's timers and fires session.start
     // again, so this is the only interval running.
+    // Empty, so its first tick sets the status line too.
     const watch: PollWatch = {}
     $.clock.every(POLL_MS, () => poll($, watch))
     return next(e)

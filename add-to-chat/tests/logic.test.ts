@@ -31,7 +31,9 @@ describe('judging a selection', () => {
   })
   test("the draft's and the pane's own words", () => {
     expect(judge({ text: 'my draft' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '② You ✕ from your' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '2: You ✕' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '② from your' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '│ one │\n╰───╯' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'Comment: hm' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toHaveProperty('excerpt')
   })

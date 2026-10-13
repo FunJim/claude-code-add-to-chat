@@ -21,7 +21,7 @@ test('a docked pane: the transcript left of its border, the pane right of it', (
   const screen = [
     'the cat sat    │               ✕',
     'on the mat     │✚ Add to chat “cat”',
-    '中文 cat       │① Claude ✕',
+    '中文 cat       │1: Claude ✕',
     '               │“the cat”',
     RULE,
     '❯ draft',
@@ -32,11 +32,11 @@ test('a docked pane: the transcript left of its border, the pane right of it', (
   assert.deepEqual(transcriptArea(screen), { top: 1, bottom: 4, left: 1, right: 15 })
   assert.deepEqual(locate(screen, 'cat', 1, pane), { x: 32, y: 2, width: 3 })
   assert.deepEqual(locate(screen, 'cat', 2, transcriptArea(screen)), { x: 6, y: 3, width: 3 })
-  assert.equal(textIn(screen, pane)[2], '① Claude ✕')
+  assert.equal(textIn(screen, pane)[2], '1: Claude ✕')
 })
 
 test('an inline pane: framed above the prompt, the transcript above it', () => {
-  const screen = ['the cat sat', '╭──────────✕─╮', '│ ① Claude ✕ │', '│ “the cat”  │', '╰────────────╯', RULE, '❯', RULE].join('\n')
+  const screen = ['the cat sat', '╭──────────✕─╮', '│ 1: Claude ✕│', '│ “the cat”  │', '╰────────────╯', RULE, '❯', RULE].join('\n')
   const pane = paneArea(screen)!
   assert.deepEqual(pane, { top: 3, bottom: 4, left: 3, right: 38 })
   assert.deepEqual(transcriptArea(screen), { top: 1, bottom: 1, left: 1, right: 40 })

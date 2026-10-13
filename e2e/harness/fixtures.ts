@@ -116,6 +116,13 @@ export async function installTranscript(cwd: string) {
   await writeFile(path, text)
 }
 
+/** The pane dock width Claude Code keeps from a drag (`pluginPanes.dockColumns` in ~/.claude.json), if any. */
+export async function keptDockColumns(): Promise<number | undefined> {
+  const config = await readFile(join(homedir(), '.claude.json'), 'utf8').then(JSON.parse, () => ({}))
+  const columns = config?.pluginPanes?.dockColumns
+  return typeof columns === 'number' ? columns : undefined
+}
+
 /** Removes the sandboxes and the project folders Claude Code made for them. */
 export async function removeSandboxes() {
   const exists = await lstat(SANDBOX_ROOT).then(() => true, () => false)

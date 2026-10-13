@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe } from 'node:test'
 
 import { NEEDS_FULLSCREEN, PANE_EMPTY } from '../../add-to-chat/hooks/labels.ts'
+import { framed } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
 import { PLUGIN_DIR } from '../harness/fixtures.ts'
 import { paneArea } from '../harness/screen.ts'
@@ -19,7 +20,7 @@ describe(LIFE, () => {
     const now = new Date()
     await utimes(join(PLUGIN_DIR, 'hooks', 'register.tsx'), now, now)
     await waitFor('the reload notice', async () => /add-to-chat: reloaded/.test(await claude.screen()), { timeoutMs: 20_000 })
-    await waitFor('the pane with its tab', () => claude.paneShows('“so reading it failed”'), { timeoutMs: 10_000 })
+    await waitFor('the pane with its tab', () => claude.paneShows(framed('so reading it failed')), { timeoutMs: 10_000 })
     await claude.comment(1, 'after reload')
     assert.equal((await claude.probe.pending())[0]?.comment, 'after reload')
   })

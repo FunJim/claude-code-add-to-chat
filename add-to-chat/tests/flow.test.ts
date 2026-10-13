@@ -70,7 +70,7 @@ describe('the pane', () => {
       expect(await pane.find({ key: 'add' })).toBeUndefined()
       expect(await pane.find({ key: 'show-1' })).toBeDefined()
       const text = (await pane.findAll({ type: 'Text' })).map(t => t.text).join('\n')
-      expect(text).toContain('“npm test before you commit”')
+      expect(text).toContain('npm test before you commit')
       expect(text).toContain("from Claude's reply")
       expect(w.status.at(-1)).toBe('📎 1 annotation')
 
@@ -103,16 +103,39 @@ describe('the pane', () => {
     await addText($, w, 'earlier idea', 'u1')
     await addText($, w, 'third', 'r1')
     const pane = await mountPane($)
-    expect(await shown(pane)).toContain('“third”')
+    expect(await shown(pane)).toContain('\nthird')
     const first = await shown(pane, 1)
-    expect(first).toContain('every word of it, never cut”')
-    expect(first).toContain('① Transcript')
+    expect(first).toContain('every word of it, never cut')
+    expect(first).toContain('① from the transcript')
     expect(await shown(pane, 2)).toContain('from your prompt')
     await pane.press({ key: 'close-1' })
-    expect(await shown(pane, 1)).toContain('“earlier idea”')
-    expect(await shown(pane, 2)).toContain('“third”')
+    expect(await shown(pane, 1)).toContain('\nearlier idea')
+    expect(await shown(pane, 2)).toContain('\nthird')
     expect(await pane.find({ key: 'show-3' })).toBeUndefined()
+  })
+
+  test('the first nine tabs answer to their digit; the tenth carries its number', async ($, on) => {
+    const w = await start($, on)
+    for (let i = 1; i <= 10; i += 1) await addText($, w, `excerpt ${i}`, `r${i}`)
+    const pane = await mountPane($)
+    expect((await pane.find({ key: 'show-1' }))?.props).toMatchObject({ hotkey: '1', label: 'Transcript' })
+    expect((await pane.find({ key: 'show-9' }))?.props).toMatchObject({ hotkey: '9' })
+    const tenth = await pane.find({ key: 'show-10' })
+    expect(tenth?.props.hotkey).toBeUndefined()
+    expect(tenth?.text).toBe('10: Transcript')
+  })
+
+  test('the status line counts the Annotations while the pane is not drawn', async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'one', 'r1')
+    await addText($, w, 'two', 'r1')
+    expect(w.status.at(-1)).toBeUndefined()
+    w.panes.delete('add-to-chat')
+    await tick(w)
     expect(w.status.at(-1)).toBe('📎 2 annotations')
+    await runCommand($, w)
+    await tick(w)
+    expect(w.status.at(-1)).toBeUndefined()
   })
 
   test('the pane stays open with nothing pending, and says so', async ($, on) => {
@@ -220,7 +243,7 @@ describe('adding a selection', () => {
       const pane = await mountPane($)
       expect(await pane.find({ type: 'Text', text: '“my question”' })).toBeDefined()
       await runCommand($, w)
-      expect(await shown(pane)).toContain('“my question”')
+      expect(await shown(pane)).toContain('\nmy question')
     })
 
     test('the draft in the prompt box', async ($, on) => {
@@ -238,7 +261,7 @@ describe('adding a selection', () => {
       const w = await start($, on)
       await addText($, w, 'npm test', 'r1')
       await commentInPane($, 1, 'why?')
-      for (const text of ['Select text in the transcript', '① Transcript ✕', 'from the transcript', '“npm test”', 'Comment: why?', 'Nothing to type?', 'They go with your next prompt']) {
+      for (const text of ['Select text in the transcript', '1: Transcript ✕', '① from the transcript', 'npm test', 'Comment: why?', '[ Send ] now, or type', 'They go with your next prompt', '│ npm test │']) {
         await addText($, w, text)
       }
       expect(await tabCount($)).toBe(1)
@@ -420,8 +443,8 @@ describe('sending', () => {
     for (let i = 1; i <= 52; i += 1) {
       await addText($, w, `excerpt ${i}`, 'r1')
     }
-    expect(await paneText($, 50)).toContain('㊿ Transcript')
-    expect(await paneText($, 52)).toContain('(52) Transcript')
+    expect(await paneText($, 50)).toContain('㊿ from the transcript')
+    expect(await paneText($, 52)).toContain('(52) from the transcript')
   })
 
 })

@@ -39,11 +39,12 @@ export const IDLE_HINT = 'Select text in the transcript to add it.'
 export const NEEDS_FULLSCREEN_HINT = 'Selections show here in fullscreen (CLAUDE_CODE_NO_FLICKER=1).'
 export const PANE_EMPTY = 'Nothing added yet.'
 export const COMMENT_LABEL = 'Comment'
-export const COMMENT_PLACEHOLDER = 'optional; type and press Enter'
+export const COMMENT_PLACEHOLDER = 'Add an optional comment…'
 /** The Comment field's submit label; the engine draws it as `⏎ save`. */
 export const SAVE_LABEL = 'save'
 export const CLOSE_TAB = '✕'
-export const SEND_HINT = 'Nothing to type?'
+/** Beside `[ Send ]`, while the prompt box is empty. */
+export const SEND_HINT = 'now, or type a prompt and press ↵'
 export const SENT_HINT = 'They go with your next prompt ↵'
 /** What `[ Send ]` puts in an empty prompt box. */
 export const SEND_PLACEHOLDER = '(see annotations)'
@@ -71,9 +72,26 @@ export function isClipLineHead(line: string): boolean {
   return head === '📎' || (count !== undefined && clipLine(Number(count)).startsWith(head))
 }
 
-/** One Annotation's tab in the pane: its number and Source. */
+/** The highest tab number a digit key shows. */
+export const MAX_TAB_HOTKEY = 9
+
+/**
+ * One Annotation's tab label in the pane: its Source. The terminal draws a
+ * hotkey's digit before it (`1: Claude`); past nine the label carries the
+ * number itself.
+ */
 export function tabLabel(a: Annotation): string {
-  return `${circled(a.index)} ${SOURCE_LABEL[a.source]}`
+  return a.index <= MAX_TAB_HOTKEY ? SOURCE_LABEL[a.source] : `${a.index}: ${SOURCE_LABEL[a.source]}`
+}
+
+/** A tab as the terminal draws it, hotkey digit included: `1: Claude`. */
+export function drawnTab(a: Annotation): string {
+  return a.index <= MAX_TAB_HOTKEY ? `${a.index}: ${tabLabel(a)}` : tabLabel(a)
+}
+
+/** The open tab's first line: the number its marks carry in the transcript, and where it was selected. */
+export function sourceLine(a: Annotation): string {
+  return `${circled(a.index)} ${SOURCE_HINT[a.source]}`
 }
 
 /**
@@ -88,10 +106,11 @@ export function paneLines(list: readonly Annotation[]): string[] {
     NEEDS_FULLSCREEN_HINT,
     PANE_EMPTY,
     `${COMMENT_LABEL}: ${COMMENT_PLACEHOLDER} ⏎ ${SAVE_LABEL}`,
-    `${SEND_HINT} [ Send ]`,
+    `[ Send ] ${SEND_HINT}`,
     SENT_HINT,
-    ...list.map(a => `${tabLabel(a)} ${CLOSE_TAB} ${SOURCE_HINT[a.source]}`),
-    ...list.map(a => `“${a.text}”`),
+    ...list.map(a => `${drawnTab(a)} ${CLOSE_TAB}`),
+    ...list.map(sourceLine),
+    ...list.map(a => a.text),
     ...list.flatMap(a => (a.comment === undefined ? [] : [`${COMMENT_LABEL}: ${a.comment}`])),
   ]
 }

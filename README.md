@@ -11,11 +11,12 @@ Codex's "Add to chat", for Claude Code. In the fullscreen terminal, select any t
 ⏺ The quick brown fox⁽¹⁾ jumps over the   │                                          ✕
   lazy dog.                                │[ ✚ Add to chat ] “capital of France” ✕ ignore
                                            │────────────────────────────────────────────
-  Paris is the capital of France.          │1: ① Claude ✕
+  Paris is the capital of France.          │1: Claude ✕
                                            │
-                                           │① Claude from Claude's reply
-                                           │“quick brown fox”
-                                           │
+                                           │① from Claude's reply
+                                           │╭──────────────────────────────────────────╮
+                                           ││ quick brown fox                          │
+                                           │╰──────────────────────────────────────────╯
                                            │Comment: which animal is this?
                                            │────────────────────────────────────────────
                                            │They go with your next prompt ↵
@@ -54,7 +55,7 @@ Answer `y` to add the marketplace, then pick a scope. Start Claude Code with `CL
 A pane sits beside the transcript, open from the start (in a terminal under 144 columns, run `/add-to-chat` once to open it; under 110 it sits above the prompt instead). Its first row says `Select text in the transcript to add it.`
 
 1. **Select** text in the transcript with the mouse. The pane's first row becomes `[ ✚ Add to chat ] "…" ✕ ignore`. Click the button, or run `/add-to-chat`.
-2. The annotation gets a **tab** (`1: ① Claude ✕   2: ② You ✕`). The open tab shows the whole excerpt, where it came from, and a **Comment** field: click it, type, press Enter. Or leave it empty.
+2. The annotation gets a **tab** (`1: Claude ✕   2: You ✕`); press its digit to switch to it. The open tab shows the whole excerpt, where it came from, and a **Comment** field: click it, type, press Enter. Or leave it empty.
 3. Repeat. Each annotated text gets a mark like `⁽¹⁾` in the transcript. Close a tab with its `✕` to remove that annotation. The status line shows `📎 N annotations`.
 4. **Send** your prompt as usual. Your message shows as what you typed plus `📎 N annotations`; ctrl+o shows what the model received. With nothing to type, `[ Send ]` puts `(see annotations)` in the prompt for you to send.
 

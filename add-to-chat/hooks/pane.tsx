@@ -1,16 +1,16 @@
 // The add-to-chat pane: everything the mod shows. Its first row offers the
 // selection (or says how to make one); below it, one tab per pending
-// Annotation, the open tab showing its whole Excerpt, where it came from and
-// its Comment, which can be edited there; closing a tab removes its
+// Annotation, the open tab showing where its Excerpt came from, the whole
+// Excerpt in a frame, and its Comment, which can be edited there; closing a tab removes its
 // Annotation. A view: it draws from the values and calls back the actions
 // register.tsx hands it.
 //
 // The first row is always there and always one row high: an offer that
 // added a row would move what is under a mouse still dragging. Rows below it
 // change on clicks only.
-import type { BoxProps, ButtonProps, Color, ElementConstructor, InputProps, RenderElement, TextProps } from 'claude-code'
+import type { BoxProps, ButtonProps, ElementConstructor, InputProps, RenderElement, TextProps } from 'claude-code'
 
-import type { Annotation, AnnotationSource, Candidate } from '../types'
+import type { Annotation, Candidate } from '../types'
 import {
   ADD_LABEL,
   CLOSE_TAB,
@@ -23,8 +23,8 @@ import {
   SAVE_LABEL,
   SEND_HINT,
   SENT_HINT,
+  MAX_TAB_HOTKEY,
   SOURCE_HINT,
-  SOURCE_LABEL,
   circled,
   tabLabel,
 } from './labels'
@@ -35,8 +35,6 @@ export const PANE_ID = 'add-to-chat'
 
 /** The cells across to ask for when the pane docks beside the transcript. */
 export const PANE_COLUMNS = 56
-
-const SOURCE_COLOR: Record<AnnotationSource, Color> = { assistant: 'claude', user: 'suggestion', tool: 'subtle', system: 'subtle', transcript: 'subtle' }
 
 /** The elements the pane draws with, from `$.ui.resolve(e)`. */
 export type PaneElements = {
@@ -117,22 +115,33 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
 
   const open = v.pending[shownTab(v.tab, v.pending.length) - 1]!
   // A tab is its label, which shows it, and a ✕, which closes it and so
-  // removes its Annotation. The first nine answer to their digit.
-  const tabs = v.pending.map(a => (
-    <Box key={`tab-${a.index}`} gap={1}>
-      <Button
-        key={`show-${a.index}`}
-        plain
-        label={tabLabel(a)}
-        dimColor={a.index !== open.index}
-        {...(a.index <= 9 ? { hotkey: String(a.index) } : {})}
-        onPress={() => act.show(a.index)}
-      />
-      <Button key={`close-${a.index}`} plain onPress={() => act.remove(a.index)}>
-        <Text dimColor>{CLOSE_TAB}</Text>
-      </Button>
-    </Box>
-  ))
+  // removes its Annotation. The first nine answer to their digit, which the
+  // terminal draws before the label. The open tab is drawn bold and
+  // underlined in the accent color, the others dim.
+  const tabs = v.pending.map(a => {
+    const show = {
+      key: `show-${a.index}`,
+      plain: true,
+      ...(a.index <= MAX_TAB_HOTKEY ? { hotkey: String(a.index) } : {}),
+      onPress: () => act.show(a.index),
+    } as const
+    return (
+      <Box key={`tab-${a.index}`} gap={1}>
+        {a.index === open.index ? (
+          <Button {...show}>
+            <Text color="claude" bold underline>
+              {tabLabel(a)}
+            </Text>
+          </Button>
+        ) : (
+          <Button {...show} dimColor label={tabLabel(a)} />
+        )}
+        <Button key={`close-${a.index}`} plain onPress={() => act.remove(a.index)}>
+          <Text dimColor>{CLOSE_TAB}</Text>
+        </Button>
+      </Box>
+    )
+  })
 
   return (
     <Box flexDirection="column">
@@ -145,14 +154,12 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
       <Text>
         <Text color="claude" bold>
           {circled(open.index)}
-        </Text>{' '}
-        <Text color={SOURCE_COLOR[open.source]}>{SOURCE_LABEL[open.source]}</Text>
+        </Text>
         <Text dimColor> {SOURCE_HINT[open.source]}</Text>
       </Text>
-      <Text italic wrap="wrap">
-        “{open.text}”
-      </Text>
-      <Text> </Text>
+      <Box borderStyle="round" borderDimColor paddingX={1}>
+        <Text wrap="wrap">{open.text}</Text>
+      </Box>
       <Input
         key={`comment-${open.index}`}
         label={COMMENT_LABEL}
@@ -164,8 +171,8 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
       {rule}
       {v.isDraftEmpty ? (
         <Box key="footer" gap={1}>
-          <Text dimColor>{SEND_HINT}</Text>
           <Button key="send" variant="primary" label="Send" onPress={act.send} />
+          <Text dimColor>{SEND_HINT}</Text>
         </Box>
       ) : (
         <Text key="footer" dimColor>

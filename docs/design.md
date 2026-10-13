@@ -25,14 +25,15 @@ add-to-chat draws in a pane (`$.ui.open`, id `add-to-chat`), not in the band abo
                                                         ✕
 [ ✚ Add to chat ] “so reading it failed” ✕ ignore
 ────────────────────────────────────────────────────────
-1: ① Claude ✕   2: ② You ✕
+1: Claude ✕   2: You ✕
 
-② You from your prompt
-“Read the file missing.txt”
-
-Comment: optional; type and press Enter
+② from your prompt
+╭──────────────────────────────────────────────────────╮
+│ Read the file missing.txt                            │
+╰──────────────────────────────────────────────────────╯
+Comment: Add an optional comment…
 ────────────────────────────────────────────────────────
-Nothing to type? [ Send ]
+[ Send ] now, or type a prompt and press ↵
 ```
 
 Its first row is always there and always one row high:
@@ -44,11 +45,11 @@ A selection is readable while the mouse is still dragging, so whatever the poll 
 
 Below the first row, which change only on clicks:
 
-- **Tabs**: one per pending Annotation, `① Claude`, `② You`…; the first nine answer to their digit while the pane has the keyboard. The open tab is the one added last, until another is picked. A tab's `✕` closes it, which removes its Annotation and renumbers the rest.
-- **The open tab**: the whole Excerpt, wrapped, where it was selected, and its Comment ([Comment](#comment)).
-- **The footer**: `[ Send ]` with an empty prompt ([An empty prompt](#an-empty-prompt)), else `They go with your next prompt ↵`.
+- **Tabs**: one per pending Annotation, `1: Claude`, `2: You`…, the open one bold and underlined in the accent color, the rest dim. The first nine answer to their digit while the pane has the keyboard; Claude Code draws a plain `Button`'s hotkey before its label, so the label is the Source alone. From the tenth the label carries the number, `10: Claude`, with no hotkey. The open tab is the one added last, until another is picked. A tab's `✕` closes it, which removes its Annotation and renumbers the rest.
+- **The open tab**: its circled number, as its marks in the transcript carry it, and where the Excerpt was selected (`② from your prompt`), the whole Excerpt, wrapped, in a dim rounded frame (no italics, no quotes: Excerpts are often code or tool output), and its Comment ([Comment](#comment)). A selection across that frame picks up its border, which the own-words check below ignores.
+- **The footer**: `[ Send ] now, or type a prompt and press ↵` with an empty prompt ([An empty prompt](#an-empty-prompt)), else `They go with your next prompt ↵`.
 
-With nothing pending, the pane says `Nothing added yet.` under the first row. The status line shows `📎 N annotations` while any are pending, so they are not forgotten with the pane closed.
+With nothing pending, the pane says `Nothing added yet.` under the first row. While any are pending and the pane is not drawn (closed, or waiting for room), the status line shows `📎 N annotations`, so they are not forgotten; with the pane drawn its tabs say as much. Claude Code draws the line as one of its pinned notices, `⚠ add-to-chat: …`.
 
 `✕ ignore` marks the selection handled. Without it a selection one doesn't want would stay offered until the next turn ends.
 

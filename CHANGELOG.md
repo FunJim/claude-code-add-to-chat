@@ -4,6 +4,11 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Changed
+
+- A cleaner pane: tabs read `1: Claude`, the number once, the open one bold and underlined, the others dim; the excerpt sits in a frame, upright and unquoted, under its number and where it came from (`① from Claude's reply`); the comment field reads `Add an optional comment…`, the footer `[ Send ] now, or type a prompt and press ↵`.
+- The status line's `📎 N annotations` shows only while the pane is not drawn.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added
