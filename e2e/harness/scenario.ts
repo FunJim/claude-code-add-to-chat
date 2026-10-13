@@ -8,7 +8,7 @@ import { test } from 'node:test'
 
 import { ClaudeSession } from './claude.ts'
 import type { LaunchOptions } from './claude.ts'
-import { installTranscript, sandbox } from './fixtures.ts'
+import { FIXTURE_SESSION, installTranscript, sandbox } from './fixtures.ts'
 import type { Driver, Host } from './terminal.ts'
 
 export type Evidence = { label: string; file: string }
@@ -45,7 +45,6 @@ function world(): World {
 }
 
 export type Context = {
-  readonly driver: Driver
   /** One line of narration in the showcase and the report. */
   step(text: string): Promise<void>
   /** Launches Claude Code (add-to-chat + probe); closed when the scenario ends. */
@@ -72,14 +71,15 @@ function slug(text: string) {
 
 export function scenario(group: string, title: string, meta: ScenarioMeta, body: (ctx: Context) => Promise<void>) {
   const order = (declared += 1)
+  const base = { order, group, title, ms: 0, usesModel: meta.usesModel ?? false }
   const skip = current !== undefined && !meta.drivers.includes(current.driver)
   // Listed in the report even when this driver does not run it.
-  if (skip) current!.results.push({ order, group, title, status: 'skip', ms: 0, usesModel: meta.usesModel ?? false, evidence: [] })
+  if (skip) current!.results.push({ ...base, status: 'skip', evidence: [] })
   test(title, { skip: skip ? `not on ${current?.driver}` : false, timeout: meta.timeoutMs ?? (meta.usesModel ? 300_000 : 180_000) }, async () => {
     const w = world()
     const started = Date.now()
     const evidenceDir = join(w.runDir, 'evidence', slug(`${group}-${title}`))
-    const result: Result = { order, group, title, status: 'pass', ms: 0, usesModel: meta.usesModel ?? false, evidence: [] }
+    const result: Result = { ...base, status: 'pass', evidence: [] }
     const sessions: ClaudeSession[] = []
     let sandboxes = 0
 
@@ -88,7 +88,6 @@ export function scenario(group: string, title: string, meta: ScenarioMeta, body:
       return sandbox(`${slug(title).slice(0, 40)}-${sandboxes}`)
     }
     const ctx: Context = {
-      driver: w.driver,
       step: text => w.host.narrate(`    · ${text}`),
       sandbox: freshSandbox,
       launch: async options => {
@@ -99,8 +98,8 @@ export function scenario(group: string, title: string, meta: ScenarioMeta, body:
       },
       launchFixture: async (options = {}) => {
         const cwd = await freshSandbox()
-        const resume = await installTranscript(cwd)
-        return ctx.launch({ name: 'fixture', ...options, cwd, resume })
+        await installTranscript(cwd)
+        return ctx.launch({ name: 'fixture', ...options, cwd, resume: FIXTURE_SESSION })
       },
       evidence: async (label, text) => {
         await mkdir(evidenceDir, { recursive: true })

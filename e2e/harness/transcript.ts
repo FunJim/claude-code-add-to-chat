@@ -18,8 +18,11 @@ export function projectSlug(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
+/** Where Claude Code keeps each working directory's transcripts. */
+export const PROJECTS_DIR = join(homedir(), '.claude', 'projects')
+
 export function transcriptPath(cwd: string, sessionId: string): string {
-  return join(homedir(), '.claude', 'projects', projectSlug(cwd), `${sessionId}.jsonl`)
+  return join(PROJECTS_DIR, projectSlug(cwd), `${sessionId}.jsonl`)
 }
 
 function textOf(content: string | Block[] | undefined): string {

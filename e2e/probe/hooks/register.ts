@@ -6,7 +6,6 @@
 //   session    the session's id (where its transcript is)
 //   selection  each change of $.ui.selection()
 //   row        each transcript row drawn: component, requestId, text
-//   submit     each prompt as it enters: origin, text, context
 //   turn       each turn's start and end
 //   state      each change of add-to-chat's pending/candidate/commenting
 //   toast      each toast add-to-chat raises
@@ -20,8 +19,7 @@ const ROWS = new Set(['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult'
 let file: string | undefined
 const lines: string[] = []
 let writing: Promise<void> = Promise.resolve()
-const drawn = new Map<string, string>()
-const last: Record<string, string> = {}
+const last = new Map<string, string>()
 
 /** Rows a resumed session draws come before session.start names the file: they wait in `lines`. */
 function log($: EngineInterface, kind: string, data: object) {
@@ -32,13 +30,18 @@ function log($: EngineInterface, kind: string, data: object) {
   return writing
 }
 
-/** Logs `data` under `kind` when it differs from what was logged last. */
-function logChange($: EngineInterface, kind: string, data: object) {
-  const key = JSON.stringify(data)
-  if (last[kind] === key) return
-  last[kind] = key
+/** Logs `data` under `kind` when it differs from what was logged last for `kind` and `of`. */
+function logChange($: EngineInterface, kind: string, data: object, of = '') {
+  const value = JSON.stringify(data)
+  if (last.get(`${kind}:${of}`) === value) return
+  last.set(`${kind}:${of}`, value)
   void log($, kind, data)
 }
+
+// add-to-chat's state, read as another plugin may: references of literals.
+const PENDING = { plugin: 'add-to-chat', key: 'pending' } as never
+const CANDIDATE = { plugin: 'add-to-chat', key: 'candidate' } as never
+const COMMENTING = { plugin: 'add-to-chat', key: 'commenting' } as never
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -47,12 +50,14 @@ export const register: Register = on => {
     await $.command.register({ name: 'probe-out', description: 'Print a two-line command output (e2e)' })
     await $.command.register({ name: 'probe-say', description: 'Submit a prompt as a plugin (e2e)' })
     $.clock.every(200, async () => {
-      logChange($, 'selection', { selection: (await $.ui.selection()) ?? null })
-      logChange($, 'state', {
-        pending: (await $.state.get({ plugin: 'add-to-chat', key: 'pending' } as never)).value ?? [],
-        candidate: (await $.state.get({ plugin: 'add-to-chat', key: 'candidate' } as never)).value ?? null,
-        commenting: (await $.state.get({ plugin: 'add-to-chat', key: 'commenting' } as never)).value ?? null,
-      })
+      const [selection, pending, candidate, commenting] = await Promise.all([
+        $.ui.selection(),
+        $.state.get(PENDING),
+        $.state.get(CANDIDATE),
+        $.state.get(COMMENTING),
+      ])
+      logChange($, 'selection', { selection: selection ?? null })
+      logChange($, 'state', { pending: pending.value ?? [], candidate: candidate.value ?? null, commenting: commenting.value ?? null })
     })
     return next(e)
   })
@@ -68,12 +73,6 @@ export const register: Register = on => {
     return {}
   })
 
-  on('prompt.submit', async ($, e, next) => {
-    const entered = await next(e)
-    void log($, 'submit', { origin: e.origin, text: e.text, context: e.context ?? [], dropped: 'drop' in entered })
-    return entered
-  }).catch(($, e, next) => next(e))
-
   on('turn.start', async ($, e, next) => {
     void log($, 'turn', { phase: 'start' })
     return next(e)
@@ -85,11 +84,6 @@ export const register: Register = on => {
     return done
   })
 
-  on('ui.copy', async ($, e, next) => {
-    void log($, 'copy', { text: (e as { text?: string }).text })
-    return next(e)
-  }).catch(($, e, next) => next(e))
-
   on('ui.toast', async ($, e, next) => {
     void log($, 'toast', { text: e.text })
     return next(e)
@@ -97,13 +91,8 @@ export const register: Register = on => {
 
   on('ui.render', async ($, e, next) => {
     if (!ROWS.has(e.component)) return next(e)
-    const props = e.props as { text?: unknown; tool?: unknown; origin?: unknown }
-    const row = { component: e.component, requestId: e.requestId, text: typeof props.text === 'string' ? props.text : undefined, tool: props.tool, origin: props.origin }
-    const key = JSON.stringify(row)
-    if (drawn.get(`${e.component}:${e.requestId}`) !== key) {
-      drawn.set(`${e.component}:${e.requestId}`, key)
-      void log($, 'row', row)
-    }
+    const text = (e.props as { text?: unknown }).text
+    logChange($, 'row', { component: e.component, requestId: e.requestId, text: typeof text === 'string' ? text : undefined }, `${e.component}:${e.requestId}`)
     return next(e)
   })
 }

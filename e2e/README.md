@@ -33,7 +33,7 @@ No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Ins
   - tool calls, a collapsed tool group, a subagent, a background command and their notifications;
   - bash mode, a command's output, a plugin's prompt.
 
-  [`fixtures/rows.ts`](fixtures/rows.ts) lists what each row shows and what adding from it must give. Re-record after a Claude Code update with `npm run e2e:record`.
+  [`fixtures/rows.ts`](fixtures/rows.ts) lists what each row shows and what adding from it must give. Re-record after a Claude Code update with `npm run e2e:record`. The recorder replaces paths and the session id with placeholders and drops what describes the recording machine (its installed skills, agents, MCP servers and tool list), so the file is safe to commit.
 - **Acts confirmed by what Claude Code saw.** The [probe](probe/) plugin, loaded beside add-to-chat, records the selection, every row's component and `requestId`, add-to-chat's state, turns, toasts and prompts as they enter. Every mouse act is checked against it and redone if the terminal swallowed it. Three things are guarded against:
   - a drag over a still-moving screen;
   - two presses close enough to count as a double click;
@@ -47,11 +47,11 @@ run.ts                 the one command: driver, live view, node:test run, report
 harness/
   terminal.ts          Terminal and Host: what scenarios drive, whatever the driver
   herdr.ts tmux.ts     the two drivers
-  claude.ts            ClaudeSession: launch, select, add, comment, list, submit…
+  claude.ts            ClaudeSession: launch, scroll, select, add, comment, list, send…
   mouse.ts screen.ts   SGR mouse input; finding text by terminal cell
   probe.ts             reading the probe's log
   transcript.ts        reading the session's JSONL: what the model was sent
-  fixtures.ts          sandboxes under $TMPDIR/atc-e2e, installing the recorded transcript
+  fixtures.ts          sandboxes under $TMPDIR/atc-e2e; recording and installing the fixture transcript
   scenario.ts          scenario(): a node:test test with narration, evidence, cleanup
   report.ts            report.md and results.json
 scenarios/*.e2e.ts     band, rows, filters, layout, lifecycle, model
@@ -65,8 +65,7 @@ probe/                 the test-only plugin
 scenario('band', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
   const claude = await ctx.launchFixture()          // or ctx.launch({ name }) for a fresh session
   await ctx.step('add a phrase from the reply')     // narration, shown live and in the report
-  await claude.scrollTo('so reading it failed')
-  const added = await claude.add('so reading it failed')
+  const added = await claude.add('so reading it failed')   // scrolls to it, drags over it, presses Add
   assert.equal(added.source, 'claude')
   await ctx.evidence('band', (await claude.band()).join('\n'))
 })
@@ -76,3 +75,4 @@ scenario('band', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
 - Set `usesModel: true` when it calls haiku.
 - Select text from inside a line, not at its end.
 - Prefer assertions on the probe's state (`claude.probe.pending()`) and the transcript (`claude.transcript()`) over screen text.
+- Match the band's words through `add-to-chat/hooks/labels.ts` (`ADD_LABEL`, `clipLine(n)`, …), not literals.

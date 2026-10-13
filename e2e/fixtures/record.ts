@@ -4,21 +4,19 @@
 // every time without calling the model. Re-record after a Claude Code update
 // changes how rows are stored:  node e2e/fixtures/record.ts
 import { readFile, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { ClaudeSession } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
-import { E2E_DIR, FIXTURE_SESSION, FIXTURE_TRANSCRIPT, TOKENS, removeSandboxes, sandbox } from '../harness/fixtures.ts'
+import { E2E_DIR, FIXTURE_TRANSCRIPT, forFixture, removeSandboxes, sandbox } from '../harness/fixtures.ts'
 import { TmuxHost } from '../harness/tmux.ts'
-import { projectSlug } from '../harness/transcript.ts'
 
 /**
  * The reply the model copies from the sandbox's REPORT.md: every markdown
  * construct the matcher handles. It sits in a file, not in the prompt, so
  * its text shows once on screen (a Read's output is folded).
  */
-export const REPORT = `### Report
+const REPORT = `### Report
 
 | Item | Status |
 |---|---|
@@ -79,19 +77,8 @@ try {
   await replyRow(claude, 'PLUGIN-ACK', 120_000)
   await sleep(2_000)
 
-  const id = (await claude.probe.session()).id
-  const raw = await readFile(transcript.path, 'utf8')
-  const kept = raw
-    .split('\n')
-    .filter(Boolean)
-    // Reload notices are this machine's history, not the conversation.
-    .filter(line => !(JSON.parse(line).type === 'system' && JSON.parse(line).subtype === 'informational'))
-    .join('\n')
-  const tokenized = kept
-    .replaceAll(id, FIXTURE_SESSION)
-    .replaceAll(projectSlug(cwd), TOKENS.slug)
-    .replaceAll(cwd, TOKENS.cwd)
-    .replaceAll(homedir(), TOKENS.home)
+  const sessionId = (await claude.probe.session()).id
+  const tokenized = forFixture(await readFile(transcript.path, 'utf8'), { sessionId, cwd })
   const missing = MUST_HOLD.filter(m => !tokenized.includes(m))
   if (missing.length > 0) throw new Error(`the recording lacks ${missing.join(', ')}; record again`)
   await writeFile(FIXTURE_TRANSCRIPT, `${tokenized}\n`)

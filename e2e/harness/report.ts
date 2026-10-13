@@ -15,9 +15,16 @@ export type RunInfo = {
 
 const MARK = { pass: '✔', fail: '✘', skip: '–' } as const
 
-export function summarize(results: readonly Result[]) {
+export type Summary = { pass: number; fail: number; skip: number }
+
+export function summarize(results: readonly Result[]): Summary {
   const by = (s: Result['status']) => results.filter(r => r.status === s).length
-  return { pass: by('pass'), fail: by('fail'), skip: by('skip'), total: results.length }
+  return { pass: by('pass'), fail: by('fail'), skip: by('skip') }
+}
+
+/** The run's outcome in one line. */
+export function verdict(s: Summary): string {
+  return `${s.fail === 0 ? '✔ PASSED' : '✘ FAILED'} — ${s.pass} passed, ${s.fail} failed, ${s.skip} skipped`
 }
 
 export async function writeReport(runDir: string, info: RunInfo, unordered: readonly Result[]): Promise<string> {
@@ -28,7 +35,7 @@ export async function writeReport(runDir: string, info: RunInfo, unordered: read
   const lines = [
     `# add-to-chat end-to-end run`,
     '',
-    `**${s.fail === 0 ? 'PASSED' : 'FAILED'}** — ${s.pass} passed, ${s.fail} failed, ${s.skip} skipped, in ${seconds(total)}`,
+    `**${verdict(s)}**, in ${seconds(total)}`,
     '',
     '| | |',
     '|---|---|',
@@ -39,7 +46,7 @@ export async function writeReport(runDir: string, info: RunInfo, unordered: read
     '',
     '| | Group | Scenario | Model | Time |',
     '|---|---|---|---|---|',
-    ...results.map(r => `| ${MARK[r.status]} | ${r.group} | ${r.title} | ${r.usesModel ? 'haiku' : '—'} | ${r.status === 'skip' ? '' : seconds(r.ms)} |`),
+    ...results.map(r => `| ${MARK[r.status]} | ${r.group} | ${r.title} | ${r.usesModel ? info.model : '—'} | ${r.status === 'skip' ? '' : seconds(r.ms)} |`),
   ]
   const failed = results.filter(r => r.status === 'fail')
   if (failed.length > 0) {

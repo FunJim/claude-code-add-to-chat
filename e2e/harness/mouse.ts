@@ -26,19 +26,35 @@ export class Mouse {
     await this.term.write(`\x1b[<0;${at.x};${at.y}M`)
   }
 
-  /** Press at `from`, move to `to`, release there: selects what lies between, both ends included. */
-  async drag(from: Point, to: Point) {
+  /** Moves to `at` with the left button held. */
+  async move(at: Point) {
+    await this.term.write(`\x1b[<32;${at.x};${at.y}M`)
+  }
+
+  async release(at: Point) {
+    await this.term.write(`\x1b[<0;${at.x};${at.y}m`)
+  }
+
+  /**
+   * Press at `from`, move to `to`, release there: selects what lies between,
+   * both ends included. With `holdMs`, holds still halfway that long first.
+   */
+  async drag(from: Point, to: Point, { holdMs = 0 } = {}) {
     await this.press(from)
     await sleep(80)
-    await this.term.write(`\x1b[<32;${to.x};${to.y}M`)
+    if (holdMs > 0) {
+      await this.move({ x: Math.round((from.x + to.x) / 2), y: Math.round((from.y + to.y) / 2) })
+      await sleep(holdMs)
+    }
+    await this.move(to)
     await sleep(80)
-    await this.term.write(`\x1b[<0;${to.x};${to.y}m`)
+    await this.release(to)
   }
 
   async click(at: Point) {
     await this.press(at)
     await sleep(60)
-    await this.term.write(`\x1b[<0;${at.x};${at.y}m`)
+    await this.release(at)
   }
 
   /** Mouse-wheel notches over `at`: up scrolls the transcript back. */

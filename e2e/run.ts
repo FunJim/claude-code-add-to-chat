@@ -19,10 +19,11 @@ import { parseArgs } from 'node:util'
 import { run as runTests } from 'node:test'
 import { junit, spec } from 'node:test/reporters'
 
+import { MODEL } from './harness/claude.ts'
 import { run } from './harness/exec.ts'
-import { E2E_DIR, REPO_DIR, removeSandboxes } from './harness/fixtures.ts'
-import { HerdrHost } from './harness/herdr.ts'
-import { summarize, writeReport } from './harness/report.ts'
+import { E2E_DIR, E2E_PREFIX, REPO_DIR, removeSandboxes } from './harness/fixtures.ts'
+import { HerdrHost, closeViewers, openViewer } from './harness/herdr.ts'
+import { summarize, verdict, writeReport } from './harness/report.ts'
 import { setWorld } from './harness/scenario.ts'
 import type { World } from './harness/scenario.ts'
 import type { Driver, Host } from './harness/terminal.ts'
@@ -39,8 +40,6 @@ const { values: args } = parseArgs({
   },
 })
 
-const VIEWER_LABEL = 'add-to-chat e2e (live)'
-
 async function has(command: string) {
   return run('sh', ['-c', `command -v ${command}`]).then(() => true, () => false)
 }
@@ -53,14 +52,12 @@ if (args.list) {
   process.exit(0)
 }
 
+const isInHerdr = process.env.HERDR_ENV === '1'
+
 if (args.stop) {
-  await new HerdrHost('atc-e2e', REPO_DIR, '/dev/null').stop()
-  await new TmuxHost('atc-e2e', '/dev/null').stop()
-  for (const slot of ['main', 'side', 'small']) await run('tmux', ['kill-session', '-t', `atc-e2e-${slot}`]).catch(() => undefined)
-  if (process.env.HERDR_ENV === '1') {
-    const panes = JSON.parse(await run('herdr', ['pane', 'list'])).result?.panes ?? []
-    for (const p of panes) if (p.label === VIEWER_LABEL) await run('herdr', ['pane', 'close', p.pane_id]).catch(() => undefined)
-  }
+  await new HerdrHost(E2E_PREFIX, REPO_DIR, '/dev/null').stop()
+  await new TmuxHost(E2E_PREFIX, '/dev/null').stop()
+  if (isInHerdr) await closeViewers()
   await removeSandboxes()
   console.log('stopped')
   process.exit(0)
@@ -77,24 +74,15 @@ await rm(join(E2E_DIR, 'results', 'latest'), { force: true })
 await symlink(runDir, join(E2E_DIR, 'results', 'latest'))
 const narration = join(runDir, 'narration.log')
 
-const host: Host = driver === 'herdr' ? new HerdrHost('atc-e2e', REPO_DIR, narration) : new TmuxHost('atc-e2e', narration)
-if (host instanceof HerdrHost) await host.start()
+const host: Host = driver === 'herdr' ? new HerdrHost(E2E_PREFIX, REPO_DIR, narration) : new TmuxHost(E2E_PREFIX, narration)
+await host.start()
 const world: World = { host, driver, runDir, results: [] }
 setWorld(world)
 await host.narrate(`add-to-chat e2e · driver ${driver} · ${startedAt.toLocaleString()}`)
 
 // Inside Herdr, show the run beside the person's own pane, read-only.
 const watch = !args['no-watch']
-let viewer: string | undefined
-const follow = `while true; do ${host.watchCommand} 2>/dev/null || sleep 0.5; done`
-if (watch && process.env.HERDR_ENV === '1') {
-  const split = JSON.parse(await run('herdr', ['pane', 'split', '--current', '--direction', 'right', '--ratio', '0.5', '--no-focus']))
-  viewer = split.result?.pane?.pane_id as string | undefined
-  if (viewer !== undefined) {
-    await run('herdr', ['pane', 'rename', viewer, VIEWER_LABEL])
-    await run('herdr', ['pane', 'run', viewer, follow])
-  }
-}
+const viewer = watch && isInHerdr ? await openViewer(`while true; do ${host.watchCommand} 2>/dev/null || sleep 0.5; done`) : undefined
 console.log(`\nadd-to-chat e2e · driver: ${driver}`)
 console.log(viewer === undefined ? `watch live:  ${host.watchCommand}` : `watching live in pane ${viewer}`)
 console.log(`results:     ${runDir}\n`)
@@ -110,11 +98,11 @@ stream.compose(spec).pipe(process.stdout)
 stream.compose(junit).pipe(createWriteStream(join(runDir, 'junit.xml')))
 await new Promise<void>(resolve => stream.once('end', resolve))
 
-const report = await writeReport(runDir, { driver, startedAt, claudeVersion, model: 'haiku', mainSize: host.mainSize, watchCommand: host.watchCommand }, world.results)
+const report = await writeReport(runDir, { driver, startedAt, claudeVersion, model: MODEL, mainSize: host.mainSize, watchCommand: host.watchCommand }, world.results)
 const s = summarize(world.results)
-const verdict = `${s.fail === 0 ? '✔ PASSED' : '✘ FAILED'} — ${s.pass} passed, ${s.fail} failed, ${s.skip} skipped`
-await host.narrate(`\n${verdict}\nreport: ${report}`)
-console.log(`\n${verdict}\nreport: ${report}`)
+const outcome = `\n${verdict(s)}\nreport: ${report}`
+await host.narrate(outcome)
+console.log(outcome)
 
 if (args.keep) {
   console.log(`sessions left up; watch: ${host.watchCommand} · take down: node e2e/run.ts --stop`)
@@ -125,7 +113,7 @@ if (args.keep) {
     rl.close()
   }
   await host.stop()
-  if (viewer !== undefined) await run('herdr', ['pane', 'close', viewer]).catch(() => undefined)
+  if (viewer !== undefined) await closeViewers()
   await removeSandboxes()
 }
 process.exitCode = s.fail === 0 ? 0 : 1

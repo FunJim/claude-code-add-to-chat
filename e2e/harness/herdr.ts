@@ -13,20 +13,52 @@ import { appendFile, writeFile } from 'node:fs/promises'
 import { commandLine, run, shellQuote, sleep, waitFor } from './exec.ts'
 import { INHERITED } from './terminal.ts'
 import type { Host, Key, Slot, SpawnOptions, Terminal } from './terminal.ts'
+import { killSession, newSession } from './tmux.ts'
 
 /** The tmux window the Herdr client draws into: the whole Herdr screen. */
-export const HERDR_SCREEN = { cols: 240, rows: 64 }
+const HERDR_SCREEN = { cols: 240, rows: 64 }
 
 type Json = Record<string, any>
 
+/**
+ * Runs a Herdr command and resolves its `result`; `session` names an
+ * isolated session, none means the one this process runs in.
+ */
+async function herdr(session: string | undefined, ...args: string[]): Promise<Json> {
+  const text = (await run('herdr', [...(session === undefined ? [] : ['--session', session]), ...args])).trim()
+  // A few commands (rename) answer nothing when they succeed.
+  if (text === '') return {}
+  const out = JSON.parse(text) as Json
+  if (out.error) throw new Error(`herdr ${args.join(' ')}: ${out.error.message}`)
+  return out.result as Json
+}
+
+const VIEWER_LABEL = 'add-to-chat e2e (live)'
+
+/**
+ * Opens a pane beside the caller's, in the person's own Herdr session,
+ * running `command` (a read-only view of the run); resolves its id.
+ */
+export async function openViewer(command: string): Promise<string | undefined> {
+  const viewer = (await herdr(undefined, 'pane', 'split', '--current', '--direction', 'right', '--ratio', '0.5', '--no-focus')).pane?.pane_id as string | undefined
+  if (viewer === undefined) return undefined
+  await herdr(undefined, 'pane', 'rename', viewer, VIEWER_LABEL)
+  await herdr(undefined, 'pane', 'run', viewer, command)
+  return viewer
+}
+
+/** Closes the viewer panes this or an earlier run opened. */
+export async function closeViewers() {
+  const panes = ((await herdr(undefined, 'pane', 'list')).panes ?? []) as Json[]
+  for (const p of panes) if (p.label === VIEWER_LABEL) await herdr(undefined, 'pane', 'close', p.pane_id).catch(() => undefined)
+}
+
 class HerdrPane implements Terminal {
   private readonly host: HerdrHost
-  readonly label: string
   readonly paneId: string
 
-  constructor(host: HerdrHost, label: string, paneId: string) {
+  constructor(host: HerdrHost, paneId: string) {
     this.host = host
-    this.label = label
     this.paneId = paneId
   }
 
@@ -72,13 +104,8 @@ export class HerdrHost implements Host {
     return run('herdr', ['--session', this.session, ...args])
   }
 
-  async herdr(...args: string[]): Promise<Json> {
-    const text = (await this.herdrText(...args)).trim()
-    // A few commands (rename) answer nothing when they succeed.
-    if (text === '') return {}
-    const out = JSON.parse(text) as Json
-    if (out.error) throw new Error(`herdr ${args.join(' ')}: ${out.error.message}`)
-    return out.result as Json
+  herdr(...args: string[]): Promise<Json> {
+    return herdr(this.session, ...args)
   }
 
   /** Starts the isolated session and lays out its tab. */
@@ -86,8 +113,7 @@ export class HerdrHost implements Host {
     await this.stop()
     await writeFile(this.narrationFile, '')
     const client = commandLine(['herdr', 'session', 'attach', this.session], {}, INHERITED)
-    await run('tmux', ['new-session', '-d', '-s', this.tmuxSession, '-x', String(HERDR_SCREEN.cols), '-y', String(HERDR_SCREEN.rows), '-c', this.cwd, client])
-    await run('tmux', ['set-option', '-t', this.tmuxSession, 'window-size', 'manual'])
+    await newSession(this.tmuxSession, HERDR_SCREEN, this.cwd, client)
     await waitFor('the isolated Herdr server', async () => (await this.herdr('workspace', 'list').catch(() => undefined)) ?? false, { timeoutMs: 20_000 })
 
     const tab = await this.herdr('tab', 'create', '--label', 'add-to-chat e2e', '--cwd', this.cwd, '--focus')
@@ -116,8 +142,8 @@ export class HerdrHost implements Host {
     return info.foreground_process_group_id === info.shell_pid
   }
 
-  private async waitShell(paneId: string, timeoutMs = 15_000) {
-    await waitFor(`a shell prompt in ${paneId}`, () => this.isShellIdle(paneId), { timeoutMs })
+  private async waitShell(paneId: string) {
+    await waitFor(`a shell prompt in ${paneId}`, () => this.isShellIdle(paneId), { timeoutMs: 15_000 })
   }
 
   private paneFor(slot: Slot): string {
@@ -138,17 +164,16 @@ export class HerdrHost implements Host {
     }, { timeoutMs: 30_000 })
     await this.herdr('agent', 'rename', paneId, name).catch(() => undefined)
     await this.herdr('pane', 'rename', paneId, name).catch(() => undefined)
-    return new HerdrPane(this, name, paneId)
+    return new HerdrPane(this, paneId)
   }
 
   /** Ends what runs in a pane (twice ctrl+c quits Claude Code) and waits for its shell. */
   async release(paneId: string) {
-    if (await this.isShellIdle(paneId)) return
     for (let attempt = 0; attempt < 4 && !(await this.isShellIdle(paneId)); attempt += 1) {
       await this.herdr('pane', 'send-keys', paneId, 'ctrl+c')
       await sleep(250)
       await this.herdr('pane', 'send-keys', paneId, 'ctrl+c')
-      await sleep(1500)
+      await waitFor('Claude Code to quit', () => this.isShellIdle(paneId), { timeoutMs: 1_500, intervalMs: 100 }).catch(() => undefined)
     }
     await this.waitShell(paneId)
   }
@@ -159,7 +184,7 @@ export class HerdrHost implements Host {
 
   async stop() {
     await run('herdr', ['session', 'stop', this.session]).catch(() => undefined)
-    await run('tmux', ['kill-session', '-t', this.tmuxSession]).catch(() => undefined)
+    await killSession(this.tmuxSession)
     await run('herdr', ['session', 'delete', this.session]).catch(() => undefined)
   }
 }

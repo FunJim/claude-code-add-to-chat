@@ -3,6 +3,7 @@ import { copyFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe } from 'node:test'
 
+import { SEND_PLACEHOLDER, clipLine } from '../../add-to-chat/hooks/labels.ts'
 import type { ClaudeSession } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
 import { FIXTURES_DIR } from '../harness/fixtures.ts'
@@ -64,7 +65,7 @@ describe(MODEL, () => {
     await claude.waitShowing('①')
     const screen = await claude.screen()
     assert.ok(!screen.includes(':annotation{'), 'no directive shows')
-    assert.match(screen, /MODEL-REQ-1: for each annotation[\s\S]*📎 2 annotations/)
+    assert.match(screen, new RegExp(`MODEL-REQ-1: for each annotation[\\s\\S]*${clipLine(2)}`))
     assert.deepEqual(await claude.probe.pending(), [])
     await ctx.evidence('screen', screen)
 
@@ -75,28 +76,25 @@ describe(MODEL, () => {
     await sleep(800)
 
     await ctx.step('the 📎 line is not offered')
-    await claude.select('📎 2 annotation')
-    await sleep(1_000)
-    assert.equal(await claude.bandShows('✚ Add to chat'), false)
+    await claude.select(clipLine(2).slice(0, -1))
+    assert.equal(await claude.offers(), false)
 
     await ctx.step('a resumed session still draws the prompt row compactly')
     const { id } = await claude.probe.session()
     await claude.close()
     const again = await ctx.launch({ name: 'resumed', cwd: claude.cwd, resume: id })
-    await again.waitShowing('📎 2 annotations')
+    await again.waitShowing(clipLine(2))
   })
 
   scenario(MODEL, 'Send with an empty prompt: the Annotations go alone', { drivers: ['herdr'], usesModel: true }, async ctx => {
     const claude = await primed(ctx)
     await claude.add('lazy dog')
     await claude.comment(1, 'rewrite this part with a cat')
-    await ctx.step('[ Send ] fills the prompt with “(see annotations)”; Enter sends it')
+    await ctx.step(`[ Send ] fills the prompt with “${SEND_PLACEHOLDER}”; Enter sends it`)
     await claude.clickInBand('[ Send ]', { dx: 3 })
-    await waitFor('the filled prompt', async () => (await claude.draft()) === '(see annotations)', { timeoutMs: 5_000 })
-    const before = await claude.probe.turnsCompleted()
-    await claude.press('enter')
-    await waitFor('the turn', async () => (await claude.probe.turnsCompleted()) > before, { timeoutMs: 180_000 })
-    const x = await exchange(claude, '(see annotations)')
+    await waitFor('the filled prompt', async () => (await claude.draft()) === SEND_PLACEHOLDER, { timeoutMs: 5_000 })
+    await claude.send()
+    const x = await exchange(claude, SEND_PLACEHOLDER)
     assert.match(x.prompt, /## My request:\n\(see annotations\)$/)
     assert.match(x.reply, /:annotation\{index="1"\}/)
     assert.match(x.reply, /cat/i, 'the model acted on the Comment')
@@ -115,13 +113,13 @@ describe(MODEL, () => {
     assert.equal(x.prompt, 'MODEL-REQ-3: answer my annotation in one short sentence.', 'the prompt goes as typed')
     assert.match(x.context.join('\n'), /<annotation n="1" source="claude">\n<excerpt>quick brown fox<\/excerpt>\n<comment>name the animal<\/comment>/)
     assert.match(x.reply, /fox/i, 'the model read the Excerpt')
-    assert.equal(await claude.isShowing('📎 1 annotation\n'), false)
+    assert.equal(await claude.isShowing(`${clipLine(1)}\n`), false)
   })
 
   scenario(MODEL, 'a prompt queued mid-turn carries what was added meanwhile', { drivers: ['herdr'], usesModel: true }, async ctx => {
     const claude = await ctx.launch({ name: 'queue' })
     await ctx.step('start a turn that takes a while')
-    await claude.type('MODEL-REQ-4A: run the bash command `sleep 15` and then reply SLEPT.')
+    await claude.type('MODEL-REQ-4A: run the bash command `sleep 10` and then reply SLEPT.')
     await claude.press('enter')
     await waitFor('the turn to start', () => claude.probe.isWorking(), { timeoutMs: 30_000 })
     await ctx.step('meanwhile add from the prompt row, and queue the next prompt')

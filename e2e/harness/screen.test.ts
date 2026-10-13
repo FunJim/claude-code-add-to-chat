@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { bandRows, count, locate } from './screen.ts'
+import { bandRows, isBandRow, locate } from './screen.ts'
 
 test('locate counts wide characters as two cells', () => {
   const screen = 'first row\n  混合中文 and emoji 🚀 with snake_case'
@@ -13,9 +13,12 @@ test('locate finds the nth occurrence across rows', () => {
   const screen = 'a cat\nthe cat and the cat'
   assert.deepEqual(locate(screen, 'cat', 3), { x: 17, y: 2, width: 3 })
   assert.equal(locate(screen, 'cat', 4), undefined)
-  assert.equal(count(screen, 'cat'), 3)
 })
 
 test('bandRows keeps the rows led by the accent bar', () => {
   assert.deepEqual(bandRows('  ▎ a quote\n▎ 📎 1 annotation\nother'), ['▎ 📎 1 annotation'])
+})
+
+test('locate can keep to some rows, counting only theirs', () => {
+  assert.deepEqual(locate('a cat\n▎ a cat', 'cat', 1, isBandRow), { x: 5, y: 2, width: 3 })
 })

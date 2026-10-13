@@ -2,7 +2,7 @@
 // kind, and what adding text from each must give. Scenarios select from
 // these; after re-recording (record.ts), check the texts still show.
 
-export type Source = 'claude' | 'you' | 'transcript'
+import type { AnnotationSource } from '../../add-to-chat/types/index.d.ts'
 
 export type FixtureRow = {
   kind: string
@@ -10,7 +10,7 @@ export type FixtureRow = {
   text: string
   /** Which occurrence on screen, when the text shows more than once. */
   nth?: number
-  source: Source
+  source: AnnotationSource
   /** The ui.render component the row is drawn as; undefined: one no hook sees. */
   components?: readonly string[]
   /** What the row shows once the Annotation is pending: where its mark lands. */

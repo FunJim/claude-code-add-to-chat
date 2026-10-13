@@ -1,11 +1,9 @@
 // What a scenario drives: a terminal it can read and type into, hosted by
 // tmux or by Herdr. Both drivers implement it; scenarios never know which.
 
-export type Key = 'enter' | 'escape' | 'down' | 'up' | 'tab' | 'backspace' | 'ctrl+c' | 'ctrl+o' | 'ctrl+u'
+export type Key = 'enter' | 'escape' | 'down' | 'ctrl+o' | 'ctrl+u'
 
 export interface Terminal {
-  /** A short name for logs and reports. */
-  readonly label: string
   /** The visible screen, rows joined with newlines. */
   screen(): Promise<string>
   /** Writes bytes as typed (mouse sequences included). */
@@ -29,6 +27,8 @@ export type SpawnOptions = {
 
 export interface Host {
   readonly driver: Driver
+  /** Sets up what terminals are spawned in. */
+  start(): Promise<void>
   spawn(options: SpawnOptions): Promise<Terminal>
   /** Sends a line to the narration the showcase shows. */
   narrate(line: string): Promise<void>
@@ -36,6 +36,7 @@ export interface Host {
   readonly watchCommand: string
   /** The cells the main slot's terminal has. */
   readonly mainSize: { cols: number; rows: number }
+  /** Takes down everything it started, including what an earlier run left up. */
   stop(): Promise<void>
 }
 

@@ -1,20 +1,18 @@
 // Reading what the probe plugin (e2e/probe) recorded about a session.
 import { readFile } from 'node:fs/promises'
 
+import type { Annotation, Candidate as Selection } from '../../add-to-chat/types/index.d.ts'
 import { waitFor } from './exec.ts'
 
-export type Selection = { text: string; requestId?: string }
-export type Annotation = { index: number; text: string; source: 'claude' | 'you' | 'transcript'; rowId?: string; comment?: string }
+export type { Annotation, Selection }
 export type AddToChatState = { pending: Annotation[]; candidate: Selection | null; commenting: number | null }
-export type Row = { component: string; requestId?: string; text?: string; tool?: string; origin?: { kind: string } }
-export type Submit = { origin: { kind: string }; text: string; context: string[]; dropped: boolean }
+export type Row = { component: string; requestId?: string; text?: string }
 
 type Event =
   | { kind: 'session'; t: number; id: string; cwd: string }
   | { kind: 'selection'; t: number; selection: Selection | null }
   | { kind: 'state'; t: number } & AddToChatState
   | { kind: 'row'; t: number } & Row
-  | { kind: 'submit'; t: number } & Submit
   | { kind: 'turn'; t: number; phase: 'start' | 'complete' }
   | { kind: 'toast'; t: number; text: string }
 
@@ -64,10 +62,6 @@ export class ProbeLog {
   async componentOf(requestId: string | undefined): Promise<string | undefined> {
     if (requestId === undefined) return undefined
     return (await this.of('row')).find(r => r.requestId === requestId)?.component
-  }
-
-  async submits(): Promise<Submit[]> {
-    return this.of('submit')
   }
 
   async toasts(): Promise<string[]> {

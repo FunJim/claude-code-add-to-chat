@@ -2,8 +2,10 @@
   "compilerOptions": {
     "target": "es2024",
     "lib": ["es2024"],
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    // The mod's modules import without extensions, as its engine does;
+    // bundler resolution reads them. Node needs the .ts on e2e's own imports.
+    "module": "preserve",
+    "moduleResolution": "bundler",
     "types": ["node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,

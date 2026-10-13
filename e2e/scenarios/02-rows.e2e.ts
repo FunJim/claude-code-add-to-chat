@@ -2,7 +2,7 @@
 // row it lies in, the Source it gets, and where its mark shows.
 import { describe } from 'node:test'
 
-import { circled, superscript } from '../../add-to-chat/hooks/excerpt.ts'
+import { circled, superscript } from '../../add-to-chat/hooks/labels.ts'
 import type { ClaudeSession } from '../harness/claude.ts'
 import { OTHER_ROWS, REPLY_ROWS } from '../fixtures/rows.ts'
 import type { FixtureRow } from '../fixtures/rows.ts'
@@ -16,7 +16,6 @@ async function addEach(ctx: Context, claude: ClaudeSession, rows: readonly Fixtu
   for (const [i, row] of rows.entries()) {
     const index = i + 1
     await ctx.step(`${circled(index)} ${row.kind}: “${row.text}”`)
-    await claude.scrollTo(row.text, { nth: row.nth })
     const selected = await claude.select(row.text, { nth: row.nth, expectRow: row.components !== undefined })
     const component = await claude.probe.componentOf(selected.requestId)
     const added = await claude.addSelected()

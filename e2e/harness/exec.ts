@@ -4,12 +4,10 @@ import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 
-export type RunOptions = { cwd?: string; env?: NodeJS.ProcessEnv; input?: string }
-
 /** Runs a command and resolves its stdout; rejects with its stderr on a non-zero exit. */
-export async function run(cmd: string, args: readonly string[], options: RunOptions = {}): Promise<string> {
+export async function run(cmd: string, args: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(cmd, args, { cwd: options.cwd, env: options.env, maxBuffer: 64 * 1024 * 1024 })
+    const { stdout } = await execFileAsync(cmd, args, { maxBuffer: 64 * 1024 * 1024 })
     return stdout
   } catch (error) {
     const e = error as { stderr?: string; stdout?: string; message: string }
@@ -19,11 +17,9 @@ export async function run(cmd: string, args: readonly string[], options: RunOpti
 
 export const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 
-export class Timeout extends Error {}
-
 /**
  * Polls `probe` until it returns something other than undefined/false, or
- * throws a Timeout naming `what` (and the last value seen) after `timeoutMs`.
+ * throws naming `what` after `timeoutMs`.
  */
 export async function waitFor<T>(
   what: string,
@@ -34,9 +30,27 @@ export async function waitFor<T>(
   for (;;) {
     const value = await probe()
     if (value !== undefined && value !== false) return value
-    if (Date.now() > deadline) throw new Timeout(`timed out after ${timeoutMs}ms waiting for ${what}`)
+    if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}`)
     await sleep(intervalMs)
   }
+}
+
+/**
+ * Does `act` and waits up to `timeoutMs` for `done` to hold, up to
+ * `attempts` times: a terminal sometimes swallows a click or a drag.
+ */
+export async function retry<T>(
+  what: string,
+  act: (attempt: number) => Promise<unknown>,
+  done: () => Promise<T | undefined | false>,
+  { attempts = 3, timeoutMs = 3_000 }: { attempts?: number; timeoutMs?: number } = {},
+): Promise<T> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    await act(attempt)
+    const value = await waitFor(what, done, { timeoutMs }).catch(() => undefined)
+    if (value !== undefined) return value
+  }
+  throw new Error(`gave up on ${what} after ${attempts} attempts`)
 }
 
 /** Quotes one argument for a POSIX shell. */

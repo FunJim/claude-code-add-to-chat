@@ -1,19 +1,17 @@
 // Finding text on a terminal screen by cell, as the mouse addresses it.
-import { cells } from '../../add-to-chat/hooks/text.ts'
+import { BAND_BAR } from '../../add-to-chat/hooks/labels.ts'
+import { width } from '../../add-to-chat/hooks/text.ts'
 
 /** A 1-based cell position and the cells the text spans from it. */
 export type Spot = { x: number; y: number; width: number }
 
-function width(text: string): number {
-  return [...text].reduce((n, c) => n + cells(c), 0)
-}
-
 /** The `nth` occurrence of `needle` on `screen`, top to bottom, left to right. */
-export function locate(screen: string, needle: string, nth = 1): Spot | undefined {
+export function locate(screen: string, needle: string, nth = 1, inRow: (row: string) => boolean = () => true): Spot | undefined {
   let seen = 0
   const rows = screen.split('\n')
   for (let y = 0; y < rows.length; y += 1) {
     const row = rows[y]!
+    if (!inRow(row)) continue
     for (let from = 0; ; ) {
       const at = row.indexOf(needle, from)
       if (at === -1) break
@@ -25,12 +23,17 @@ export function locate(screen: string, needle: string, nth = 1): Spot | undefine
   return undefined
 }
 
-/** How many times `needle` shows on `screen`. */
-export function count(screen: string, needle: string): number {
-  return screen.split('\n').reduce((n, row) => n + row.split(needle).length - 1, 0)
+/** Whether a row is the band's: led by its accent bar at the left edge. */
+export function isBandRow(row: string): boolean {
+  return row.startsWith(`${BAND_BAR} `)
 }
 
-/** The band's rows: the ones the mod draws, led by its accent bar at the left edge. */
+/** The band's rows. */
 export function bandRows(screen: string): string[] {
-  return screen.split('\n').filter(row => row.startsWith('▎ '))
+  return screen.split('\n').filter(isBandRow)
+}
+
+/** Whether a row is one of the horizontal rules around the prompt box. */
+export function isRule(row: string): boolean {
+  return /^─{20,}/.test(row)
 }
