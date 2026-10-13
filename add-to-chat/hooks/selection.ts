@@ -1,13 +1,36 @@
 // Deciding what a mouse selection is: an Excerpt worth offering, the band's
 // or the draft's own words, or one already handled. Pure: register.tsx reads
 // the selection and the state and acts on the answer.
-import type { Annotation, Candidate } from '../types'
+import type { Annotation, AnnotationSource, Candidate } from '../types'
 import { stripMarks } from './excerpt'
 import { BAND_BAR, bandLines, isClipLineHead } from './labels'
 import { oneLine } from './text'
 
 /** What `$.ui.selection()` gives; a Candidate is one kept to offer. */
 export type Selection = Candidate
+
+/** Rows the person types into the session from: a terminal, Remote Control, the SDK. */
+const USER_ORIGINS = ['composer', 'bridge', 'sdk']
+
+/** The components a Source is known for, beside the reply and prompt rows. */
+export const TOOL_ROWS = ['ToolUse', 'ToolResult', 'ToolGroup', 'ToolProgress', 'AskUserQuestion'] as const
+export const SYSTEM_ROWS = ['TurnDuration', 'CommandOutput', 'InfoNotice'] as const
+
+/**
+ * The Source of a selection in a row drawn as `component`: a prompt row is
+ * the person's only when they typed it; one a notification, a schedule or
+ * another session sent is Claude Code's own.
+ */
+export function rowSource(component: string, props: unknown): AnnotationSource {
+  if (component === 'AssistantMessage') return 'assistant'
+  if (component === 'UserMessage') {
+    const kind = (props as { origin?: { kind?: string } }).origin?.kind ?? ''
+    return USER_ORIGINS.includes(kind) ? 'user' : 'system'
+  }
+  if ((TOOL_ROWS as readonly string[]).includes(component)) return 'tool'
+  if ((SYSTEM_ROWS as readonly string[]).includes(component)) return 'system'
+  return 'transcript'
+}
 
 export function selectionKey(s: Selection): string {
   return `${s.requestId ?? ''}\u0000${s.text}`
@@ -65,6 +88,6 @@ export function judge(selection: Selection | undefined, around: Surroundings): V
   if (selection === undefined || excerpt === null || isOutsideTranscript(excerpt, around)) return { reason: 'nothing' }
   const key = selectionKey(selection)
   if (key === around.handled) return { reason: 'already' }
-  if (around.pending.some(a => a.text === excerpt.text && a.rowId === excerpt.requestId)) return { reason: 'already' }
+  if (around.pending.some(a => a.text === excerpt.text && a.requestId === excerpt.requestId)) return { reason: 'already' }
   return { excerpt, key }
 }

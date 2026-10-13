@@ -19,7 +19,7 @@ export function superscript(n: number): string {
   return `⁽${[...String(n)].map(d => SUPERSCRIPT[Number(d)]).join('')}⁾`
 }
 
-export const SOURCE_LABEL: Record<AnnotationSource, string> = { claude: 'Claude', you: 'You', transcript: 'Transcript' }
+export const SOURCE_LABEL: Record<AnnotationSource, string> = { assistant: 'Claude', user: 'You', tool: 'Tool', system: 'System', transcript: 'Transcript' }
 
 /** The accent bar each band row starts with. */
 export const BAND_BAR = '▎'

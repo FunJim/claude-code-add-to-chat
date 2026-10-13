@@ -3,7 +3,7 @@ import type { Annotation, AnnotationSource } from '../types'
 import type { Selection } from './selection'
 
 export function appended(list: readonly Annotation[], excerpt: Selection, source: AnnotationSource): Annotation[] {
-  return [...list, { index: list.length + 1, text: excerpt.text, source, rowId: excerpt.requestId }]
+  return [...list, { index: list.length + 1, text: excerpt.text, source, requestId: excerpt.requestId }]
 }
 
 export function withComment(list: readonly Annotation[], index: number, value: string): Annotation[] {
@@ -22,5 +22,5 @@ export function commentingAfterRemoving(at: number | null, index: number): numbe
 }
 
 export function marksFor(list: readonly Annotation[], requestId: string | undefined): Annotation[] {
-  return list.filter(a => a.rowId !== undefined && a.rowId === requestId)
+  return list.filter(a => a.requestId !== undefined && a.requestId === requestId)
 }

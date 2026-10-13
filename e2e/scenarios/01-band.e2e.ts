@@ -32,7 +32,7 @@ describe(BAND, () => {
     const claude = await ctx.launchFixture()
     await ctx.step('add a table cell from the reply')
     const added = await claude.add('replied SUB-OK the answer is 42')
-    assert.deepEqual({ index: added.index, text: added.text, source: added.source }, { index: 1, text: 'replied SUB-OK the answer is 42', source: 'claude' })
+    assert.deepEqual({ index: added.index, text: added.text, source: added.source }, { index: 1, text: 'replied SUB-OK the answer is 42', source: 'assistant' })
     await ctx.step('the Comment field opens for ①; type into it')
     await claude.waitShowing(`① ${COMMENT_PLACEHOLDER}`)
     await claude.comment(1, 'why 42?')

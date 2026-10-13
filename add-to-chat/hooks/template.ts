@@ -5,7 +5,7 @@
 import type { Annotation } from '../types'
 
 export const DEFAULT_TEMPLATE = `# Response annotations:
-Each item contains text selected from earlier in this conversation (Claude's replies or the user's own prompts) and may include a user comment. Treat items as Annotation 1, Annotation 2, and so on in array order. Use every selection as context and address every comment. For every annotation you address, include its inline directive \`:annotation{index="N"}\`, where N is its one-based array position (for example, \`:annotation{index="1"}\`). Do not use unstructured annotation labels.
+Each item contains text selected from earlier in this conversation and where it was selected (\`source.role\`: your replies are \`assistant\`, the user's own prompts \`user\`, tool calls and results \`tool\`, Claude Code's notices \`system\`), and may include the user's note on it (\`annotation\`). Treat items as Annotation 1, Annotation 2, and so on in array order. Use every selection as context and address every note. For every annotation you address, include its inline directive \`:annotation{index="N"}\`, where N is its one-based array position (for example, \`:annotation{index="1"}\`). Do not use unstructured annotation labels.
 <response-annotations>
 {{annotations_json}}
 </response-annotations>
@@ -100,18 +100,18 @@ function renderNodes(nodes: Node[], scopes: Scope[]): string {
   return out
 }
 
-/** What `{{annotations_json}}` holds per item, matching Codex's shape. */
+/** What `{{annotations_json}}` holds per item: Codex's shape, the Comment as `annotation`. */
 function toJson(a: Annotation) {
-  return { text: a.text, source: { role: a.source, rowId: a.rowId }, comment: a.comment }
+  return { text: a.text, source: { role: a.source, requestId: a.requestId }, annotation: a.comment }
 }
 
 /**
- * JSON whose strings cannot close the tags around it: an Excerpt holding
- * `</response-annotations>` would otherwise end the block early and pass
- * its own text off as the person's request. Still valid JSON.
+ * Compact JSON whose strings cannot close the tags around it: an Excerpt
+ * holding `</response-annotations>` would otherwise end the block early and
+ * pass its own text off as the person's request. Still valid JSON.
  */
 function fencedJson(value: unknown): string {
-  return JSON.stringify(value, null, 2).replace(/[<>&]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
+  return JSON.stringify(value).replace(/[<>&]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
 }
 
 export function renderTemplate(template: string, request: string, annotations: readonly Annotation[]): string {
@@ -123,7 +123,7 @@ export function renderTemplate(template: string, request: string, annotations: r
       index: a.index,
       text: a.text,
       source: a.source,
-      rowId: a.rowId ?? '',
+      requestId: a.requestId ?? '',
       comment: a.comment ?? '',
     })),
   }

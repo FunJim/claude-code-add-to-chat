@@ -54,13 +54,17 @@ Esc raises no event. So while the field is open, a change to the prompt draft (t
 
 ## Source
 
-- the row is an `AssistantMessage` → `claude`;
-- the row is a `UserMessage` the person typed (`origin.kind === 'composer'`) → `you`;
-- anything else, or no `requestId` → `transcript`.
+| The selection lies in | Source |
+|---|---|
+| a reply (`AssistantMessage`) | `assistant` |
+| a prompt the person typed: a `UserMessage` from the terminal, Remote Control or the SDK (`origin.kind` `composer`, `bridge`, `sdk`) | `user` |
+| a tool's row: `ToolUse`, `ToolResult`, `ToolGroup`, `ToolProgress`, `AskUserQuestion` | `tool` |
+| a row of Claude Code's own: `TurnDuration`, `CommandOutput`, `InfoNotice`, a `UserMessage` a notification, a plugin, a schedule or another session sent | `system` |
+| no single row, or one no hook sees (bash mode, `/command` lines) | `transcript` |
 
 Render hooks see each row's component; they record `requestId → role` in a module-level cache (`roles` in `register.tsx`), because render hooks may not write state. It is a derived cache, not drawing state: after a reload every row in view draws again and refills it, and a selection in a row out of view carries no `requestId` anyway. `requestId === "placeholder"` (a prompt row's first draw, before it has an id) is ignored.
 
-An Annotation is `{ index, text, source, rowId?, comment? }`. No surrounding context is attached.
+An Annotation is `{ index, text, source, requestId?, comment? }`, where `requestId` is the row's: what `$.ui.selection()` and the row's render hook both call it (a message's uuid in the session's JSONL, a tool row's `tool_use_id`). The model cannot resolve it; the mod uses it for marks and to refuse duplicates. No surrounding context is attached.
 
 ## Marks in the transcript
 
@@ -82,7 +86,7 @@ After the prompt is sent the marks go and numbering restarts at 1.
 
 `📎 N annotations ▸` opens the list; each row is `① You  "…" — comment  ✕`, and `✕` removes it, renumbering the rest. Annotations cannot be edited.
 
-Style: each row starts with a Claude-orange `▎`; numbers are bold orange; Sources are coloured (`claude`, `suggestion`, `subtle`); Excerpts are italic in curly quotes; Comments and secondary actions are dim.
+Style: each row starts with a Claude-orange `▎`; numbers are bold orange; Sources are coloured (Claude orange for `assistant`, `suggestion` for `user`, `subtle` for the rest); Excerpts are italic in curly quotes; Comments and secondary actions are dim.
 
 The band gets `maxRows` rows. The head row and the Comment field come first (with a single row, the field while it is open); the list goes below only with a row to spare and scrolls when long. A short terminal would otherwise spend its one row on the engine's "n more".
 
@@ -96,8 +100,8 @@ On `prompt.submit` with Annotations pending, from a prompt the person typed (`or
 
 `userConfig.templatePath` names a template file, read with `$.fs.read` (`~/` expands to `$HOME`). Unset, or unreadable (with a toast), the built-in template is used. The syntax is a Mustache subset:
 
-- top level: `{{request}}`, `{{count}}`, `{{annotations_json}}` (a JSON array of `{ text, source: { role, rowId }, comment? }`, Codex's shape);
-- `{{#annotations}}…{{/annotations}}`, inside which `{{index}}` (one-based), `{{text}}`, `{{source}}`, `{{rowId}}`, `{{comment}}`;
+- top level: `{{request}}`, `{{count}}`, `{{annotations_json}}` (compact JSON: an array of `{ text, source: { role, requestId }, annotation? }`, Codex's shape with the Comment as `annotation`);
+- `{{#annotations}}…{{/annotations}}`, inside which `{{index}}` (one-based), `{{text}}`, `{{source}}`, `{{requestId}}`, `{{comment}}`;
 - `{{#name}}…{{/name}}` renders when the value is truthy, `{{^name}}…{{/name}}` when it is not;
 - a section tag alone on its line leaves no blank line;
 - values are inserted as-is, apart from `{{annotations_json}}`, which escapes `<`, `>` and `&` as `\u003c`, `\u003e`, `\u0026` (still valid JSON) so an Excerpt cannot close the tags around it.
@@ -106,7 +110,7 @@ The default template, Codex's wording adapted to point at the person's own promp
 
 ```markdown
 # Response annotations:
-Each item contains text selected from earlier in this conversation (Claude's replies or the user's own prompts) and may include a user comment. Treat items as Annotation 1, Annotation 2, and so on in array order. Use every selection as context and address every comment. For every annotation you address, include its inline directive `:annotation{index="N"}`, where N is its one-based array position (for example, `:annotation{index="1"}`). Do not use unstructured annotation labels.
+Each item contains text selected from earlier in this conversation and where it was selected (`source.role`: your replies are `assistant`, the user's own prompts `user`, tool calls and results `tool`, Claude Code's notices `system`), and may include the user's note on it (`annotation`). Treat items as Annotation 1, Annotation 2, and so on in array order. Use every selection as context and address every note. For every annotation you address, include its inline directive `:annotation{index="N"}`, where N is its one-based array position (for example, `:annotation{index="1"}`). Do not use unstructured annotation labels.
 <response-annotations>
 {{annotations_json}}
 </response-annotations>

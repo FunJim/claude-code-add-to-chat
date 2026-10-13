@@ -9,7 +9,7 @@ import { bandView } from './band'
 import { hashText } from './hash'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOTHING_SELECTED, SEND_PLACEHOLDER, addedToast, unreadableTemplate } from './labels'
 import { promptText, replyText } from './rows'
-import { judge, selectionKey } from './selection'
+import { SYSTEM_ROWS, TOOL_ROWS, judge, rowSource, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
 import { annotated, withOriginal } from './send'
 import { DEFAULT_TEMPLATE } from './template'
@@ -27,15 +27,15 @@ const STORE_ORIGINALS = 'originals'
 const MAX_ORIGINALS = 200
 
 /**
- * Which rows are replies and which are the person's prompts, by requestId.
+ * Each transcript row's Source, by requestId.
  * Render hooks fill it and may not write state; it is a cache, not drawing
  * state: after a reload every row in view draws again and refills it, and a
  * selection in a row out of view carries no requestId anyway.
  */
 const roles = new Map<string, AnnotationSource>()
 
-function rememberRole(requestId: string | undefined, role: AnnotationSource) {
-  if (requestId !== undefined && requestId !== 'placeholder') roles.set(requestId, role)
+function rememberRole(requestId: string | undefined, component: string, props: unknown) {
+  if (requestId !== undefined && requestId !== 'placeholder') roles.set(requestId, rowSource(component, props))
 }
 
 async function surroundings($: EngineInterface): Promise<Surroundings> {
@@ -186,18 +186,24 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    rememberRole(e.requestId, 'claude')
+    rememberRole(e.requestId, e.component, e.props)
     const text = replyText(e.props.text, e.requestId, await read($, pending))
     return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
   })
 
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    rememberRole(e.requestId, e.component, e.props)
     if (e.props.origin.kind !== 'composer') return next(e)
-    rememberRole(e.requestId, 'you')
     const [list, map] = await Promise.all([read($, pending), read($, originals)])
     const original = e.props.isExpanded ? undefined : map[hashText(e.props.text)]
     const text = promptText(e.props.text, e.requestId, list, original)
     return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
+  })
+
+  // The rows nothing here draws on are seen only for their Source.
+  on('ui.render', { component: [...TOOL_ROWS, ...SYSTEM_ROWS] }, async ($, e, next) => {
+    rememberRole(e.requestId, e.component, e.props)
+    return next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

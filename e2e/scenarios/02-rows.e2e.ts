@@ -56,7 +56,7 @@ describe(ROWS, () => {
     await ctx.evidence('screen with marks', await claude.screen())
   })
 
-  scenario(ROWS, 'tools, notifications, bash mode, commands and plugin prompts: added with Source transcript', { drivers: ['herdr'], timeoutMs: 420_000 }, async ctx => {
+  scenario(ROWS, 'tools, notifications, bash mode, commands and plugin prompts: added with Source tool, system or transcript', { drivers: ['herdr'], timeoutMs: 420_000 }, async ctx => {
     const claude = await ctx.launchFixture()
     await addEach(ctx, claude, OTHER_ROWS)
     await claude.openList()

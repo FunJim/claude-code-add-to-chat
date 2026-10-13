@@ -11,7 +11,7 @@ The exact text the person selected with the mouse from a transcript row.
 _Avoid_: selection (the selection is the transient on-screen highlight; the Excerpt is what is kept)
 
 **Source**
-Where an Excerpt came from: a Claude reply, a prompt the person sent, or somewhere in the transcript that can't be pinned to either (a tool row, or a selection spanning several rows).
+Where an Excerpt came from: a Claude reply (`assistant`), a prompt the person sent (`user`), a tool's row (`tool`), a row of Claude Code's own such as a notice (`system`), or no single row (`transcript`).
 
 **Comment**
 Optional words the person attaches to one Annotation, about that Excerpt only.

@@ -1,4 +1,8 @@
-export type AnnotationSource = 'claude' | 'you' | 'transcript'
+/**
+ * Where an Excerpt was selected: a reply, the person's prompt, a tool's row,
+ * a notice or other row of Claude Code's own, or no single row.
+ */
+export type AnnotationSource = 'assistant' | 'user' | 'tool' | 'system' | 'transcript'
 
 export type Annotation = {
   /** One-based, renumbered when one is removed. */
@@ -6,8 +10,8 @@ export type Annotation = {
   /** The Excerpt, marks stripped. */
   text: string
   source: AnnotationSource
-  /** The transcript row it was selected in, when it lies in one. */
-  rowId?: string
+  /** The transcript row it was selected in (`$.ui.selection()`'s `requestId`), when it lies in one. */
+  requestId?: string
   comment?: string
 }
 

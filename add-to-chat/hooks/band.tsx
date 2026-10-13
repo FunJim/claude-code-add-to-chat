@@ -26,7 +26,7 @@ import {
 } from './labels'
 import { preview, width } from './text'
 
-const SOURCE_COLOR: Record<AnnotationSource, Color> = { claude: 'claude', you: 'suggestion', transcript: 'subtle' }
+const SOURCE_COLOR: Record<AnnotationSource, Color> = { assistant: 'claude', user: 'suggestion', tool: 'subtle', system: 'subtle', transcript: 'subtle' }
 
 /** The elements the band draws with, from `$.ui.resolve(e)`. */
 export type BandElements = {

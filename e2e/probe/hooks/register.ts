@@ -14,7 +14,7 @@
 // prints a command's output, /probe-say submits a prompt as a plugin.
 import type { EngineInterface, Register } from 'claude-code'
 
-const ROWS = new Set(['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'CommandOutput', 'TurnDuration'])
+const ROWS = new Set(['UserMessage', 'AssistantMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'ToolProgress', 'AskUserQuestion', 'CommandOutput', 'TurnDuration', 'InfoNotice'])
 
 let file: string | undefined
 const lines: string[] = []

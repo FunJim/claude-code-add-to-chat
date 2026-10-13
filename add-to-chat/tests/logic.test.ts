@@ -4,13 +4,13 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Annotation } from '../types'
 import { appended, commentingAfterRemoving, marksFor, withComment, without } from '../hooks/annotations'
 import { promptText, replyText } from '../hooks/rows'
-import { excerptOf, judge } from '../hooks/selection'
+import { excerptOf, judge, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { annotated, withOriginal } from '../hooks/send'
 
 const A: Annotation[] = [
-  { index: 1, text: 'one', source: 'claude', rowId: 'r1' },
-  { index: 2, text: 'two', source: 'you', rowId: 'u1', comment: 'hm' },
+  { index: 1, text: 'one', source: 'assistant', requestId: 'r1' },
+  { index: 2, text: 'two', source: 'user', requestId: 'u1', comment: 'hm' },
   { index: 3, text: 'three', source: 'transcript' },
 ]
 const QUIET: Surroundings = { draft: '', pending: [], handled: null }
@@ -33,6 +33,15 @@ describe('judging a selection', () => {
     expect(judge({ text: '② You “two” — hm' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toHaveProperty('excerpt')
   })
+  test('rowSource: replies, typed prompts, tool rows, and Claude Code\'s own', () => {
+    expect(rowSource('AssistantMessage', {})).toBe('assistant')
+    expect(rowSource('UserMessage', { origin: { kind: 'composer' } })).toBe('user')
+    expect(rowSource('UserMessage', { origin: { kind: 'bridge' } })).toBe('user')
+    expect(rowSource('UserMessage', { origin: { kind: 'task-notification' } })).toBe('system')
+    expect(['ToolUse', 'ToolResult', 'ToolGroup'].map(c => rowSource(c, {}))).toEqual(['tool', 'tool', 'tool'])
+    expect(['TurnDuration', 'CommandOutput'].map(c => rowSource(c, {}))).toEqual(['system', 'system'])
+    expect(rowSource('Pane', {})).toBe('transcript')
+  })
   test('excerptOf drops the 📎 line and any head of it', () => {
     expect(excerptOf({ text: 'q\n📎 3 annotations' })).toEqual({ text: 'q' })
     expect(excerptOf({ text: 'q\n  📎 3 ann' })).toEqual({ text: 'q' })
@@ -41,7 +50,7 @@ describe('judging a selection', () => {
 
 describe('editing the list', () => {
   test('appended numbers from the list', () => {
-    expect(appended(A, { text: 'four', requestId: 'r9' }, 'claude').at(-1)).toEqual({ index: 4, text: 'four', source: 'claude', rowId: 'r9' })
+    expect(appended(A, { text: 'four', requestId: 'r9' }, 'assistant').at(-1)).toEqual({ index: 4, text: 'four', source: 'assistant', requestId: 'r9' })
   })
   test('withComment trims, and an empty one removes it', () => {
     expect(withComment(A, 1, '  why? ')[0]!.comment).toBe('why?')

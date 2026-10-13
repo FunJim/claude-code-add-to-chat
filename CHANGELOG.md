@@ -4,6 +4,11 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Changed
+
+- `{{annotations_json}}` is compact JSON, and each item is `{"text","source":{"role","requestId"},"annotation"}`: `rowId` is now `requestId`, the comment is `annotation`.
+- Sources are `assistant`, `user`, `tool`, `system` and `transcript` (were `claude`, `you`, `transcript`); tool rows and Claude Code's own rows get their own. The template variable `{{rowId}}` is now `{{requestId}}`.
+
 ## [0.1.0] - 2026-10-13
 
 First release, for Claude Code 2.1.296.

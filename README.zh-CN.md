@@ -59,6 +59,8 @@ Claude 回复里的 `:annotation{index="1"}` 会显示为 ①。
 { "pluginConfigs": { "add-to-chat": { "options": { "templatePath": "~/.claude/add-to-chat.tmpl" } } } }
 ```
 
+每条 annotation 的来源（JSON 里的 `role`、模板里的 `{{source}}`）取值为：`assistant`（Claude 的回复）、`user`（你的 prompt）、`tool`（工具调用或结果）、`system`（Claude Code 自己的行：通知、命令输出、轮次耗时）、`transcript`（不在某一行上）。
+
 模板语法是 Mustache 的一个子集，标签说明和示例见[英文 README](README.md#the-annotation-template)。要点：
 
 - 模板里**有** `{{request}}` 时，渲染结果替换你的 prompt。
@@ -70,7 +72,7 @@ Claude 回复里的 `:annotation{index="1"}` 会显示为 ①。
 - 只支持 fullscreen 模式。
 - 同一行里同样的文字不能重复收录。
 - 标记加在 Excerpt 在该行里第一次出现的位置。代码块里的文字和跨表格单元格的选区，标记加在行首。
-- 跨多行的选区和工具输出里的选区，来源记为 "transcript"，因为没法归到某条回复或某条 prompt 上。
+- 跨多行的选区没法归到某一行上，来源记为 `transcript`。
 
 ## 文档
 

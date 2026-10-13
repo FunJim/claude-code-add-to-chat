@@ -62,14 +62,16 @@ By default your prompt is rewritten in Codex's format: a JSON array of the annot
 { "pluginConfigs": { "add-to-chat": { "options": { "templatePath": "~/.claude/add-to-chat.tmpl" } } } }
 ```
 
+Each annotation's source (`role`, `{{source}}`) is `assistant` (Claude's reply), `user` (your prompt), `tool` (a tool call or result), `system` (Claude Code's own rows: notices, command output, turn duration) or `transcript` (no single row).
+
 Templates use a small Mustache subset:
 
 | Tag | Value |
 |---|---|
 | `{{request}}` | What you typed. A template **with** it replaces your prompt; a template **without** it is attached as hidden context beside your prompt |
 | `{{count}}` | Number of annotations |
-| `{{annotations_json}}` | `[{ "text", "source": { "role", "rowId" }, "comment" }]` |
-| `{{#annotations}}…{{/annotations}}` | One block per annotation, with `{{index}}`, `{{text}}`, `{{source}}` (`claude` / `you` / `transcript`), `{{rowId}}`, `{{comment}}` |
+| `{{annotations_json}}` | Compact JSON: `[{"text","source":{"role","requestId"},"annotation"}]`, where `annotation` is your comment |
+| `{{#annotations}}…{{/annotations}}` | One block per annotation, with `{{index}}`, `{{text}}`, `{{source}}`, `{{requestId}}` (the row's id), `{{comment}}` |
 | `{{#comment}}…{{/comment}}` | Only when the annotation has a comment (`{{^comment}}` for the opposite) |
 
 An XML-style template that leaves your prompt untouched and goes in as context:
@@ -93,7 +95,7 @@ Citations (①②…) appear only if your template asks Claude to write `:annota
 - Fullscreen only (see above).
 - Selecting the same text in the same row twice can't add it twice.
 - An excerpt is marked where it first occurs in its row; text in a code block or across table cells is marked at the start of the row instead.
-- A selection spanning several rows, or in a tool's output, has the Source "transcript": it can't be pinned to a reply or a prompt.
+- A selection spanning several rows has the Source `transcript`: it can't be pinned to one row.
 
 ## Documentation
 

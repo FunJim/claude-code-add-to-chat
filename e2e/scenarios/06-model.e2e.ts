@@ -51,12 +51,12 @@ describe(MODEL, () => {
     await ctx.evidence('reply as written', x.reply)
     assert.match(x.prompt, /^# Response annotations:/)
     assert.match(x.prompt, /## My request:\nMODEL-REQ-1: for each annotation/)
-    const sent = annotationsJson(x.prompt) as { text: string; source: { role: string; rowId?: string }; comment?: string }[]
-    assert.deepEqual(sent.map(a => [a.text, a.source.role, a.comment]), [
-      ['quick brown fox', 'claude', 'which animal is this?'],
-      ['capital of France', 'claude', undefined],
+    const sent = annotationsJson(x.prompt) as { text: string; source: { role: string; requestId?: string }; annotation?: string }[]
+    assert.deepEqual(sent.map(a => [a.text, a.source.role, a.annotation]), [
+      ['quick brown fox', 'assistant', 'which animal is this?'],
+      ['capital of France', 'assistant', undefined],
     ])
-    assert.ok(sent.every(a => typeof a.source.rowId === 'string'), 'each carries the row it came from')
+    assert.ok(sent.every(a => typeof a.source.requestId === 'string'), 'each carries the row it came from')
     await ctx.step('the model answered with a Citation for each Annotation')
     assert.match(x.reply, /:annotation\{index="1"\}/)
     assert.match(x.reply, /:annotation\{index="2"\}/)
@@ -111,7 +111,7 @@ describe(MODEL, () => {
     const x = await exchange(claude, 'MODEL-REQ-3')
     await ctx.evidence('context the model read', x.context.join('\n---\n'))
     assert.equal(x.prompt, 'MODEL-REQ-3: answer my annotation in one short sentence.', 'the prompt goes as typed')
-    assert.match(x.context.join('\n'), /<annotation n="1" source="claude">\n<excerpt>quick brown fox<\/excerpt>\n<comment>name the animal<\/comment>/)
+    assert.match(x.context.join('\n'), /<annotation n="1" source="assistant">\n<excerpt>quick brown fox<\/excerpt>\n<comment>name the animal<\/comment>/)
     assert.match(x.reply, /fox/i, 'the model read the Excerpt')
     assert.equal(await claude.isShowing(`${clipLine(1)}\n`), false)
   })
@@ -130,7 +130,7 @@ describe(MODEL, () => {
     await waitFor('the turn to end', async () => (await claude.probe.turnsCompleted()) >= 1 && !(await claude.probe.isWorking()), { timeoutMs: 240_000, intervalMs: 1_000 })
     const x = await exchange(claude, 'MODEL-REQ-4B')
     const sent = annotationsJson(x.prompt) as { text: string; source: { role: string } }[]
-    assert.deepEqual(sent.map(a => [a.text, a.source.role]), [['run the bash command', 'you']])
+    assert.deepEqual(sent.map(a => [a.text, a.source.role]), [['run the bash command', 'user']])
     assert.match(x.reply, /run the bash command/i)
   })
 
@@ -145,7 +145,7 @@ describe(MODEL, () => {
     assert.equal((await claude.probe.pending()).length, 1)
     await claude.submit('MODEL-REQ-6: what city is my annotation about? One word.')
     const x = await exchange(claude, 'MODEL-REQ-6')
-    assert.match(x.prompt, /"text": "capital of France"/)
+    assert.match(x.prompt, /"text":"capital of France"/)
     assert.match(x.reply, /Paris/i)
   })
 })

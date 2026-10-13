@@ -9,6 +9,7 @@ How they were measured: a record-only probe mod (now [`e2e/probe/`](../e2e/probe
 - `$.ui.selection()` returns the **rendered** text, "what a copy would take", not the markdown. It returns `undefined` outside fullscreen.
 - It keeps returning the last selection after the highlight goes (Esc, a click on empty transcript, typing in the prompt). It becomes `undefined` only when the next prompt's **turn ends**, not when it is submitted. → the mod remembers what it handled, across a submit, and needs `✕ ignore`.
 - In a `onPress`, the selection is the same as before the click.
+- `requestId` is the id the row's render hook gets: for a message, the `uuid` of its entry in the session's JSONL (each text block of a reply is an entry of its own); for a tool row, the `tool_use_id`; for a collapsed group, a made-up `collapsed-<uuid>`. Claude Code does not send these ids to the model.
 - A selection across paragraphs or list items of one reply still has the row's `requestId`. One spanning rows, in the prompt or band, or in a row at the very edge of the transcript viewport, has none.
 - A drag that ends on a line's last character takes the line end too, reaching into the next line, so it has no `requestId`.
 - The selection is readable mid-drag. A 250ms poll sees intermediate states (`foo_b` → `foo_bar()`). → the band's height must not depend on it ([ADR 0002](adr/0002-one-row-band.md)).
@@ -36,16 +37,17 @@ Rows by type (adding from each, with Source and mark):
 
 | Row | Component (`requestId`) | Source | Mark |
 |---|---|---|---|
-| a typed prompt; its compact or ctrl+o form | `UserMessage` (uuid; `placeholder` at first) | you | ✓ |
-| reply text: headings, table cells, quotes, nested and numbered lists, inline code, `__bold__`, `_italic_`, `~~strike~~`, CJK, emoji | `AssistantMessage` (one uuid per text block) | claude | ✓ |
-| a table line across columns (with `│`), a fenced code block | `AssistantMessage` | claude | at row start |
-| tool call headers, results, diffs | `ToolUse` / `ToolResult` (`tool_use_id`) | transcript | — |
-| a collapsed group `Read 3 files, ran 1 shell command` | `ToolGroup` (`collapsed-…`) | transcript | — |
-| `Baked for 11s` | `TurnDuration` | transcript | — |
-| subagent and background-command notifications | `UserMessage`, origin `task-notification` | transcript | — |
-| a plugin command's output | `CommandOutput` | transcript | — |
-| `!` bash mode, `/command` lines, a plugin's prompt row, reload notices, `/compact` rows, the logo | no `ui.render` | transcript | — |
-| pasted long text | `UserMessage` | you | ✓ |
+| a typed prompt; its compact or ctrl+o form | `UserMessage` (uuid; `placeholder` at first) | user | ✓ |
+| reply text: headings, table cells, quotes, nested and numbered lists, inline code, `__bold__`, `_italic_`, `~~strike~~`, CJK, emoji | `AssistantMessage` (one uuid per text block) | assistant | ✓ |
+| a table line across columns (with `│`), a fenced code block | `AssistantMessage` | assistant | at row start |
+| tool call headers, results, diffs | `ToolUse` / `ToolResult` (`tool_use_id`) | tool | — |
+| a collapsed group `Read 3 files, ran 1 shell command` | `ToolGroup` (`collapsed-…`) | tool | — |
+| `Baked for 11s` | `TurnDuration` | system | — |
+| subagent and background-command notifications | `UserMessage`, origin `task-notification` | system | — |
+| a plugin command's output | `CommandOutput` | system | — |
+| a prompt a plugin sent (`› Prompt from the … plugin` and its text) | `UserMessage`, origin `plugin`; the sending plugin's own hooks never see it | system | — |
+| `!` bash mode, `/command` lines, reload notices, `/compact` rows, the logo | no `ui.render` | transcript | — |
+| pasted long text | `UserMessage` | user | ✓ |
 | the prompt draft, the band's own text | none | not offered | — |
 
 ## Prompts

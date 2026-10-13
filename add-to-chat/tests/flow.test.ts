@@ -13,6 +13,12 @@ async function commentThroughBand($: Engine, index: number, text: string) {
   await ui.unmount()
 }
 
+/** Sends a prompt and resolves the annotations JSON the model was given. */
+async function submitted($: Engine, w: Awaited<ReturnType<typeof start>>): Promise<{ text: string; source: { role: string } }[]> {
+  await submit($, 'q')
+  return JSON.parse(w.submitted.at(-1)!.text.split('<response-annotations>\n')[1]!.split('\n</response-annotations>')[0]!)
+}
+
 /** The shown text of the band's list row for one Annotation. */
 async function listRow(ui: { find: (q: { key: string }) => Promise<{ text: string } | undefined> }, index: number) {
   return (await ui.find({ key: `row-${index}` }))?.text ?? ''
@@ -49,15 +55,16 @@ describe('adding a selection', () => {
     })
   }
 
-  test('a prompt row is Source you; a selection outside any row is transcript', async ($, on) => {
+  test('a prompt row is Source user, a tool row tool, a notification system; outside any row, transcript', async ($, on) => {
     const w = await start($, on)
     await drawRow($, w, 'UserMessage', 'u1', 'my earlier idea about caching')
+    await drawRow($, w, 'UserMessage', 'n1', 'Background command finished', { origin: { kind: 'task-notification' } })
+    await $.ui.render({ component: 'ToolUse', requestId: 'toolu_1', surface: 'terminal', props: {} } as never)
     await addText($, w, 'earlier idea', 'u1')
+    await addText($, w, 'Bash(ls)', 'toolu_1')
+    await addText($, w, 'command finished', 'n1')
     await addText($, w, 'Bash(ls)\n  a.txt')
-    const ui = await mountBand($)
-    await ui.press({ key: 'list' })
-    expect(await listRow(ui, 1)).toMatch(/① You\s+“earlier idea”/)
-    expect(await listRow(ui, 2)).toMatch(/② Transcript\s+“Bash\(ls\) a.txt”/)
+    expect((await submitted($, w)).map(a => a.source.role)).toEqual(['user', 'tool', 'system', 'transcript'])
   })
 
   test('the Comment field stays open after /add-to-chat clears the prompt', async ($, on) => {
@@ -283,7 +290,7 @@ describe('marks in the transcript', () => {
     })
     await addText($, w, 'Background command', 'n1')
     await submit($, 'what finished?')
-    expect(w.submitted[0]!.text).toContain('"role": "transcript"')
+    expect(w.submitted[0]!.text).toContain('"role":"system"')
     // Its row is drawn as the engine has it: no mark, no rewrite.
     expect(
       await drawRow($, w, 'UserMessage', 'n1', 'Background command "sleep" completed', { origin: { kind: 'task-notification' } }),
@@ -313,7 +320,7 @@ describe('sending', () => {
     const entered = await submit($, 'why?')
     expect(w.submitted).toHaveLength(1)
     expect(w.submitted[0]!.text).toStartWith('# Response annotations:')
-    expect(w.submitted[0]!.text).toContain('"text": "npm test"')
+    expect(w.submitted[0]!.text).toContain('"text":"npm test"')
     expect(w.submitted[0]!.text).toEndWith('## My request:\nwhy?')
     expect(entered.text).toBe(w.submitted[0]!.text)
 
@@ -371,7 +378,7 @@ describe('sending', () => {
       await $.prompt.submit({ text: 'from elsewhere', origin: { kind }, wait: false } as never)
       expect(w.submitted[0]).toEqual({ text: 'from elsewhere', context: undefined })
       await submit($, 'mine')
-      expect(w.submitted[1]!.text).toContain('"text": "npm test"')
+      expect(w.submitted[1]!.text).toContain('"text":"npm test"')
     })
   }
 
@@ -393,8 +400,8 @@ describe('sending', () => {
     const json = JSON.parse(w.submitted[0]!.text.split('<response-annotations>\n')[1]!.split('\n</response-annotations>')[0]!)
     expect(json[0]).toEqual({
       text: 'use {{request}} and {{#annotations}}x{{/annotations}}',
-      source: { role: 'transcript', rowId: 'r1' },
-      comment: 'a "quoted" comment\twith <tags> & {{count}}',
+      source: { role: 'transcript', requestId: 'r1' },
+      annotation: 'a "quoted" comment\twith <tags> & {{count}}',
     })
   })
 
