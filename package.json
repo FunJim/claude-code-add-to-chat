@@ -1,0 +1,21 @@
+{
+  "name": "claude-code-add-to-chat",
+  "private": true,
+  "type": "module",
+  "description": "add-to-chat: a Claude Code mod, its unit tests and its end-to-end showcase",
+  "engines": { "node": ">=23.6" },
+  "scripts": {
+    "test": "claude plugin test add-to-chat",
+    "validate": "claude plugin validate . && claude plugin validate add-to-chat",
+    "e2e": "node e2e/run.ts",
+    "e2e:herdr": "node e2e/run.ts --driver herdr",
+    "e2e:tmux": "node e2e/run.ts --driver tmux",
+    "e2e:record": "node e2e/fixtures/record.ts",
+    "e2e:unit": "node --test 'e2e/harness/**/*.test.ts'",
+    "typecheck": "tsc -p e2e"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

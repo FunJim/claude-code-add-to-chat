@@ -1,1 +1,7 @@
-{ "name": "atc-probe", "version": "0.0.1", "description": "Throwaway probe for add-to-chat's open questions", "types": "./types/index.d.ts" }
+{
+  "name": "atc-probe",
+  "version": "0.2.0",
+  "description": "Test-only: records what the e2e harness asserts on (rows, selection, prompts, turns, add-to-chat's state). Changes nothing.",
+  "author": { "name": "FunJim" },
+  "types": "./types/index.d.ts"
+}
