@@ -58,6 +58,83 @@
 - `--continue` 之后，靠 `$.store` 里的映射表，两条带 Annotation 的消息都显示为紧凑行。
 - 第一次运行时有一回点击 `[ Add to chat ]` 没有反应，之后（包括在新进程里）都复现不了。
 
+## 6. herdr 里的端到端测试（2026-10-13）
+
+两个 herdr pane 各跑一个 `claude --plugin-dir add-to-chat`：一个用默认模板，一个用 `--settings` 的 `pluginConfigs["add-to-chat"].options.templatePath` 指向 XML 模板。鼠标操作通过 `herdr pane send-text` 写入 SGR 序列（现在由 `e2e/harness/mouse.ts` 负责）。
+
+- **默认模板**：发给 LLM 的用户消息就是渲染后的全文，和 `spec.md` 第 7 节一致。模型逐条回应 Comment，每条都以 `:annotation{index="N"}` 开头，显示为代码色的 ①②。
+- **XML 模板**：用户消息保持原样，渲染结果存为 `hook_additional_context` 附件。模型按编号回应，没有 Comment 的条目也会处理。
+- **`[Send]`**：request 是 `(see annotations)`，模型从 Excerpt 本身推断出了意图。
+- **热重载**：重载后，band 要等 state 变化才会重绘，所以 `session.start` 里会先清一次 `candidate`。
+- **矮 pane**：band 只有 1 行时，引擎只显示一行 "↓ n more"。所以 band 按 `maxRows` 只显示最需要的那几行。
+- **Fragment**：`<>…</>` 放在 Box 里会打乱横向布局，要改用子元素数组。`borderStyle="quote"` 会多出一个空的上边框行，所以竖线改为每行自己画。
+- **`/clear`**：会触发 `session.end`（reason 是 `clear`），之后不会再有 `session.start`。待发送的 Annotation 指向的行已经不存在了，所以要清空。
+- **标记紧挨代码片段**：`` `let` `` 后面直接接 `` `⁽¹⁾` ``，两组反引号会连成双反引号的代码片段。现在匹配结尾落在代码片段里时，标记插在片段内部；其他贴着反引号的位置用 U+200B 隔开。
+- **测试工具的问题，不是 mod 的 bug**：模拟拖选有时没能正确收尾，或者被识别成连击，结果选中整行或跨行，没有 `requestId`。这时 mod 按规格把 Source 记为 Transcript。布局变化后的第一次点击有时会被吃掉，需要再点一次。
+
+## 7. 消息类型矩阵（2026-10-13）
+
+后台 tmux 会话（160×50）同时加载 add-to-chat 和只做记录的探针 `spikes/probe`（每一行的组件、`requestId`、props，以及选区，写到 `ATC_PROBE_LOG`）。每种行都做一遍"选中 → Add"，再展开列表核对 Source 和标记，最后发送并读 transcript JSONL 里的 prompt。这一套后来成了 `e2e/` 测试框架，矩阵变成了 `e2e/scenarios/02-rows.e2e.ts`。
+
+| 行 | 引擎组件（`requestId`） | 收录 | Source | 行内标记 |
+|---|---|---|---|---|
+| 自己的 prompt（composer） | `UserMessage`（uuid；提交瞬间是 `placeholder`） | ✓ | you | ✓ |
+| 紧凑行的原文 / ctrl+o 展开后的全文 | `UserMessage` | ✓ | you | ✓（展开视图在全文上画） |
+| 紧凑行的 `📎 N annotations` 及其任意前缀 | `UserMessage` | 不提供（mod 自己的界面元素） | — | — |
+| 回复正文、标题、表格单元格、引用、嵌套列表、编号列表、行内代码、`__粗体__`、`_斜体_`、`~~删除线~~`、中文、emoji | `AssistantMessage`（每个文本块一个 uuid） | ✓ | claude | ✓（代码片段内用不带反引号的标记） |
+| 表格里跨列的一行（含 `│`） | `AssistantMessage` | ✓ | claude | 回退到行首 |
+| 代码块 | `AssistantMessage` | ✓ | claude | 回退到行首 |
+| 工具调用标题 `Agent(…)`、`Edit(…)`，以及结果、diff | `ToolUse` / `ToolResult`（`tool_use_id`） | ✓ | transcript | — |
+| 折叠组 `Read 3 files, ran 1 shell command` | `ToolGroup`（`collapsed-…`） | ✓ | transcript | — |
+| `Baked for 11s` | `TurnDuration` | ✓ | transcript | — |
+| 子 agent 结束、后台命令结束的通知 | `UserMessage`，origin 为 `task-notification` | ✓ | transcript | — |
+| 插件命令的输出 | `CommandOutput` | ✓ | transcript | — |
+| `!` bash 模式的输入和输出、`/命令` 输入行、插件 prompt 行、`… reloaded` 通知、`/compact` 产生的行、logo 区域 | 无 `ui.render` | ✓ | transcript | — |
+| AskUserQuestion 被拒的结果、`(No output)` | `ToolResult` | ✓ | transcript | — |
+| 粘贴的长文本（transcript 里显示展开后的内容） | `UserMessage` | ✓（多行也可以） | you | ✓ |
+| 跨多行的长选区 | 同一个 `AssistantMessage` | ✓（预览压成一行，按显示宽度截断） | claude | ✓ |
+| 输入框里的草稿、band 自己的文字 | 无 `requestId` | 不提供 | — | — |
+
+在矩阵测试中发现并已修复的 mod bug：
+
+- 回复里单独出现的 ```` ``` ```` 会让 `codeRanges` 一直延伸到后面别的反引号，中间的 `:annotation` 指令全被当成"代码里的示例"留着不动。现在改为 CommonMark 规则：开头和结尾是等长的反引号串，不能跨段落。投影匹配也改用同一个 `spanClose`。
+- 长回复在流式输出结束后不重绘，Citation 停留在原始指令的样子。现在在 `turn.complete` 时调用 `$.ui.invalidate('ui.render')`。
+- `~~删除线~~` 在终端里带着波浪号显示，投影却把 `~` 去掉了。现在保留 `~`。
+- 判断单词内部的 `_` 时用了 `\w`，而 `\w` 包含 `_`，导致 `__bold__` 的结尾被误判。现在改为判断 `\p{L}\p{N}`。
+- 同一段 Excerpt 中间隔着别的选区时能被重复收录。现在会对照整个待发送列表去重（同一行、同样的文字）。
+- 草稿、band 自己的文字、`📎` 行能被收录；band 预览里会出现 `📎`。现在都已过滤，预览显示的就是最终保存的 Excerpt。
+- 编号超过 20 时显示为 `(21)`。现在用 ㉑–㊿ 编到 50。
+- 预览按字符数截断，中文会超宽折行。现在按显示宽度截断（`hooks/text.ts`）。
+- 窄终端里评论框前的编号被挤掉。现在编号单独放在不收缩的 Box 里，宽度不足时换用短 placeholder。
+
+其他场景：
+
+- turn 进行中收录、排队发送：模板在提交那一刻就套上了，模型引用了这条 Annotation。
+- `/compact` 之后待发送列表保留，照常发送。
+- 热重载时评论框保留，能继续写。
+- 非 fullscreen：`/add-to-chat` 提示需要 fullscreen，不显示 band。
+- ctrl+o 视图里没有 band，选区留到退出后再由 band 提供。
+
+测试工具本身的问题（不是 mod 的 bug）：
+
+- 中文和 emoji 要按显示宽度计算坐标。
+- 拖选前不要按 Esc，也不要插入中间的移动事件。
+- 鼠标操作之间要停顿 1 秒以上，否则会被识别成连击（扩展成选整行）。
+- 选区终点正好在行尾时，会带上换行符，延伸到下一行，于是没有 `requestId`。
+
+## 8. e2e 框架测出的问题（2026-10-13）
+
+- **拖选途中 band 变高，选区会跳行**：拖选未松开时选区已经可读，轮询看到后 band 多出一行，transcript 停在底部时被顶上去，按住的鼠标落到下一行。复现方法是拖到一半停顿 900ms（`01-band` 的停顿场景）。等选区稳定（600ms）只能减少发生，所以改为 fullscreen 下常驻一行头行，高度不随选区变化（用户选择的方案）。
+- **没有 `requestId` 的选区，Add 按钮会闪烁**：offer 的预览本身被当成"band 的文字"过滤掉，下一次轮询又出现。现在判断"band 的文字"时排除 offer 自身。
+- **终端宽度的计算**：`⏺ ✚` 等符号占 1 列，只有默认以 emoji 形式显示的字符（🚀 📎）占 2 列，应该用 `\p{Emoji_Presentation}`，而不是 `\p{Extended_Pictographic}`。
+- **窄屏头行**：预览被挤到只剩一个字。现在按宽度逐级缩短右侧的文字。
+- Claude Code 的行为（测试框架已经适配，这些不是 mod 的问题）：
+  - 位于 transcript 视口最边缘一行的选区没有 `requestId`；
+  - 拖选终点落在行末字符上时，会带上换行；
+  - 在 turn 进行中排队的 prompt 会并入这一轮，存成 `queued_command` 附件；
+  - 恢复会话时，transcript 的行比 `session.start` 先画出来；
+  - 多行输入要用括号粘贴，换行用 CR。
+
 ## 对规格的影响
 
 1. **第 8 节 `[Send]`**：二选一

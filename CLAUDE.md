@@ -6,17 +6,21 @@ A Claude Code mod (function-hooks plugin): select text in the fullscreen transcr
 
 - `add-to-chat/` — the mod itself (what gets installed)
   - `.claude-plugin/plugin.json` — manifest, `userConfig`, `"types"`
-  - `hooks/hooks.json` → `hooks/register.tsx` — the one hooks module (it may `import` sibling `.ts` files; never `import()`)
+  - `hooks/register.tsx` — the engine glue. **Every `$` call lives here:** the engine follows `$` only into functions of the same file, never across an import, and `on()` takes a function literal.
+  - `hooks/*.ts(x)` beside it — pure modules: `selection` (judging a selection), `annotations` (list edits), `rows` (what a row draws), `send` (template applied), `band.tsx` (a view: elements + values + callbacks), `excerpt` (markdown matching, marks, Citations), `template`, `text` (terminal cells), `labels`, `hash`
   - `types/index.d.ts` — `PluginState` contract; every `$.state` key the module names must be declared here
   - `tests/*.test.ts(x)` — run by `claude plugin test`
+- `e2e/` — end-to-end harness and showcase (Herdr + tmux, real sessions); see `e2e/README.md`
 - `.claude-plugin/marketplace.json` — makes this repo installable
-- `spikes/` — throwaway probe mods used to answer the spec's "待实测" questions; findings in `docs/spikes.md` (read it before touching selection, matching or submit logic)
+- `spikes/tools/` — scripts from the first measurements (`docs/spikes.md`)
 
 ## Commands
 
 ```sh
 claude plugin validate add-to-chat   # manifest + module source, the way the engine reads them
-claude plugin test add-to-chat       # *.test.ts against the real engine
+claude plugin test add-to-chat       # *.test.ts against the real engine (npm test)
+node e2e/run.ts [--driver tmux] [--only <regex>]   # end-to-end, real sessions (npm run e2e)
+npm run e2e:unit && npm run typecheck # the harness's own tests and types (needs npm install)
 tsc -p add-to-chat                   # needs .claude-plugin/types/, laid by the engine on first load
 ```
 
@@ -40,4 +44,9 @@ Try it live: `claude --plugin-dir ./add-to-chat` with `CLAUDE_CODE_NO_FLICKER=1`
 
 ## Live check
 
-The things tests cannot show (focus, colours, real `requestId`s) are checked in a tmux session driven with SGR mouse sequences; `spikes/tools/drag.sh` is the helper. Unset the parent's `CLAUDE_CODE_SESSION_ID` / `CLAUDE_CODE_MESSAGING_*` / `CLAUDE_CODE_CHILD_SESSION` env vars for the child.
+Run `npm run e2e` (or `--only <regex>`) rather than poking a session by hand. A new behaviour gets a scenario in `e2e/scenarios/`.
+
+- Prefer the fixture transcript: `ctx.launchFixture()`, rows listed in `e2e/fixtures/rows.ts`.
+- Assert on the probe (`claude.probe.pending()`, `.componentOf()`) and on the transcript (`claude.transcript()`).
+- Select text from inside a line, never at a line end.
+- After a Claude Code update, re-record the fixture: `npm run e2e:record`, then check `rows.ts` still holds.

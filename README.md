@@ -16,10 +16,14 @@ It needs fullscreen mode (`CLAUDE_CODE_NO_FLICKER=1`). Outside fullscreen, Claud
 
 ## Use
 
-1. Select text in the transcript with the mouse. A band above the prompt shows `[ Add to chat ] "…" ×`. Click the button, or run `/add-to-chat`. Click `×` to ignore the selection.
+A one-row band sits above the prompt: `▎ select text in the transcript to add it to chat`.
+
+1. Select text in the transcript with the mouse: the band's row becomes `[ ✚ Add to chat ] "…" ✕ ignore`. Click the button, or run `/add-to-chat`.
 2. Click the `Add an optional comment…` field, type a comment, and press Enter. Or leave it empty.
-3. The annotated text gets a mark like `⁽¹⁾` in the transcript. `▸ N annotations` opens the list, where `×` removes an entry.
+3. The annotated text gets a mark like `⁽¹⁾` in the transcript. `📎 N annotations ▸` at the right of the band opens the list, where `✕` removes an entry.
 4. Send your prompt as usual. In the transcript your message shows as what you typed plus `📎 N annotations`; press ctrl+o to see what the model received. If you have nothing to type, `[ Send ]` puts `(see annotations)` in the prompt for you to send.
+
+The band keeps one row whatever you select. A band that grew when text got selected would push the transcript up under a mouse still dragging, and the selection would jump a line.
 
 ## Annotation Template
 
@@ -53,4 +57,9 @@ Citations (①②…) only appear if your template asks Claude to write `:annota
 
 ## Develop
 
-See `CLAUDE.md`. Specification: `docs/spec.md`; measurements behind the design: `docs/spikes.md`.
+```sh
+npm test             # unit tests (claude plugin test)
+npm run e2e          # end-to-end showcase in real Claude Code sessions: see e2e/README.md
+```
+
+See `CLAUDE.md`. Specification: `docs/spec.md`; measurements behind the design: `docs/spikes.md`; the end-to-end harness: `e2e/README.md`.
