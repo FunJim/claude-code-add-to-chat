@@ -28,13 +28,15 @@ jobs:
       - run: npm run e2e:unit
       - run: npm run typecheck
 
-  # The end-to-end scenarios tmux runs, in real Claude Code sessions talking
-  # to the mock model: no login, no API key, no model call.
+  # Every end-to-end scenario, on Herdr, in real Claude Code sessions
+  # talking to the mock model: no login, no API key, no model call.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       DISABLE_AUTOUPDATER: '1'
+      HERDR_VERSION: 0.9.3
+      HERDR_SHA256: 18a8dc65f1c2fa485884344356dea1cfd911c6f06cf46fa78e193f4087f4dba7
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -42,10 +44,16 @@ jobs:
           node-version: 24
           cache: npm
       - run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: Install Herdr
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors -o herdr "https://github.com/herdrdev/herdr/releases/download/v${HERDR_VERSION}/herdr-linux-x86_64"
+          echo "${HERDR_SHA256}  herdr" | sha256sum -c -
+          sudo install -m 755 herdr /usr/local/bin/herdr
+          rm herdr
       - run: npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
       # A first start asks for a theme before anything else.
       - run: echo '{"hasCompletedOnboarding":true,"theme":"dark"}' > ~/.claude.json
-      - run: npm run e2e:tmux -- --no-watch
+      - run: npm run e2e:herdr -- --no-watch
       - if: always()
         uses: actions/upload-artifact@v7
         with:

@@ -99,7 +99,7 @@ const modelName = mock === undefined ? REAL_MODEL : 'mock'
 
 const host: Host = driver === 'herdr' ? new HerdrHost(E2E_PREFIX, REPO_DIR, narration) : new TmuxHost(E2E_PREFIX, narration)
 await host.start()
-const world: World = { host, driver, runDir, model, results: [] }
+const world: World = { host, driver, runDir, model, results: [], ...(args.only === undefined ? {} : { only: new RegExp(args.only, 'i') }) }
 setWorld(world)
 await host.narrate(`add-to-chat e2e · driver ${driver} · model ${modelName} · ${startedAt.toLocaleString()}`)
 
@@ -115,7 +115,6 @@ const stream = runTests({
   files,
   isolation: 'none',
   concurrency: 1,
-  testNamePatterns: args.only === undefined ? undefined : [new RegExp(args.only, 'i')],
 })
 stream.compose(spec).pipe(process.stdout)
 stream.compose(junit).pipe(createWriteStream(join(runDir, 'junit.xml')))

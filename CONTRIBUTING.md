@@ -32,7 +32,7 @@ Edits under `add-to-chat/` hot-reload into that session at the end of each turn.
 | `npm run e2e` | the end-to-end suite in real Claude Code sessions talking to a mock model ([e2e/README.md](e2e/README.md)); about 6 minutes on Herdr, 1.5 on tmux (`npm run e2e:tmux`) |
 | `npm run e2e -- --model haiku` | the same against the real model, which also checks it understands the template; a few cents |
 
-CI runs everything above but the Herdr scenarios and `--model haiku`. Run `npm run e2e` yourself when you change what the person sees or what the model is sent, and `--model haiku` too when you change the template.
+CI runs everything above but `--model haiku`, the end-to-end suite on Herdr (Linux, mock model). Run `npm run e2e` yourself when you change what the person sees or what the model is sent, and `--model haiku` too when you change the template.
 
 ## Where things are
 

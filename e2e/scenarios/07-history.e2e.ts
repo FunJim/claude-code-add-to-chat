@@ -109,8 +109,12 @@ describe(HISTORY, () => {
     await ctx.step('/branch: the fork holds the prompt, so its row and the history stay; the originals come back from the store')
     await again.clickInPane(BACK_LABEL, { dx: 1 }).catch(() => undefined)
     await run(again, '/branch')
-    await waitFor('the forked prompt row', async () => (await transcript(again)).includes(clipButtonLabel(2)), { timeoutMs: 15_000 })
-    assert.ok((await transcript(again)).split('\n').some(r => r.startsWith(`❯ ${REQUEST}`)), 'the row shows what was typed, not the template')
+    // The row as typed, not the template, with its 📎 row under it.
+    await waitFor('the forked prompt row', async () => {
+      const rows = (await transcript(again)).split('\n')
+      const at = rows.findIndex(r => r.startsWith(`❯ ${REQUEST}`))
+      return at >= 0 && rows[at + 1]?.trim() === clipButtonLabel(2)
+    }, { timeoutMs: 15_000 })
     await waitFor('the history in the fork', () => again.paneShows(historyLabel(1)), { timeoutMs: 5_000 })
 
     await ctx.step('/clear: a new conversation, an empty history')

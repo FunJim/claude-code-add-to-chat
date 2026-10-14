@@ -3,7 +3,8 @@
 // nothing. It sits beneath add-to-chat, so a prompt it records is the one
 // the engine receives.
 //
-//   session    the session's id (where its transcript is)
+//   session    the session's id (where its transcript is), at start
+//   session-id each change of $.session.id() (/branch, /clear…)
 //   selection  each change of $.ui.selection()
 //   row        each transcript row drawn: component, requestId, text
 //   turn       each turn's start and end
@@ -51,13 +52,15 @@ export const register: Register = on => {
     await $.command.register({ name: 'probe-out', description: 'Print a two-line command output (e2e)' })
     await $.command.register({ name: 'probe-say', description: 'Submit a prompt as a plugin (e2e)' })
     $.clock.every(200, async () => {
-      const [selection, pending, candidate, paneTab, replyCounts] = await Promise.all([
+      const [sessionId, selection, pending, candidate, paneTab, replyCounts] = await Promise.all([
+        $.session.id(),
         $.ui.selection(),
         $.state.get(PENDING),
         $.state.get(CANDIDATE),
         $.state.get(PANE_TAB),
         $.state.get(REPLY_COUNTS),
       ])
+      logChange($, 'session-id', { id: sessionId })
       logChange($, 'selection', { selection: selection ?? null })
       logChange($, 'state', { pending: pending.value ?? [], candidate: candidate.value ?? null, paneTab: paneTab.value ?? 1, replyCounts: replyCounts.value ?? {} })
     })

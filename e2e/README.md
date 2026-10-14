@@ -14,7 +14,7 @@ node e2e/run.ts --list
 
 No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Install only to type-check: `npm install && npm run typecheck`.
 
-**Requires:** `claude`, `tmux`, Node ≥ 23.6; Herdr for the full suite. **Cost:** nothing by default: every session talks to the mock model, so no login or API key is needed (CI runs the tmux scenarios this way). With `--model haiku` the model scenarios cost a few cents; run that after a Claude Code update or a change to the template.
+**Requires:** `claude`, `tmux`, Node ≥ 23.6; Herdr for the full suite. **Cost:** nothing by default: every session talks to the mock model, so no login or API key is needed (CI runs the full suite on Herdr this way, on Linux). With `--model haiku` the model scenarios cost a few cents; run that after a Claude Code update or a change to the template.
 
 ## What you see
 
