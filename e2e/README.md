@@ -1,10 +1,11 @@
 # End-to-end tests and showcase
 
-Real Claude Code sessions with add-to-chat loaded, driven the way a person uses it: dragging the mouse over transcript text, pressing the pane's buttons, typing Comments and prompts. Each run checks what the model was sent and how it answered.
+Real Claude Code sessions with add-to-chat loaded, driven the way a person uses it: dragging the mouse over transcript text, pressing the pane's buttons, typing Comments and prompts. Each run checks what the model was sent and what the mod draws from its reply. The model is a [mock](harness/mock-model.ts) on a local port unless you ask for the real one.
 
 ```sh
 npm run e2e          # Herdr if installed: every scenario (~8 min)
 npm run e2e:tmux     # tmux: the basic scenarios (~1.5 min)
+node e2e/run.ts --model haiku          # the real model: also checks it understands the template
 node e2e/run.ts --only 'pane|model'   # scenarios whose group or title matches
 node e2e/run.ts --keep                # leave the sessions up afterwards…
 node e2e/run.ts --stop                # …and take them down later
@@ -13,7 +14,7 @@ node e2e/run.ts --list
 
 No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Install only to type-check: `npm install && npm run typecheck`.
 
-**Requires:** `claude` (logged in), `tmux`, Node ≥ 23.6; Herdr for the full suite. **Cost:** the model scenarios run on `--model haiku`, a few cents per run; every other scenario resumes a recorded transcript and calls no model.
+**Requires:** `claude`, `tmux`, Node ≥ 23.6; Herdr for the full suite. **Cost:** nothing by default: every session talks to the mock model, so no login or API key is needed (CI runs the tmux scenarios this way). With `--model haiku` the model scenarios cost a few cents; run that after a Claude Code update or a change to the template.
 
 ## What you see
 
@@ -23,6 +24,7 @@ No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Ins
   - `report.md`: pass or fail per scenario, the environment, and on failure the screens;
   - `results.json`, `junit.xml`;
   - `evidence/`: the prompts the model read, its replies as written, screens;
+  - `model-requests.jsonl`: with the mock, every request it answered and its reply (no keys or tokens);
   - `probe/`: what each session's probe recorded.
 
 ## Why it is reproducible
@@ -39,7 +41,7 @@ No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Ins
   - a drag over a still-moving screen;
   - two presses close enough to count as a double click;
   - a drag ending on a line's last character, which takes the line end too.
-- **The model's part is pinned.** Its reply text comes from a file it copies, and assertions are on structure (the template, the Citations), not on wording.
+- **The model's part is scripted.** The mock ([ADR 0008](../docs/adr/0008-mock-model-for-e2e.md)) streams the same reply on every run: a Read or Bash call where the prompt asks for one, a file's text as written, a sentence ending in a Citation for each Annotation in the turn, a summary for `/compact`. With `--model haiku`, the reply text to select from still comes from a file the model copies, and assertions on what it wrote are on structure (the Citations) or on a word it must use (`ctx.isRealModel`).
 
 ## Layout
 
@@ -49,6 +51,7 @@ harness/
   terminal.ts          Terminal and Host: what scenarios drive, whatever the driver
   herdr.ts tmux.ts     the two drivers
   claude.ts            ClaudeSession: launch, scroll, select, add, comment, pane, send…
+  mock-model.ts        the mock Messages API: scripted, streamed replies
   mouse.ts screen.ts   SGR mouse input; finding text by terminal cell, in the transcript or the pane
   probe.ts             reading the probe's log
   transcript.ts        reading the session's JSONL: what the model was sent
@@ -73,7 +76,7 @@ scenario('pane', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
 ```
 
 - `drivers` says where it runs: tmux runs only the basic scenarios.
-- Set `usesModel: true` when it calls haiku.
+- Set `usesModel: true` when it sends prompts. The mock answers them by what they ask (read a file, run a command in backticks) and the Annotations they carry; assert on what only the real model would write under `if (ctx.isRealModel)`.
 - Select text from inside a line, not at its end.
 - Prefer assertions on the probe's state (`claude.probe.pending()`) and the transcript (`claude.transcript()`) over screen text.
 - Match the pane's words through `add-to-chat/hooks/labels.ts` (`ADD_LABEL`, `clipLine(n)`, …), not literals.

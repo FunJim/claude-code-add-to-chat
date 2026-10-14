@@ -96,3 +96,13 @@ Rows by type (adding from each, with Source and mark):
 - Don't press Esc before a drag, or put stray motion events in it.
 - Wait for the screen to stop moving before dragging; a session starting up still scrolls.
 - With a selection active, ctrl+u can extend the selection instead of clearing the prompt.
+
+## Talking to a model (for the test harness)
+
+- `--settings '{"env":{…}}'` beats the `env` of the person's own settings: `ANTHROPIC_BASE_URL` there points a session at a local server.
+- A custom `ANTHROPIC_API_KEY` (even a made-up one, from settings) has Claude Code ask, on first start, whether to use it, with "No" chosen; `ANTHROPIC_AUTH_TOKEN` goes unasked. An empty `ANTHROPIC_API_KEY` counts as none.
+- A first start (no `~/.claude.json`) asks for a theme; `{"hasCompletedOnboarding": true, "theme": "dark"}` skips it. A folder not yet trusted asks with "No, exit" chosen: Enter before a Down has landed ends the session.
+- Requests go to `POST /v1/messages?beta=true`, streamed (SSE); also `/api/hello` and, with gateway model discovery on, `GET /v1/models` (a 404 is fine).
+- The prompt is followed by a `role: "system"` message holding its context (the environment, `Primary working directory: …`, reminders).
+- Side calls: the session title (no tools; one user message starting `<session>`), a prompt suggestion (last user message starting `[SUGGESTION MODE`; its text shows in the prompt box) and a compaction (with tools; its instruction, "…create a detailed summary of the conversation…", sits beside the last tool result).
+- A prompt queued while a tool runs arrives in the next request, beside that tool's result.

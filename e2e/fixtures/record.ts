@@ -62,7 +62,7 @@ async function replyRow(claude: ClaudeSession, head: string, timeoutMs: number) 
 const host = new TmuxHost('atc-record', join(E2E_DIR, 'results', 'record-narration.log'))
 const cwd = await sandbox('record')
 await writeFile(join(cwd, 'REPORT.md'), `${REPORT}\n`)
-const claude = await ClaudeSession.launch(host, join(E2E_DIR, 'results', 'record'), { name: 'record', cwd })
+const claude = await ClaudeSession.launch(host, join(E2E_DIR, 'results', 'record'), { kind: 'real' }, { name: 'record', cwd })
 try {
   console.log('1/4 the rich prompt (subagent, background command, reads, report)…')
   await claude.submit(FIRST, { timeoutMs: 300_000 })

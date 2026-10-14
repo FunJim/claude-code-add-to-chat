@@ -1,4 +1,6 @@
-// With the model (haiku): what it is sent, and whether it understands it.
+// With the model: what it is sent, and what the mod makes of the reply. With
+// `--model haiku`, also whether the model understands the template; the mock
+// model cites every Annotation it is sent, and knows nothing else.
 import { copyFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe } from 'node:test'
@@ -101,7 +103,7 @@ describe(MODEL, () => {
     const x = await exchange(claude, SEND_PLACEHOLDER)
     assert.match(x.prompt, /<request>\n\(see annotations\)\n<\/request>$/)
     assert.match(x.reply, /:annotation\{index="1"\}/)
-    assert.match(x.reply, /cat/i, 'the model acted on the Comment')
+    if (ctx.isRealModel) assert.match(x.reply, /cat/i, 'the model acted on the Comment')
     await ctx.evidence('reply as written', x.reply)
   })
 
@@ -116,7 +118,8 @@ describe(MODEL, () => {
     await ctx.evidence('context the model read', x.context.join('\n---\n'))
     assert.equal(x.prompt, 'MODEL-REQ-3: answer my annotation in one short sentence.', 'the prompt goes as typed')
     assert.match(x.context.join('\n'), /<annotation index="1" source="assistant" requestId="[^"]+">\n<excerpt>quick brown fox<\/excerpt>\n<comment>name the animal<\/comment>/)
-    assert.match(x.reply, /fox/i, 'the model read the Excerpt')
+    if (ctx.isRealModel) assert.match(x.reply, /fox/i, 'the model read the Excerpt')
+    else assert.match(x.reply, /:annotation\{index="1"\}/, 'the Annotation reached the model from the context')
     assert.equal(await claude.isShowing(`${clipLine(1)}\n`), false)
   })
 
@@ -134,7 +137,8 @@ describe(MODEL, () => {
     await waitFor('the turn to end', async () => (await claude.probe.turnsCompleted()) >= 1 && !(await claude.probe.isWorking()), { timeoutMs: 240_000, intervalMs: 1_000 })
     const x = await exchange(claude, 'MODEL-REQ-4B')
     assert.deepEqual(annotationsXml(x.prompt).map(a => [a.text, a.source]), [['run the bash command', 'user']])
-    assert.match(x.reply, /run the bash command/i)
+    if (ctx.isRealModel) assert.match(x.reply, /run the bash command/i)
+    else assert.match(x.reply, /:annotation\{index="1"\}/)
   })
 
   scenario(MODEL, '/compact keeps the pending Annotations for the next prompt', { drivers: ['herdr'], usesModel: true, timeoutMs: 420_000 }, async ctx => {
@@ -149,6 +153,7 @@ describe(MODEL, () => {
     await claude.submit('MODEL-REQ-6: what city is my annotation about? One word.')
     const x = await exchange(claude, 'MODEL-REQ-6')
     assert.deepEqual(annotationsXml(x.prompt).map(a => a.text), ['capital of France'])
-    assert.match(x.reply, /Paris/i)
+    if (ctx.isRealModel) assert.match(x.reply, /Paris/i)
+    else assert.match(x.reply, /:annotation\{index="1"\}/)
   })
 })

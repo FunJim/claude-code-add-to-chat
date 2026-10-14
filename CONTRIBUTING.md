@@ -29,9 +29,10 @@ Edits under `add-to-chat/` hot-reload into that session at the end of each turn.
 | `npm run e2e:unit` | the end-to-end harness's own tests |
 | `npm run typecheck` | `tsc` over `e2e/` |
 | `tsc -p add-to-chat` | the mod's types; needs `add-to-chat/.claude-plugin/types/`, which the engine writes when it first loads the mod |
-| `npm run e2e` | the end-to-end suite in real Claude Code sessions ([e2e/README.md](e2e/README.md)); about 8 minutes on Herdr, 1.5 on tmux (`npm run e2e:tmux`), a few cents of `haiku` |
+| `npm run e2e` | the end-to-end suite in real Claude Code sessions talking to a mock model ([e2e/README.md](e2e/README.md)); about 6 minutes on Herdr, 1.5 on tmux (`npm run e2e:tmux`) |
+| `npm run e2e -- --model haiku` | the same against the real model, which also checks it understands the template; a few cents |
 
-CI runs everything but the end-to-end suite. Run that yourself when you change what the person sees or what the model is sent.
+CI runs everything above but the Herdr scenarios and `--model haiku`. Run `npm run e2e` yourself when you change what the person sees or what the model is sent, and `--model haiku` too when you change the template.
 
 ## Where things are
 
@@ -67,12 +68,12 @@ Start with [docs/design.md](docs/design.md). Use the [glossary](docs/glossary.md
 - A change in behaviour comes with a unit test in `add-to-chat/tests/`. UI tests loop over `['terminal', 'desktop'] as const`.
 - In `tests/world.ts`, answers to calls on `$` (`ui.selection`, `prompt.read`, `fs.read`, `store.*`, …) are `{ value }` / `{ deny }`; answers to events (`prompt.submit`, `prompt.fill`, `ui.focus`, `session.start`) are the event's result. Every `on(...)` must be registered before a test's first `$` call. The selection poll runs on the mocked clock: `tick(w)` advances it.
 - Something the person sees or the model reads gets an end-to-end scenario in `e2e/scenarios/`: see [e2e/README.md](e2e/README.md#writing-a-scenario).
-- After a Claude Code update, run `npm run e2e`, re-record the fixture transcript with `npm run e2e:record`, and check [docs/claude-code-notes.md](docs/claude-code-notes.md) still holds.
+- After a Claude Code update, run `npm run e2e` and `npm run e2e -- --model haiku`, re-record the fixture transcript with `npm run e2e:record`, and check [docs/claude-code-notes.md](docs/claude-code-notes.md) still holds.
 
 ## Pull requests
 
 - One change per pull request, with its tests; `npm run validate && npm test && npm run e2e:unit && npm run typecheck` passing.
-- Say in the description whether you ran `npm run e2e`, and on which driver.
+- Say in the description whether you ran `npm run e2e`, on which driver, and with which model.
 - A decision with alternatives worth remembering gets an ADR in `docs/adr/`.
 - Add a line under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) for anything a user would notice.
 

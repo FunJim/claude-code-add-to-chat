@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { ClaudeSession } from './claude.ts'
-import type { LaunchOptions } from './claude.ts'
+import type { LaunchOptions, ModelTarget } from './claude.ts'
 import { FIXTURE_SESSION, installTranscript, sandbox } from './fixtures.ts'
 import type { Driver, Host } from './terminal.ts'
 
@@ -29,6 +29,7 @@ export type World = {
   host: Host
   driver: Driver
   runDir: string
+  model: ModelTarget
   results: Result[]
 }
 
@@ -55,12 +56,17 @@ export type Context = {
   launchFixture(options?: Partial<Omit<LaunchOptions, 'cwd' | 'resume'>>): Promise<ClaudeSession>
   /** Keeps text (a screen, a prompt) beside the report. */
   evidence(label: string, text: string): Promise<void>
+  /**
+   * Whether the sessions talk to the real model (`--model haiku`), not the
+   * mock: only then is what the model made of the template worth asserting.
+   */
+  isRealModel: boolean
 }
 
 export type ScenarioMeta = {
   /** Drivers it runs on; tmux runs only the basic ones. */
   drivers: readonly Driver[]
-  /** Whether it calls the model (haiku): costs money, varies a little. */
+  /** Whether it sends prompts: to the mock model, or with `--model haiku` to haiku (costs money, varies a little). */
   usesModel?: boolean
   timeoutMs?: number
 }
@@ -92,7 +98,7 @@ export function scenario(group: string, title: string, meta: ScenarioMeta, body:
       sandbox: freshSandbox,
       launch: async options => {
         const cwd = options.cwd ?? (await freshSandbox())
-        const session = await ClaudeSession.launch(w.host, w.runDir, { ...options, cwd })
+        const session = await ClaudeSession.launch(w.host, w.runDir, w.model, { ...options, cwd })
         sessions.push(session)
         return session
       },
@@ -107,6 +113,7 @@ export function scenario(group: string, title: string, meta: ScenarioMeta, body:
         await writeFile(file, text)
         result.evidence.push({ label, file })
       },
+      isRealModel: w.model.kind === 'real',
     }
 
     await w.host.narrate(`▶ ${group} › ${title}`)

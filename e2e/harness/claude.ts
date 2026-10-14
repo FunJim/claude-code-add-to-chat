@@ -21,8 +21,11 @@ export function framed(excerpt: string): string {
   return `│ ${excerpt.split('\n')[0]!.slice(0, 40)}`
 }
 
-/** The model every session runs on: the cheapest that follows the template. */
-export const MODEL = 'haiku'
+/** The real model `--model haiku` runs the sessions on: the cheapest that follows the template. */
+export const REAL_MODEL = 'haiku'
+
+/** What the sessions talk to: the mock model on its local URL, or the real one. */
+export type ModelTarget = { kind: 'mock'; url: string } | { kind: 'real' }
 
 export type LaunchOptions = {
   /** Shown in Herdr's sidebar and in reports. */
@@ -58,14 +61,19 @@ export class ClaudeSession {
     this.isFullscreen = isFullscreen
   }
 
-  static async launch(host: Host, runDir: string, o: LaunchOptions): Promise<ClaudeSession> {
+  static async launch(host: Host, runDir: string, model: ModelTarget, o: LaunchOptions): Promise<ClaudeSession> {
     launches += 1
     const probeFile = join(runDir, 'probe', `${String(launches).padStart(2, '0')}-${o.name}.jsonl`)
     await mkdir(dirname(probeFile), { recursive: true })
     const fullscreen = o.fullscreen ?? true
     const settings: Record<string, unknown> = {}
-    // The person's own settings may turn fullscreen on; a flag's settings win.
-    if (!fullscreen) settings.env = { CLAUDE_CODE_NO_FLICKER: '0' }
+    // The person's own settings may turn fullscreen on, or name a gateway
+    // and its key; a flag's settings win.
+    const env: Record<string, string> = fullscreen ? {} : { CLAUDE_CODE_NO_FLICKER: '0' }
+    // An API key, even a made-up one, has Claude Code ask whether to use it;
+    // a bearer token goes unasked. Neither reaches anything but the mock.
+    if (model.kind === 'mock') Object.assign(env, { ANTHROPIC_BASE_URL: model.url, ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: 'mock' })
+    if (Object.keys(env).length > 0) settings.env = env
     if (o.templatePath !== undefined) {
       const options = { templatePath: o.templatePath }
       settings.pluginConfigs = { 'add-to-chat': { options }, 'add-to-chat@inline': { options } }
@@ -73,7 +81,7 @@ export class ClaudeSession {
     const argv = [
       'claude',
       '--model',
-      MODEL,
+      REAL_MODEL,
       '--plugin-dir',
       PLUGIN_DIR,
       '--plugin-dir',
@@ -81,8 +89,7 @@ export class ClaudeSession {
       ...(o.resume === undefined ? [] : ['--resume', o.resume]),
       ...(Object.keys(settings).length === 0 ? [] : ['--settings', JSON.stringify(settings)]),
     ]
-    const env = { CLAUDE_CODE_NO_FLICKER: fullscreen ? '1' : '0', ATC_PROBE_LOG: probeFile }
-    const term = await host.spawn({ name: o.name, cwd: o.cwd, argv, env, slot: o.slot })
+    const term = await host.spawn({ name: o.name, cwd: o.cwd, argv, env: { CLAUDE_CODE_NO_FLICKER: fullscreen ? '1' : '0', ATC_PROBE_LOG: probeFile }, slot: o.slot })
     const session = new ClaudeSession(o.name, o.cwd, term, new ProbeLog(probeFile), fullscreen)
     await session.ready()
     return session
@@ -93,7 +100,11 @@ export class ClaudeSession {
     await waitFor(`${this.name} to be ready`, async () => {
       const screen = await this.screen()
       if (screen.includes('trust this folder')) {
-        await this.term.press('down', 'enter')
+        // Enter on the default, "No, exit", ends the session: a Down the
+        // dialog was not yet taking is lost, so press Enter only once Yes
+        // shows chosen.
+        if (/❯ Yes, I trust this folder/.test(screen)) await this.term.press('enter')
+        else await this.term.press('down')
         return false
       }
       return screen.includes('❯') && (await this.probe.of('session')).length > 0
