@@ -30,6 +30,8 @@ export type World = {
   driver: Driver
   runDir: string
   model: ModelTarget
+  /** `--only`: the scenarios whose group or title matches; all without it. */
+  only?: RegExp
   results: Result[]
 }
 
@@ -77,6 +79,9 @@ function slug(text: string) {
 
 export function scenario(group: string, title: string, meta: ScenarioMeta, body: (ctx: Context) => Promise<void>) {
   const order = (declared += 1)
+  // Filtered here, not by node:test's testNamePatterns, which Node 24 ignores
+  // when tests run in the runner's own process.
+  if (current?.only !== undefined && !current.only.test(group) && !current.only.test(title)) return
   const base = { order, group, title, ms: 0, usesModel: meta.usesModel ?? false }
   const skip = current !== undefined && !meta.drivers.includes(current.driver)
   // Listed in the report even when this driver does not run it.

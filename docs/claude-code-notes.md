@@ -96,6 +96,7 @@ Rows by type (adding from each, with Source and mark):
 - Don't press Esc before a drag, or put stray motion events in it.
 - Wait for the screen to stop moving before dragging; a session starting up still scrolls.
 - With a selection active, ctrl+u can extend the selection instead of clearing the prompt.
+- A reply's bullet is `⏺` on macOS and `●` on Linux.
 
 ## Talking to a model (for the test harness)
 

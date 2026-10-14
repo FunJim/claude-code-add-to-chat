@@ -1,6 +1,6 @@
 # The end-to-end suite talks to a mock model by default
 
-`npm run e2e` points every Claude Code session it starts at a scripted stand-in for the Messages API on a local port ([`e2e/harness/mock-model.ts`](../../e2e/harness/mock-model.ts)), through the `ANTHROPIC_BASE_URL` of the `--settings` it launches with. The mock reads what a scenario sends and streams a reply: a Read or Bash call where the prompt asks for one, a sentence ending in a Citation for each Annotation in the turn, a summary for a compaction. `--model haiku` runs the same scenarios against the real model, and only then asserts what the model made of the template (that it acted on a Comment, read an Excerpt). CI runs the tmux scenarios on the mock.
+`npm run e2e` points every Claude Code session it starts at a scripted stand-in for the Messages API on a local port ([`e2e/harness/mock-model.ts`](../../e2e/harness/mock-model.ts)), through the `ANTHROPIC_BASE_URL` of the `--settings` it launches with. The mock reads what a scenario sends and streams a reply: a Read or Bash call where the prompt asks for one, a sentence ending in a Citation for each Annotation in the turn, a summary for a compaction. `--model haiku` runs the same scenarios against the real model, and only then asserts what the model made of the template (that it acted on a Comment, read an Excerpt). CI runs every scenario on Herdr, on the mock.
 
 ## Why
 

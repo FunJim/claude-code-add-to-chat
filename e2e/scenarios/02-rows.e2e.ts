@@ -44,7 +44,8 @@ async function checkMarks(ctx: Context, claude: ClaudeSession, rows: readonly Fi
       await claude.scrollTo(circled(index))
       const screen = await claude.screen()
       const head = textIn(screen, transcriptArea(screen)).find(r => r.includes(circled(index)))
-      assert.match(head ?? '', /^⏺ [①-⑳㉑-㊿]+/, `${row.kind}: marked at the head of the reply`)
+      // The reply's bullet: ⏺ on macOS, ● on Linux.
+      assert.match(head ?? '', /^[⏺●] [①-⑳㉑-㊿]+/, `${row.kind}: marked at the head of the reply`)
     }
   }
 }
