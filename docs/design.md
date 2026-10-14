@@ -116,23 +116,25 @@ On `prompt.submit` with Annotations pending, from a prompt the person typed (`or
 
 `userConfig.templatePath` names a template file, read with `$.fs.read` (`~/` expands to `$HOME`). Unset, or unreadable (with a toast), the built-in template is used. The syntax is a Mustache subset:
 
-- top level: `{{request}}`, `{{count}}`, `{{annotations_json}}` (compact JSON: an array of `{ text, source: { role, requestId }, annotation? }`, Codex's shape with the Comment as `annotation`);
+- top level: `{{request}}`, `{{count}}`, `{{annotations_xml}}` (one `<annotation index="N" source="…" requestId="…">` per Annotation, holding `<excerpt>` and, with a Comment, `<comment>`), `{{annotations_json}}` (compact JSON: an array of `{ text, source: { role, requestId }, annotation? }`, Codex's shape with the Comment as `annotation`);
 - `{{#annotations}}…{{/annotations}}`, inside which `{{index}}` (one-based), `{{text}}`, `{{source}}`, `{{requestId}}`, `{{comment}}`;
 - `{{#name}}…{{/name}}` renders when the value is truthy, `{{^name}}…{{/name}}` when it is not;
 - a section tag alone on its line leaves no blank line;
-- values are inserted as-is, apart from `{{annotations_json}}`, which escapes `<`, `>` and `&` as `\u003c`, `\u003e`, `\u0026` (still valid JSON) so an Excerpt cannot close the tags around it.
+- values are inserted as-is, apart from `{{annotations_xml}}`, which escapes `&`, `<`, `>` and `"` as entities, and `{{annotations_json}}`, which escapes `<`, `>` and `&` as `\u003c`, `\u003e`, `\u0026` (still valid JSON): an Excerpt cannot close the tags around either.
 
-The default template, Codex's wording adapted to point at the person's own prompts too and with the directive renamed to `:annotation`:
+The default template puts the data first and the request last, as Anthropic's long-context guidance has it; each Annotation carries its own `index`, so the model never counts from zero; and it says what the directive is for and to use it instead of writing "Annotation N", the labels the earlier wording ("Treat items as Annotation 1, Annotation 2…") drew out. How the wording and the format were chosen (an eval of formats and markers over haiku and sonnet) is in [ADR 0007](adr/0007-xml-default-template.md).
 
-```markdown
-# Response annotations:
-Each item contains text selected from earlier in this conversation and where it was selected (`source.role`: your replies are `assistant`, the user's own prompts `user`, tool calls and results `tool`, Claude Code's notices `system`), and may include the user's note on it (`annotation`). Treat items as Annotation 1, Annotation 2, and so on in array order. Use every selection as context and address every note. For every annotation you address, include its inline directive `:annotation{index="N"}`, where N is its one-based array position (for example, `:annotation{index="1"}`). Do not use unstructured annotation labels.
-<response-annotations>
-{{annotations_json}}
-</response-annotations>
+```
+<annotations>
+{{annotations_xml}}
+</annotations>
 
-## My request:
+These are passages the user selected from earlier in this conversation (source: assistant = your reply, user = their own prompt, tool = a tool call or result, system = a Claude Code notice), each with the user's comment when they wrote one; their request below refers to them. Take every annotation into account and answer every comment.
+When a sentence of your reply addresses an annotation, end it with :annotation{index="N"}, N being that annotation's index; the user's screen shows it as that annotation's number (①). Write it instead of naming "Annotation N" in prose, and keep it out of code blocks.
+
+<request>
 {{request}}
+</request>
 ```
 
 ## An empty prompt
@@ -141,11 +143,11 @@ Enter on an empty (or all-blank) draft does not raise `prompt.submit`, and a pro
 
 ## Citations
 
-The `AssistantMessage` render hook replaces `:annotation{index="N"}` in a reply with a coloured `ⁿ` (①…⑳㉑…㊿); directives inside code stay as written. Citations stay for good, unlike marks; a number refers to the Annotations of the prompt that reply answers. `turn.complete` calls `$.ui.invalidate('ui.render')`, since a long reply's row can stay as drawn mid-stream, before its directives were complete.
+The `AssistantMessage` render hook replaces `:annotation{index="N"}` in a reply with a coloured `ⁿ` (①…⑳㉑…㊿); directives inside code stay as written, as does one whose N names no Annotation: 0, or more than the prompt it answers was sent with. Which prompt a reply answers: a reply row first drawn after a prompt sent with Annotations, until the next prompt the person types (or another session), is noted with its text; the noting goes on past the turn's end, since a short reply can first draw after `turn.complete`. A row known to answer a prompt (in `replyCounts`) draws to that prompt's count, an older reply scrolled to included; a noted row known to answer none draws to the last prompt's count until the check lets it go. Once the main loop's turn has ended (`turn.complete` without an `agentId`), the noted rows are checked against the transcript, then and at each poll that finds rows noted since: those whose text is in an assistant message after the prompt and before the next one are kept with its original (`replies`), in `$.store`, so a resumed session knows them; the others are let go. The e2e `model` scenario checks that a reply row's text is found there: the row draws one text block, the message joins them. Reply rows read `replyCounts` (this conversation's reply rows → their prompt's count), never `originals`, and only a row with a directive reads it at all: `session.start` writes `originals`, and every reply redrawing, or drawing slower, just after a launch moved the transcript under a drag about to start ([notes](claude-code-notes.md#lifecycle)). `replyCounts` and `sessionPrompts` are written only when they change. A reply not known to answer one has every N from 1 drawn. Citations stay for good, unlike marks; a number refers to the Annotations of the prompt that reply answers. `turn.complete` calls `$.ui.invalidate('ui.render')`, since a long reply's row can stay as drawn mid-stream, before its directives were complete.
 
 ## Sent prompts
 
-A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations }` by the hash of the rewritten text, mirrored in `$.store` ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. A prompt sent before they were kept (0.2.x) has none until its `📎` is pressed: they are then read back from the rewritten text's `<response-annotations>` JSON (`historyOf`; its `<>&` are escaped, so an Excerpt cannot end the block early) and kept. A template without `{{annotations_json}}` leaves nothing to read: the `📎` says so in a toast.
+A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations, replies }` by the hash of the rewritten text, mirrored in `$.store` ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. A prompt kept without them (sent before 0.3.0) draws the text-only row, with no `📎` button.
 
 ### The 📎 row
 
@@ -193,8 +195,9 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | `isPaneDismissed` | the person closed the pane; it stays closed until `/add-to-chat` |
 | `paneTab` | the index of the Annotation whose tab the pane shows |
 | `isDraftEmpty` | whether the prompt draft is empty |
-| `originals` | rewritten prompt hash → `{ text, count, annotations? }`, mirrored in `$.store` |
+| `originals` | rewritten prompt hash → `{ text, count, annotations?, replies? }`, mirrored in `$.store` |
 | `sessionPrompts` | hashes of the rewritten prompts in this conversation's transcript, oldest first |
+| `replyCounts` | each reply row known to answer one of them → its Annotation count; what reply rows read to bound their Citations |
 | `paneMode` | what the pane shows below its first row: `pending`, `history`, or one `sent` prompt (its hash, open tab and row) |
 
 ## Claude Code APIs used

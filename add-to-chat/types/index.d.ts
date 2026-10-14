@@ -19,11 +19,12 @@ export type Annotation = {
 export type Candidate = { text: string; requestId?: string }
 
 /**
- * What a rewritten prompt row draws instead of the rendered template, and
- * the Annotations it was sent with (absent for prompts sent before 0.3.0,
- * until their row's 📎 is pressed and they are read back from the text).
+ * What a rewritten prompt row draws instead of the rendered template, the
+ * Annotations it was sent with (absent for a prompt sent before 0.3.0), and
+ * the reply rows (requestIds) that answered it, whose Citations may name
+ * 1 to `count` alone.
  */
-export type Original = { text: string; count: number; annotations?: Annotation[] }
+export type Original = { text: string; count: number; annotations?: Annotation[]; replies?: string[] }
 
 /**
  * What the pane shows below its first row: the pending Annotations, the
@@ -53,6 +54,13 @@ declare module 'claude-code' {
       originals: Record<string, Original>
       /** `hashText` of the rewritten prompts in this conversation's transcript, oldest first: what the pane's history lists. */
       sessionPrompts: string[]
+      /**
+       * Each reply row (requestId) known to answer a prompt of this
+       * conversation → how many Annotations that prompt was sent with: the
+       * Citations it may draw. Written only on a change, so reply rows,
+       * which read it, redraw only then.
+       */
+      replyCounts: Record<string, number>
       paneMode: PaneMode
     }
   }

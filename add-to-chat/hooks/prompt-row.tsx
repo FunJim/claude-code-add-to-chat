@@ -29,8 +29,8 @@ export type PromptRowValues = {
   /** `hashText` of the rewritten prompt: the row's keys. */
   hash: string
   count: number
-  /** Its Annotations, when known: the card lists them. */
-  annotations: readonly Annotation[] | undefined
+  /** Its Annotations: the card lists them. */
+  annotations: readonly Annotation[]
   /** The cells across the terminal. */
   columns: number
 }
@@ -42,7 +42,7 @@ export function cardRows(count: number): number {
 
 export function promptRow(el: PromptRowElements, engine: RenderElement, v: PromptRowValues, open: () => unknown): RenderElement {
   const { Box, Button, Text } = el
-  const listed = v.annotations?.slice(0, CARD_MAX) ?? []
+  const listed = v.annotations.slice(0, CARD_MAX)
   const room = Math.max(16, Math.min(64, v.columns - 24))
   // Above the button, over the prompt and the rows before it: a card below
   // would be painted over by the rows drawn after this one.
@@ -50,7 +50,7 @@ export function promptRow(el: PromptRowElements, engine: RenderElement, v: Promp
     listed.length === 0 ? null : (
       <Box
         position="absolute"
-        top={-(cardRows(v.annotations!.length) + 2)}
+        top={-(cardRows(v.annotations.length) + 2)}
         left={0}
         display="none"
         hover={{ display: 'flex' }}
@@ -69,7 +69,7 @@ export function promptRow(el: PromptRowElements, engine: RenderElement, v: Promp
             {a.comment === undefined ? null : <Text dimColor> — {preview(a.comment, Math.max(8, Math.floor(room / 2)))}</Text>}
           </Text>
         ))}
-        {v.annotations!.length > CARD_MAX ? <Text dimColor>{`+${v.annotations!.length - CARD_MAX} more`}</Text> : null}
+        {v.annotations.length > CARD_MAX ? <Text dimColor>{`+${v.annotations.length - CARD_MAX} more`}</Text> : null}
       </Box>
     )
   return (

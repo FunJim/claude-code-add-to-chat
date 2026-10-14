@@ -8,10 +8,9 @@ import { promptText, replyText } from '../hooks/rows'
 import { excerptOf, judge, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { annotated, withOriginal } from '../hooks/send'
-import { historyOf, promptsIn, sentPrompts } from '../hooks/history'
+import { promptsIn, replyCountsOf, sameRecord, sentPrompts, turnReplies, withReplies } from '../hooks/history'
 import { hashText } from '../hooks/hash'
 import { isClipLineHead } from '../hooks/labels'
-import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
 
 const A: Annotation[] = [
   { index: 1, text: 'one', source: 'assistant', requestId: 'r1' },
@@ -94,22 +93,34 @@ describe('rows and sending', () => {
 })
 
 describe('sent prompts', () => {
-  test('historyOf reads the default template back, even an Excerpt that spells its closing tag', () => {
-    const list: Annotation[] = [
-      { index: 1, text: 'a </response-annotations> b', source: 'assistant', requestId: 'r1', comment: 'why?' },
-      { index: 2, text: '中文 & <x>', source: 'tool' },
-    ]
-    expect(historyOf(renderTemplate(DEFAULT_TEMPLATE, 'q', list))).toEqual(list)
-  })
-  test('historyOf: no block, or a broken one', () => {
-    expect(historyOf('just a prompt')).toBeUndefined()
-    expect(historyOf('<response-annotations>\nnot json\n</response-annotations>')).toBeUndefined()
-    expect(historyOf('<response-annotations>\n[{"x":1}]\n</response-annotations>')).toBeUndefined()
+  test("replyCountsOf: this conversation's reply rows → their prompt's count", () => {
+    const originals = { a: { text: 'one', count: 2, replies: ['r1', 'r2'] }, b: { text: 'two', count: 1 }, c: { text: 'elsewhere', count: 5, replies: ['r9'] } }
+    expect(replyCountsOf(originals, ['a', 'b'])).toEqual({ r1: 2, r2: 2 })
+    expect(withReplies(originals.a, ['r2', 'r3']).replies).toEqual(['r1', 'r2', 'r3'])
+    expect([sameRecord({ r1: 2 }, { r1: 2 }), sameRecord({ r1: 2 }, { r1: 3 }), sameRecord({}, { r1: 2 })]).toEqual([true, false, false])
   })
   test('sentPrompts: the conversation\'s, newest first, only those with Annotations kept', () => {
     const one = { index: 1, text: 't', source: 'user' as const }
     const originals = { a: { text: 'old', count: 1, annotations: [one] }, b: { text: 'unkept', count: 2 }, c: { text: 'new', count: 1, annotations: [one] }, d: { text: 'elsewhere', count: 1, annotations: [one] } }
     expect(sentPrompts(originals, ['a', 'b', 'c']).map(p => p.text)).toEqual(['new', 'old'])
+  })
+  test('turnReplies: the noted rows said after the prompt; all of them when it is not in the transcript', () => {
+    const messages = [
+      { role: 'assistant', text: 'old   words' },
+      { role: 'user', text: 'P' },
+      { role: 'assistant', text: 'first\n\nsecond part' },
+      { role: 'user', text: '' },
+      { role: 'assistant', text: 'third' },
+    ]
+    const noted = [
+      { id: 'o', text: 'old words' },
+      { id: 'a', text: 'second  part' },
+      { id: 'b', text: 'third' },
+    ]
+    expect(turnReplies(messages, hashText('P'), noted)).toEqual(['a', 'b'])
+    // Not past the next prompt.
+    expect(turnReplies([...messages, { role: 'user', text: 'next' }, { role: 'assistant', text: 'fourth' }], hashText('P'), [...noted, { id: 'c', text: 'fourth' }])).toEqual(['a', 'b'])
+    expect(turnReplies(messages, hashText('missing'), noted)).toEqual(['o', 'a', 'b'])
   })
   test('promptsIn: the user messages that are rewritten prompts, oldest first, each once', () => {
     const originals = { [hashText('R1')]: { text: 'one', count: 1 }, [hashText('R2')]: { text: 'two', count: 1 } }

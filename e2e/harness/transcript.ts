@@ -78,8 +78,18 @@ export class Transcript {
   }
 }
 
-/** The JSON array between <response-annotations> tags of the default template. */
-export function annotationsJson(prompt: string): unknown[] | undefined {
-  const match = /<response-annotations>\n([\s\S]*?)\n<\/response-annotations>/.exec(prompt)
-  return match === null ? undefined : (JSON.parse(match[1]!) as unknown[])
+/** One `<annotation>` of `{{annotations_xml}}`, its values unescaped. */
+export type SentAnnotation = { index: number; source: string; requestId?: string; text: string; comment?: string }
+
+/** The `<annotation>` elements of a prompt rendered with `{{annotations_xml}}` (the default template), in order. */
+export function annotationsXml(prompt: string): SentAnnotation[] {
+  const unescape = (t: string) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+  const item = /<annotation index="(\d+)" source="(\w+)"(?: requestId="([^"]*)")?>\n<excerpt>([\s\S]*?)<\/excerpt>(?:\n<comment>([\s\S]*?)<\/comment>)?\n<\/annotation>/g
+  return [...prompt.matchAll(item)].map(m => ({
+    index: Number(m[1]),
+    source: m[2]!,
+    ...(m[3] === undefined ? {} : { requestId: unescape(m[3]) }),
+    text: unescape(m[4]!),
+    ...(m[5] === undefined ? {} : { comment: unescape(m[5]) }),
+  }))
 }

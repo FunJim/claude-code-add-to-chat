@@ -7,7 +7,7 @@
 //   selection  each change of $.ui.selection()
 //   row        each transcript row drawn: component, requestId, text
 //   turn       each turn's start and end
-//   state      each change of add-to-chat's pending/candidate/paneTab
+//   state      each change of add-to-chat's pending/candidate/paneTab/replyCounts
 //   toast      each toast add-to-chat raises
 //
 // Two commands make rows the harness cannot get otherwise: /probe-out
@@ -42,6 +42,7 @@ function logChange($: EngineInterface, kind: string, data: object, of = '') {
 const PENDING = { plugin: 'add-to-chat', key: 'pending' } as never
 const CANDIDATE = { plugin: 'add-to-chat', key: 'candidate' } as never
 const PANE_TAB = { plugin: 'add-to-chat', key: 'paneTab' } as never
+const REPLY_COUNTS = { plugin: 'add-to-chat', key: 'replyCounts' } as never
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -50,14 +51,15 @@ export const register: Register = on => {
     await $.command.register({ name: 'probe-out', description: 'Print a two-line command output (e2e)' })
     await $.command.register({ name: 'probe-say', description: 'Submit a prompt as a plugin (e2e)' })
     $.clock.every(200, async () => {
-      const [selection, pending, candidate, paneTab] = await Promise.all([
+      const [selection, pending, candidate, paneTab, replyCounts] = await Promise.all([
         $.ui.selection(),
         $.state.get(PENDING),
         $.state.get(CANDIDATE),
         $.state.get(PANE_TAB),
+        $.state.get(REPLY_COUNTS),
       ])
       logChange($, 'selection', { selection: selection ?? null })
-      logChange($, 'state', { pending: pending.value ?? [], candidate: candidate.value ?? null, paneTab: paneTab.value ?? 1 })
+      logChange($, 'state', { pending: pending.value ?? [], candidate: candidate.value ?? null, paneTab: paneTab.value ?? 1, replyCounts: replyCounts.value ?? {} })
     })
     return next(e)
   })

@@ -217,12 +217,15 @@ export function drawMarks(md: string, marks: readonly Mark[], kind: RowKind): st
 const DIRECTIVE = /:annotation\{index="(\d+)"\}/g
 
 /**
- * Replaces each `:annotation{index="N"}` Claude wrote with a coloured ⓝ; one
- * inside code is Claude showing the syntax, and stays as written.
+ * Replaces each `:annotation{index="N"}` Claude wrote with a coloured ⓝ,
+ * when N names an Annotation: from 1, and to `count`, the number the prompt
+ * it answers was sent with, when that is known. Another stays as written,
+ * as does one inside code, which is Claude showing the syntax.
  */
-export function drawCitations(md: string): string {
+export function drawCitations(md: string, count?: number): string {
   if (!md.includes(':annotation{')) return md
   const p = project(md, 'assistant')
   const inCode = new Set(p.map.filter((_, k) => p.inFence[k] || p.inSpan[k]))
-  return md.replace(DIRECTIVE, (whole: string, n: string, at: number) => (inCode.has(at) ? whole : codeMark(circled(Number(n)), md, at)))
+  const names = (n: number) => n >= 1 && (count === undefined || n <= count)
+  return md.replace(DIRECTIVE, (whole: string, n: string, at: number) => (inCode.has(at) || !names(Number(n)) ? whole : codeMark(circled(Number(n)), md, at)))
 }

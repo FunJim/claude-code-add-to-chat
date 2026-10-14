@@ -134,4 +134,10 @@ describe('Citations', () => {
   test('a directive inside code is left as written', () => {
     expect(drawCitations('Use `:annotation{index="1"}` like so')).toBe('Use `:annotation{index="1"}` like so')
   })
+
+  test('a number that names no Annotation stays as written: 0 always, past the count when it is known', () => {
+    const md = 'a :annotation{index="0"} b :annotation{index="2"} c :annotation{index="3"}'
+    expect(drawCitations(md)).toBe('a :annotation{index="0"} b `②` c `③`')
+    expect(drawCitations(md, 2)).toBe('a :annotation{index="0"} b `②` c :annotation{index="3"}')
+  })
 })

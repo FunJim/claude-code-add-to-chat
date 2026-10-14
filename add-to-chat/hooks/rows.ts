@@ -5,8 +5,9 @@ import { marksFor } from './annotations'
 import { drawCitations, drawMarks } from './excerpt'
 import { clipLine } from './labels'
 
-export function replyText(text: string, requestId: string | undefined, pending: readonly Annotation[]): string {
-  return drawMarks(drawCitations(text), marksFor(pending, requestId), 'assistant')
+/** A reply row's text: its Citations (to `count`, the prompt it answers was sent with, when known) and marks. */
+export function replyText(text: string, requestId: string | undefined, pending: readonly Annotation[], count?: number): string {
+  return drawMarks(drawCitations(text, count), marksFor(pending, requestId), 'assistant')
 }
 
 /**

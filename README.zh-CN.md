@@ -63,13 +63,13 @@ Claude 回复里的 `:annotation{index="1"}` 会显示为 ①。
 
 ## Annotation Template（注释模板）
 
-默认会把 prompt 改写成 Codex 的格式：先是 annotation 的 JSON 数组，再是 `## My request:` 和你输入的内容。想换成自己的措辞，可以把 `templatePath` 选项指向一个模板文件。在 `/plugin` → add-to-chat → configure 里设置，或者写进 settings：
+默认会把 prompt 改写成：先是 XML 格式的 annotation（`<annotations>` 里每条一个 `<annotation index="N" source="…">`，包含 `<excerpt>` 和 `<comment>`），然后几行告诉 Claude 怎么引用它们，最后是放在 `<request>` 里的你输入的内容。想换成自己的措辞，可以把 `templatePath` 选项指向一个模板文件。在 `/plugin` → add-to-chat → configure 里设置，或者写进 settings：
 
 ```json
 { "pluginConfigs": { "add-to-chat": { "options": { "templatePath": "~/.claude/add-to-chat.tmpl" } } } }
 ```
 
-每条 annotation 的来源（JSON 里的 `role`、模板里的 `{{source}}`）取值为：`assistant`（Claude 的回复）、`user`（你的 prompt）、`tool`（工具调用或结果）、`system`（Claude Code 自己的行：通知、命令输出、轮次耗时）、`transcript`（不在某一行上）。
+每条 annotation 的来源（XML 里的 `source`、模板里的 `{{source}}`）取值为：`assistant`（Claude 的回复）、`user`（你的 prompt）、`tool`（工具调用或结果）、`system`（Claude Code 自己的行：通知、命令输出、轮次耗时）、`transcript`（不在某一行上）。
 
 模板语法是 Mustache 的一个子集，标签说明和示例见[英文 README](README.md#the-annotation-template)。要点：
 

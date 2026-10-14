@@ -1,38 +1,8 @@
-// Sent prompts' Annotations: read back from a rewritten prompt, and listed
-// for the pane's history.
-import type { Annotation, AnnotationSource, Original } from '../types'
+// Sent prompts' Annotations: which prompts are this conversation's, and
+// which sent prompt a reply answers.
+import type { Annotation, Original } from '../types'
 import { hashText } from './hash'
-
-const BLOCK = /<response-annotations>\n([\s\S]*?)\n<\/response-annotations>/
-
-const SOURCES: readonly string[] = ['assistant', 'user', 'tool', 'system', 'transcript']
-
-/**
- * The Annotations of a prompt rewritten by a template holding
- * `<response-annotations>` and `{{annotations_json}}` (the default does);
- * undefined for any other text. The JSON's `<>&` are escaped, so an Excerpt
- * cannot end the block early.
- */
-export function historyOf(text: string): Annotation[] | undefined {
-  const json = BLOCK.exec(text)?.[1]
-  if (json === undefined) return undefined
-  try {
-    const items = JSON.parse(json) as { text?: unknown; source?: { role?: unknown; requestId?: unknown }; annotation?: unknown }[]
-    if (!Array.isArray(items) || items.some(it => typeof it?.text !== 'string')) return undefined
-    return items.map((it, i) => {
-      const role = typeof it.source?.role === 'string' && SOURCES.includes(it.source.role) ? it.source.role : 'transcript'
-      return {
-        index: i + 1,
-        text: it.text as string,
-        source: role as AnnotationSource,
-        ...(typeof it.source?.requestId === 'string' ? { requestId: it.source.requestId } : {}),
-        ...(typeof it.annotation === 'string' ? { comment: it.annotation } : {}),
-      }
-    })
-  } catch {
-    return undefined
-  }
-}
+import { oneLine } from './text'
 
 /**
  * The rewritten prompts in a transcript (its user messages, as
@@ -55,4 +25,50 @@ export function sentPrompts(originals: Record<string, Original>, inSession: read
       return o?.annotations !== undefined && o.annotations.length > 0 ? [{ hash, text: o.text, annotations: o.annotations }] : []
     })
     .reverse()
+}
+
+/** Each reply row known to answer a prompt in `inSession` → that prompt's Annotation count. */
+export function replyCountsOf(originals: Record<string, Original>, inSession: readonly string[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const hash of inSession) {
+    const o = originals[hash]
+    for (const id of o?.replies ?? []) counts[id] = o!.count
+  }
+  return counts
+}
+
+/** Whether two records hold the same keys and values. */
+export function sameRecord(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every(k => a[k] === b[k])
+}
+
+/** `replies` with `more` added, each once. */
+export function withReplies(original: Original, more: readonly string[]): Original {
+  return { ...original, replies: [...new Set([...(original.replies ?? []), ...more])] }
+}
+
+/** A reply row noted during a turn: its requestId, and its text as it drew. */
+export type NotedReply = { id: string; text: string }
+
+/**
+ * The noted rows that are the turn's own replies: those whose text is in an
+ * assistant message after the prompt (`hash`) in the transcript, before the
+ * next prompt. An older
+ * reply first drawn during the turn (scrolled to) is not. Without the
+ * prompt in the transcript, every noted row is kept.
+ */
+export function turnReplies(messages: readonly { role: string; text: string }[], hash: string, noted: readonly NotedReply[]): string[] {
+  const at = messages.findLastIndex(m => m.role === 'user' && hashText(m.text) === hash)
+  if (at === -1) return noted.map(r => r.id)
+  // Up to the next prompt (a user message with text; tool results have none).
+  const next = messages.findIndex((m, i) => i > at && m.role === 'user' && m.text !== '')
+  const said = oneLine(
+    messages
+      .slice(at + 1, next === -1 ? undefined : next)
+      .filter(m => m.role === 'assistant')
+      .map(m => m.text)
+      .join('\n'),
+  )
+  return noted.filter(r => said.includes(oneLine(r.text))).map(r => r.id)
 }

@@ -4,14 +4,20 @@
 
 import type { Annotation } from '../types'
 
-export const DEFAULT_TEMPLATE = `# Response annotations:
-Each item contains text selected from earlier in this conversation and where it was selected (\`source.role\`: your replies are \`assistant\`, the user's own prompts \`user\`, tool calls and results \`tool\`, Claude Code's notices \`system\`), and may include the user's note on it (\`annotation\`). Treat items as Annotation 1, Annotation 2, and so on in array order. Use every selection as context and address every note. For every annotation you address, include its inline directive \`:annotation{index="N"}\`, where N is its one-based array position (for example, \`:annotation{index="1"}\`). Do not use unstructured annotation labels.
-<response-annotations>
-{{annotations_json}}
-</response-annotations>
+/**
+ * The data first, the instructions after it, the request last; each
+ * Annotation's index in the data, so the model never counts from zero.
+ */
+export const DEFAULT_TEMPLATE = `<annotations>
+{{annotations_xml}}
+</annotations>
 
-## My request:
-{{request}}`
+These are passages the user selected from earlier in this conversation (source: assistant = your reply, user = their own prompt, tool = a tool call or result, system = a Claude Code notice), each with the user's comment when they wrote one; their request below refers to them. Take every annotation into account and answer every comment.
+When a sentence of your reply addresses an annotation, end it with :annotation{index="N"}, N being that annotation's index; the user's screen shows it as that annotation's number (①). Write it instead of naming "Annotation N" in prose, and keep it out of code blocks.
+
+<request>
+{{request}}
+</request>`
 
 /** A template with `{{request}}` replaces the prompt; one without rides beside it. */
 export function usesRequest(template: string): boolean {
@@ -107,11 +113,27 @@ function toJson(a: Annotation) {
 
 /**
  * Compact JSON whose strings cannot close the tags around it: an Excerpt
- * holding `</response-annotations>` would otherwise end the block early and
- * pass its own text off as the person's request. Still valid JSON.
+ * holding `</annotations>` would otherwise end the block early and pass its
+ * own text off as the person's request. Still valid JSON.
  */
 function fencedJson(value: unknown): string {
   return JSON.stringify(value).replace(/[<>&]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
+}
+
+/** XML text or attribute value: nothing in it can close or open a tag. */
+function escapeXml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** What `{{annotations_xml}}` holds: one `<annotation>` per item, its values escaped. */
+function toXml(a: Annotation): string {
+  const id = a.requestId === undefined ? '' : ` requestId="${escapeXml(a.requestId)}"`
+  return [
+    `<annotation index="${a.index}" source="${a.source}"${id}>`,
+    `<excerpt>${escapeXml(a.text)}</excerpt>`,
+    ...(a.comment === undefined ? [] : [`<comment>${escapeXml(a.comment)}</comment>`]),
+    '</annotation>',
+  ].join('\n')
 }
 
 export function renderTemplate(template: string, request: string, annotations: readonly Annotation[]): string {
@@ -119,6 +141,7 @@ export function renderTemplate(template: string, request: string, annotations: r
     request,
     count: annotations.length,
     annotations_json: fencedJson(annotations.map(toJson)),
+    annotations_xml: annotations.map(toXml).join('\n'),
     annotations: annotations.map(a => ({
       index: a.index,
       text: a.text,

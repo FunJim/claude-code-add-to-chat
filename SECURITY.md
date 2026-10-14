@@ -16,4 +16,4 @@ It sends nothing anywhere: what you add goes to the model only as part of the pr
 
 ## Prompt injection through Excerpts
 
-An Excerpt is text from the conversation, which can include text Claude read from files or the web. The default template puts Excerpts in a JSON array and escapes `<`, `>` and `&` there, so an Excerpt cannot close the `<response-annotations>` block and pass itself off as your request. A custom template that inserts `{{text}}` between tags of its own has no such protection; see the README.
+An Excerpt is text from the conversation, which can include text Claude read from files or the web. The default template puts Excerpts in XML (`{{annotations_xml}}`) with `&`, `<`, `>` and `"` escaped, so an Excerpt cannot close the `<annotations>` block and pass itself off as your request; `{{annotations_json}}` escapes them too. A custom template that inserts `{{text}}` between tags of its own has no such protection; see the README.

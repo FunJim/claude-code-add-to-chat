@@ -1,13 +1,14 @@
 // The engine glue: every call on `$` lives here (the engine follows `$`
 // only within this file); the decisions are the pure modules beside it.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, PluginOptions, Register, UiPane } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register, SessionMessage, UiPane } from 'claude-code'
 
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode } from '../types'
 import { appended, withComment, without } from './annotations'
 import { hashText } from './hash'
-import { historyOf, promptsIn, sentPrompts } from './history'
-import { ALREADY_ADDED, ANNOTATIONS_UNKNOWN, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast, clipLine, unreadableTemplate } from './labels'
+import { promptsIn, replyCountsOf, sameRecord, sentPrompts, turnReplies, withReplies } from './history'
+import type { NotedReply } from './history'
+import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast, clipLine, unreadableTemplate } from './labels'
 import { PANE_COLUMNS, PANE_ID, historyLines, paneView, tabAfterRemoving } from './pane'
 import { promptRow } from './prompt-row'
 import { originalText, promptText, replyText } from './rows'
@@ -25,6 +26,7 @@ const paneTab = atom({ plugin: 'add-to-chat', key: 'paneTab' } as const, 1)
 const isDraftEmpty = atom({ plugin: 'add-to-chat', key: 'isDraftEmpty' } as const, true)
 const originals = atom({ plugin: 'add-to-chat', key: 'originals' } as const, {})
 const sessionPrompts = atom({ plugin: 'add-to-chat', key: 'sessionPrompts' } as const, [])
+const replyCounts = atom({ plugin: 'add-to-chat', key: 'replyCounts' } as const, {})
 const paneMode = atom({ plugin: 'add-to-chat', key: 'paneMode' } as const, { kind: 'pending' } as PaneMode)
 
 const POLL_MS = 250
@@ -49,6 +51,83 @@ function rememberRole(requestId: string | undefined, component: string, props: u
  * not drawn since the load has none, and the pane offers no jump.
  */
 const promptRows = new Map<string, string>()
+
+/** Reply rows (requestIds) drawn since the load: a row new to it during a turn is that turn's. */
+const drawnReplies = new Set<string>()
+
+/**
+ * The last prompt sent with Annotations, and the reply rows first drawn
+ * since: the rows noted with their latest text, and which of them the
+ * transcript showed to answer it (`kept`) or not (`rejected`). It stays
+ * open past the turn's end, since a
+ * short reply can first draw after `turn.complete`, until the next typed
+ * prompt or another session. The poll checks noted rows once the turn has
+ * ended (`dirty`) and keeps them with the prompt; a render hook may not
+ * write state.
+ */
+type Answering = {
+  hash: string
+  count: number
+  noted: NotedReply[]
+  kept: string[]
+  rejected: string[]
+  hasEnded: boolean
+  isDirty: boolean
+}
+let answering: Answering | null = null
+
+function noteReply(requestId: string | undefined, text: string) {
+  if (requestId === undefined || requestId === 'placeholder') return
+  const noted = answering?.noted.find(r => r.id === requestId)
+  if (noted !== undefined) {
+    if (noted.text !== text) {
+      noted.text = text
+      answering!.isDirty = true
+    }
+    return
+  }
+  if (drawnReplies.has(requestId)) return
+  drawnReplies.add(requestId)
+  if (answering !== null) {
+    answering.noted.push({ id: requestId, text })
+    answering.isDirty = true
+  }
+}
+
+/**
+ * The Citations a reply row may draw: to the count of the prompt it is
+ * known to answer; else, noted since the last prompt and not let go by the
+ * check, to that prompt's. An older reply first drawn since (scrolled to) is
+ * known to answer its own prompt, if it answered one sent with Annotations.
+ */
+function citationBound(requestId: string | undefined, counts: Record<string, number>): number | undefined {
+  if (requestId === undefined) return undefined
+  const known = counts[requestId]
+  if (known !== undefined) return known
+  const a = answering
+  return a !== null && !a.rejected.includes(requestId) && a.noted.some(r => r.id === requestId) ? a.count : undefined
+}
+
+/**
+ * Once the turn has ended, checks the rows noted since against the
+ * transcript and keeps those that answer the prompt with its original.
+ */
+async function keepReplies($: EngineInterface) {
+  const a = answering
+  if (a === null || !a.hasEnded || !a.isDirty) return
+  a.isDirty = false
+  const messages = await $.session.messages()
+  const transcript = Array.isArray(messages) ? messages : []
+  const kept = turnReplies(transcript, a.hash, a.noted)
+  const fresh = kept.filter(id => !a.kept.includes(id))
+  a.kept = kept
+  a.rejected = a.noted.map(r => r.id).filter(id => !kept.includes(id))
+  if (fresh.length > 0) {
+    const map = await update($, originals, now => (now[a.hash] === undefined ? now : { ...now, [a.hash]: withReplies(now[a.hash]!, fresh) }))
+    await $.store.set(STORE_ORIGINALS, map)
+  }
+  await refreshSession($, false, transcript)
+}
 
 async function surroundings($: EngineInterface): Promise<Surroundings> {
   const [prompt, list, key, mode, map, inSession] = await Promise.all([
@@ -82,8 +161,12 @@ async function poll($: EngineInterface, watch: PollWatch) {
   // /branch, /resume and /clear go on under another session id, with
   // $.state cleared and no session.start: the originals come back from the
   // store, and the history follows the new transcript.
-  if (watch.sessionId !== undefined && watch.sessionId !== sessionId) await refreshSession($, true)
+  if (watch.sessionId !== undefined && watch.sessionId !== sessionId) {
+    answering = null
+    await refreshSession($, true)
+  }
   watch.sessionId = sessionId
+  await keepReplies($)
 
   const isEmpty = around.draft.trim() === ''
   if (watch.isDraftEmpty !== isEmpty) {
@@ -170,16 +253,22 @@ async function loadTemplate($: EngineInterface, options: PluginOptions): Promise
 }
 
 /**
- * Reads which sent prompts are in this conversation's transcript, for the
- * pane's history; with `reload`, takes the originals from the store first.
+ * Reads which sent prompts are in this conversation's transcript (or in
+ * `transcript`, when the caller has just read it), for the pane's history;
+ * with `reload`, takes the originals from the store first.
  */
-async function refreshSession($: EngineInterface, reload: boolean) {
-  const [messages, stored] = await Promise.all([$.session.messages(), reload ? $.store.get(STORE_ORIGINALS) : undefined])
+async function refreshSession($: EngineInterface, reload: boolean, transcript?: readonly SessionMessage[]) {
+  const [messages, stored] = await Promise.all([transcript ?? $.session.messages(), reload ? $.store.get(STORE_ORIGINALS) : undefined])
   const map = reload
     ? await update($, originals, now => (stored !== undefined && typeof stored === 'object' && stored !== null ? (stored as Record<string, Original>) : now))
     : await read($, originals)
   const hashes = Array.isArray(messages) ? promptsIn(messages, map) : []
-  await update($, sessionPrompts, now => (now.length === hashes.length && now.every((h, i) => h === hashes[i]) ? now : hashes))
+  const counts = replyCountsOf(map, hashes)
+  // Written only on a change: reply rows read replyCounts, and a write, even
+  // of the same value, may redraw them all.
+  const [shown, bounds] = await Promise.all([read($, sessionPrompts), read($, replyCounts)])
+  if (shown.length !== hashes.length || shown.some((h, i) => h !== hashes[i])) await update($, sessionPrompts, () => hashes)
+  if (!sameRecord(bounds, counts)) await update($, replyCounts, () => counts)
 }
 
 async function rememberOriginal($: EngineInterface, rewritten: string, original: Original) {
@@ -187,23 +276,8 @@ async function rememberOriginal($: EngineInterface, rewritten: string, original:
   await $.store.set(STORE_ORIGINALS, map)
 }
 
-/**
- * Shows a sent prompt's Annotations in the pane, from its row's 📎. A prompt
- * sent before they were kept has them read back from its text, and kept.
- */
-async function showSentPrompt($: EngineInterface, hash: string, rewritten: string, requestId: string | undefined) {
-  const map = await read($, originals)
-  const original = map[hash]
-  if (original === undefined) return
-  if (original.annotations === undefined) {
-    const annotations = historyOf(rewritten)
-    if (annotations === undefined) {
-      $.ui.toast(ANNOTATIONS_UNKNOWN)
-      return
-    }
-    const kept = await update($, originals, now => (now[hash] === undefined ? now : { ...now, [hash]: { ...now[hash]!, annotations } }))
-    await $.store.set(STORE_ORIGINALS, kept)
-  }
+/** Shows a sent prompt's Annotations in the pane, from its row's 📎. */
+async function showSentPrompt($: EngineInterface, hash: string, requestId: string | undefined) {
   await openPane($)
   await update($, paneMode, () => ({ kind: 'sent', hash, tab: 1, ...(requestId === undefined ? {} : { requestId }) }) as const)
 }
@@ -261,7 +335,11 @@ export const register: Register = (on, options) => {
 
   on('prompt.submit', async ($, e, next) => {
     const list = await read($, pending)
-    if (e.origin.kind !== 'composer' || list.length === 0) return next(e)
+    if (e.origin.kind !== 'composer') return next(e)
+    if (list.length === 0) {
+      answering = null
+      return next(e)
+    }
     const sent = annotated(await loadTemplate($, options), e.text, e.context, list)
     if (sent.original !== undefined) await rememberOriginal($, sent.text, sent.original)
     const entered = await next({ ...e, text: sent.text, context: sent.context })
@@ -269,6 +347,15 @@ export const register: Register = (on, options) => {
       await clearPending($)
       if (sent.original !== undefined) {
         const hash = hashText(sent.text)
+        answering = {
+          hash,
+          count: sent.original.count,
+          noted: [],
+          kept: [],
+          rejected: [],
+          hasEnded: false,
+          isDirty: false,
+        }
         await update($, sessionPrompts, now => (now.includes(hash) ? now : [...now, hash]))
       }
     }
@@ -281,13 +368,29 @@ export const register: Register = (on, options) => {
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
     $.ui.invalidate('ui.render')
-    await refreshSession($, false)
+    // The main loop's turn ends (a subagent's carries its agentId): the
+    // replies noted for it are checked and kept, and the poll keeps doing so
+    // for rows drawn after.
+    if (e.agentId === undefined && answering !== null) {
+      answering.hasEnded = true
+      answering.isDirty = true
+      await keepReplies($)
+    } else {
+      await refreshSession($, false)
+    }
     return done
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     rememberRole(e.requestId, e.component, e.props)
-    const text = replyText(e.props.text, e.requestId, await read($, pending))
+    noteReply(e.requestId, e.props.text)
+    // Only a row with a directive reads the counts (not the originals,
+    // written at every start): every reply redrawing, or drawing slower,
+    // just after a launch moves the transcript under a drag about to start.
+    const hasDirective = e.props.text.includes(':annotation{')
+    const [list, counts] = await Promise.all([read($, pending), hasDirective ? read($, replyCounts) : {}])
+    const id = e.requestId
+    const text = replyText(e.props.text, id, list, citationBound(id, counts))
     return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
   })
 
@@ -297,7 +400,7 @@ export const register: Register = (on, options) => {
     const [list, map] = await Promise.all([read($, pending), read($, originals)])
     const hash = hashText(e.props.text)
     const original = e.props.isExpanded ? undefined : map[hash]
-    if (original === undefined || e.surface !== 'terminal') {
+    if (original === undefined || original.annotations === undefined || e.surface !== 'terminal') {
       const text = promptText(e.props.text, e.requestId, list, original)
       return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
     }
@@ -305,13 +408,12 @@ export const register: Register = (on, options) => {
     // 📎 row beneath: a button to the pane, and a card on hover.
     if (e.requestId !== undefined) promptRows.set(hash, e.requestId)
     const engine = await next({ ...e, props: { ...e.props, text: originalText(original, e.requestId, list) } })
-    const rewritten = e.props.text
     const requestId = e.requestId
     return promptRow(
       $.ui.resolve(e),
       engine,
-      { hash, count: original.count, annotations: original.annotations ?? historyOf(rewritten), columns: e.viewport?.columns ?? 80 },
-      () => showSentPrompt($, hash, rewritten, requestId),
+      { hash, count: original.count, annotations: original.annotations, columns: e.viewport?.columns ?? 80 },
+      () => showSentPrompt($, hash, requestId),
     )
   })
 

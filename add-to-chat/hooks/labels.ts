@@ -60,7 +60,6 @@ export const SENT_TITLE = 'You sent'
 export const NO_COMMENT = 'No comment'
 export const JUMP_LABEL = 'jump to prompt'
 export const NOT_DRAWN = 'That prompt is not drawn yet: scroll to it once, then jump'
-export const ANNOTATIONS_UNKNOWN = "This prompt's annotations were not kept: it was sent with a template without {{annotations_json}}"
 
 export const ALREADY_ADDED = 'That selection is already added'
 export const NEEDS_FULLSCREEN = 'add-to-chat needs fullscreen mode (CLAUDE_CODE_NO_FLICKER=1) to read the selection'

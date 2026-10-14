@@ -9,7 +9,7 @@ import { sleep, waitFor } from '../harness/exec.ts'
 import { FIXTURES_DIR } from '../harness/fixtures.ts'
 import { assert, scenario } from '../harness/scenario.ts'
 import type { Context } from '../harness/scenario.ts'
-import { annotationsJson } from '../harness/transcript.ts'
+import { annotationsXml } from '../harness/transcript.ts'
 
 const MODEL = 'model'
 // Two short paragraphs, so neither wraps in a transcript the pane narrows.
@@ -50,17 +50,20 @@ describe(MODEL, () => {
     const x = await exchange(claude, 'MODEL-REQ-1')
     await ctx.evidence('prompt the model read', x.prompt)
     await ctx.evidence('reply as written', x.reply)
-    assert.match(x.prompt, /^# Response annotations:/)
-    assert.match(x.prompt, /## My request:\nMODEL-REQ-1: for each annotation/)
-    const sent = annotationsJson(x.prompt) as { text: string; source: { role: string; requestId?: string }; annotation?: string }[]
-    assert.deepEqual(sent.map(a => [a.text, a.source.role, a.annotation]), [
-      ['quick brown fox', 'assistant', 'which animal is this?'],
-      ['capital of France', 'assistant', undefined],
+    assert.match(x.prompt, /^<annotations>\n/)
+    assert.match(x.prompt, /<request>\nMODEL-REQ-1: for each annotation[^\n]*\n<\/request>$/)
+    const sent = annotationsXml(x.prompt)
+    assert.deepEqual(sent.map(a => [a.index, a.text, a.source, a.comment]), [
+      [1, 'quick brown fox', 'assistant', 'which animal is this?'],
+      [2, 'capital of France', 'assistant', undefined],
     ])
-    assert.ok(sent.every(a => typeof a.source.requestId === 'string'), 'each carries the row it came from')
+    assert.ok(sent.every(a => typeof a.requestId === 'string'), 'each carries the row it came from')
     await ctx.step('the model answered with a Citation for each Annotation')
     assert.match(x.reply, /:annotation\{index="1"\}/)
     assert.match(x.reply, /:annotation\{index="2"\}/)
+
+    await ctx.step('the reply rows are kept with the prompt they answer, bounded by its two Annotations')
+    await waitFor('the reply rows kept', async () => Object.values((await claude.probe.state()).replyCounts).includes(2), { timeoutMs: 5_000 })
 
     await ctx.step('the reply shows ① ②, not the directives; the prompt row shows what was typed')
     await claude.waitShowing('①')
@@ -72,7 +75,7 @@ describe(MODEL, () => {
 
     await ctx.step('ctrl+o shows the prompt as the model read it')
     await claude.press('ctrl+o')
-    await claude.waitShowing('response-annotations')
+    await claude.waitShowing('</annotations>')
     await claude.press('ctrl+o')
     await sleep(800)
 
@@ -96,7 +99,7 @@ describe(MODEL, () => {
     await waitFor('the filled prompt', async () => (await claude.draft()) === SEND_PLACEHOLDER, { timeoutMs: 5_000 })
     await claude.send()
     const x = await exchange(claude, SEND_PLACEHOLDER)
-    assert.match(x.prompt, /## My request:\n\(see annotations\)$/)
+    assert.match(x.prompt, /<request>\n\(see annotations\)\n<\/request>$/)
     assert.match(x.reply, /:annotation\{index="1"\}/)
     assert.match(x.reply, /cat/i, 'the model acted on the Comment')
     await ctx.evidence('reply as written', x.reply)
@@ -112,7 +115,7 @@ describe(MODEL, () => {
     const x = await exchange(claude, 'MODEL-REQ-3')
     await ctx.evidence('context the model read', x.context.join('\n---\n'))
     assert.equal(x.prompt, 'MODEL-REQ-3: answer my annotation in one short sentence.', 'the prompt goes as typed')
-    assert.match(x.context.join('\n'), /<annotation n="1" source="assistant">\n<excerpt>quick brown fox<\/excerpt>\n<comment>name the animal<\/comment>/)
+    assert.match(x.context.join('\n'), /<annotation index="1" source="assistant" requestId="[^"]+">\n<excerpt>quick brown fox<\/excerpt>\n<comment>name the animal<\/comment>/)
     assert.match(x.reply, /fox/i, 'the model read the Excerpt')
     assert.equal(await claude.isShowing(`${clipLine(1)}\n`), false)
   })
@@ -130,8 +133,7 @@ describe(MODEL, () => {
     // A prompt queued mid-turn is folded into that turn: one turn ends both.
     await waitFor('the turn to end', async () => (await claude.probe.turnsCompleted()) >= 1 && !(await claude.probe.isWorking()), { timeoutMs: 240_000, intervalMs: 1_000 })
     const x = await exchange(claude, 'MODEL-REQ-4B')
-    const sent = annotationsJson(x.prompt) as { text: string; source: { role: string } }[]
-    assert.deepEqual(sent.map(a => [a.text, a.source.role]), [['run the bash command', 'user']])
+    assert.deepEqual(annotationsXml(x.prompt).map(a => [a.text, a.source]), [['run the bash command', 'user']])
     assert.match(x.reply, /run the bash command/i)
   })
 
@@ -146,7 +148,7 @@ describe(MODEL, () => {
     assert.equal((await claude.probe.pending()).length, 1)
     await claude.submit('MODEL-REQ-6: what city is my annotation about? One word.')
     const x = await exchange(claude, 'MODEL-REQ-6')
-    assert.match(x.prompt, /"text":"capital of France"/)
+    assert.deepEqual(annotationsXml(x.prompt).map(a => a.text), ['capital of France'])
     assert.match(x.reply, /Paris/i)
   })
 })

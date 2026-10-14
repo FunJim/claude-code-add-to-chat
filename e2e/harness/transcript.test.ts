@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { commandLine, shellQuote } from './exec.ts'
-import { Transcript, annotationsJson, projectSlug } from './transcript.ts'
+import { Transcript, annotationsXml, projectSlug } from './transcript.ts'
 
 const rows = [
   { type: 'user', message: { role: 'user', content: 'first prompt' } },
@@ -28,9 +28,13 @@ test('exchanges: prompts (folded ones too), their context and replies', async ()
   assert.equal((await t.exchange('<annotation'))?.prompt, 'first prompt')
 })
 
-test('annotationsJson reads the default template block', () => {
-  assert.deepEqual(annotationsJson('x\n<response-annotations>\n[{"text":"a"}]\n</response-annotations>\n'), [{ text: 'a' }])
-  assert.equal(annotationsJson('no block'), undefined)
+test('annotationsXml reads the default template block, unescaped', () => {
+  const prompt = '<annotations>\n<annotation index="1" source="assistant" requestId="r1">\n<excerpt>a &lt;b&gt; &amp; c</excerpt>\n<comment>why?</comment>\n</annotation>\n<annotation index="2" source="tool">\n<excerpt>x</excerpt>\n</annotation>\n</annotations>'
+  assert.deepEqual(annotationsXml(prompt), [
+    { index: 1, source: 'assistant', requestId: 'r1', text: 'a <b> & c', comment: 'why?' },
+    { index: 2, source: 'tool', text: 'x' },
+  ])
+  assert.deepEqual(annotationsXml('no block'), [])
 })
 
 test('projectSlug matches Claude Code folder names', () => {

@@ -2,18 +2,32 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
-import { ANNOTATIONS_UNKNOWN, NOT_DRAWN } from '../hooks/labels'
+import { NOT_DRAWN } from '../hooks/labels'
 import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
-import { XML_TEMPLATE, addText, drawBand, drawRow, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
+import { XML_TEMPLATE, addText, drawBand, drawRow, endTurn, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
 type Mounted = Awaited<ReturnType<typeof mountPane<'terminal'>>>
 
-/** Sends a prompt and resolves the annotations JSON the model was given. */
-async function submitted($: Engine, w: Awaited<ReturnType<typeof start>>): Promise<{ text: string; source: { role: string }; annotation?: string }[]> {
+type Sent = { index: number; text: string; source: { role: string; requestId?: string }; annotation?: string }
+
+/** The Annotations a prompt rendered by the default template gives the model, read back from its XML. */
+function sentAnnotations(prompt: string): Sent[] {
+  const unescape = (t: string) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+  const item = /<annotation index="(\d+)" source="(\w+)"(?: requestId="([^"]*)")?>\n<excerpt>([\s\S]*?)<\/excerpt>(?:\n<comment>([\s\S]*?)<\/comment>)?\n<\/annotation>/g
+  return [...prompt.matchAll(item)].map(m => ({
+    index: Number(m[1]),
+    text: unescape(m[4]!),
+    source: { role: m[2]!, ...(m[3] === undefined ? {} : { requestId: unescape(m[3]) }) },
+    ...(m[5] === undefined ? {} : { annotation: unescape(m[5]) }),
+  }))
+}
+
+/** Sends a prompt and resolves the Annotations the model was given. */
+async function submitted($: Engine, w: Awaited<ReturnType<typeof start>>): Promise<Sent[]> {
   await submit($, 'q')
-  return JSON.parse(w.submitted.at(-1)!.text.split('<response-annotations>\n')[1]!.split('\n</response-annotations>')[0]!)
+  return sentAnnotations(w.submitted.at(-1)!.text)
 }
 
 /** Everything a mounted pane shows, with tab `index` open (the current one if omitted). */
@@ -326,7 +340,7 @@ describe('marks in the transcript', () => {
     })
     await addText($, w, 'Background command', 'n1')
     await submit($, 'what finished?')
-    expect(w.submitted[0]!.text).toContain('"role":"system"')
+    expect(w.submitted[0]!.text).toContain('source="system"')
     // Its row is drawn as the engine has it: no mark, no rewrite.
     expect(
       await drawRow($, w, 'UserMessage', 'n1', 'Background command "sleep" completed', { origin: { kind: 'task-notification' } }),
@@ -355,9 +369,8 @@ describe('sending', () => {
     await addText($, w, 'npm test', 'r1')
     const entered = await submit($, 'why?')
     expect(w.submitted).toHaveLength(1)
-    expect(w.submitted[0]!.text).toStartWith('# Response annotations:')
-    expect(w.submitted[0]!.text).toContain('"text":"npm test"')
-    expect(w.submitted[0]!.text).toEndWith('## My request:\nwhy?')
+    expect(w.submitted[0]!.text).toStartWith('<annotations>\n<annotation index="1" source="assistant" requestId="r1">\n<excerpt>npm test</excerpt>')
+    expect(w.submitted[0]!.text).toEndWith('<request>\nwhy?\n</request>')
     expect(entered.text).toBe(w.submitted[0]!.text)
 
     // In the terminal Claude Code draws what was typed; the 📎 row is the mod's.
@@ -379,8 +392,12 @@ describe('sending', () => {
   })
 
   test('a resumed session draws the original from the store', async ($, on) => {
-    const rewritten = '# Response annotations:\n...\n## My request:\nwhy?'
-    const w = await start($, on, { originals: { [hashText(rewritten)]: { text: 'why?', count: 2 } } })
+    const rewritten = '<annotations>\n...\n</annotations>\n\n<request>\nwhy?\n</request>'
+    const kept = [
+      { index: 1, text: 'one', source: 'assistant' as const },
+      { index: 2, text: 'two', source: 'user' as const },
+    ]
+    const w = await start($, on, { originals: { [hashText(rewritten)]: { text: 'why?', count: 2, annotations: kept } } })
     expect(await drawRow($, w, 'UserMessage', 'u1', rewritten)).toBe('why?')
     const row = await mountPrompt($, 'u1', rewritten)
     expect((await row.find({ key: `clip-${hashText(rewritten)}` }))?.text).toBe('📎 2 annotations ↗')
@@ -393,7 +410,7 @@ describe('sending', () => {
     await submit($, 'why?')
     expect(w.submitted[0]!.text).toBe('why?')
     expect(w.submitted[0]!.context).toEqual([
-      'The user selected these excerpts from earlier in the conversation; their prompt refers to them by number.\n<annotation n="1" source="transcript">\n<excerpt>npm test</excerpt>\n\n</annotation>\n',
+      'The user selected these excerpts from earlier in the conversation; their prompt refers to them by number.\n<annotations>\n<annotation index="1" source="transcript" requestId="r1">\n<excerpt>npm test</excerpt>\n</annotation>\n</annotations>\n',
     ])
   })
 
@@ -409,7 +426,7 @@ describe('sending', () => {
     await addText($, w, 'npm test', 'r1')
     await submit($, 'why?')
     expect(w.toasts.at(-1)).toMatch(/cannot read \/nope\/missing.tmpl/)
-    expect(w.submitted[0]!.text).toStartWith('# Response annotations:')
+    expect(w.submitted[0]!.text).toStartWith('<annotations>')
   })
 
   for (const kind of ['bridge', 'sdk', 'task-notification', 'peer', 'channel', 'scheduled-trigger'] as const) {
@@ -419,7 +436,7 @@ describe('sending', () => {
       await $.prompt.submit({ text: 'from elsewhere', origin: { kind }, wait: false } as never)
       expect(w.submitted[0]).toEqual({ text: 'from elsewhere', context: undefined })
       await submit($, 'mine')
-      expect(w.submitted[1]!.text).toContain('"text":"npm test"')
+      expect(sentAnnotations(w.submitted[1]!.text).map(a => a.text)).toEqual(['npm test'])
     })
   }
 
@@ -437,8 +454,8 @@ describe('sending', () => {
     await addText($, w, 'use {{request}} and {{#annotations}}x{{/annotations}}', 'r1')
     await commentInPane($, 1, 'a "quoted" comment\twith <tags> & {{count}}')
     await submit($, 'why?')
-    const json = JSON.parse(w.submitted[0]!.text.split('<response-annotations>\n')[1]!.split('\n</response-annotations>')[0]!)
-    expect(json[0]).toEqual({
+    expect(sentAnnotations(w.submitted[0]!.text)[0]).toEqual({
+      index: 1,
       text: 'use {{request}} and {{#annotations}}x{{/annotations}}',
       source: { role: 'transcript', requestId: 'r1' },
       annotation: 'a "quoted" comment\twith <tags> & {{count}}',
@@ -465,6 +482,62 @@ async function sendOne($: Engine, w: Awaited<ReturnType<typeof start>>, request 
 }
 
 describe('sent prompts', () => {
+  test("a reply to a prompt sent with Annotations draws only their numbers; kept with the prompt when the turn ends", async ($, on) => {
+    const w = await start($, on)
+    const reply = 'one :annotation{index="1"}, two :annotation{index="2"}'
+    await drawRow($, w, 'AssistantMessage', 'before', reply)
+    const sent = await sendOne($, w)
+    expect(await drawRow($, w, 'AssistantMessage', 'a1', reply)).toBe('one `①`, two :annotation{index="2"}')
+    // A subagent's turn ending is not this one's.
+    await endTurn($, 'sub1')
+    await drawRow($, w, 'AssistantMessage', 'a2', 'more :annotation{index="2"}')
+    w.messages.push({ role: 'assistant', text: `${reply}\n\nmore :annotation{index="2"}`, toolUses: [] })
+    await endTurn($)
+    expect((w.store.originals as Record<string, { replies?: string[] }>)[hashText(sent)]?.replies).toEqual(['a1', 'a2'])
+    expect(await drawRow($, w, 'AssistantMessage', 'a1', reply)).toBe('one `①`, two :annotation{index="2"}')
+    // A reply drawn before the prompt was sent answers another.
+    expect(await drawRow($, w, 'AssistantMessage', 'before', reply)).toBe('one `①`, two `②`')
+    // One first drawn after the turn, answering a later prompt, is checked and let go.
+    w.messages.push({ role: 'user', text: 'a later prompt', toolUses: [] }, { role: 'assistant', text: 'later :annotation{index="2"}', toolUses: [] })
+    await drawRow($, w, 'AssistantMessage', 'after', 'later :annotation{index="2"}')
+    await tick(w)
+    expect(await drawRow($, w, 'AssistantMessage', 'after', 'later :annotation{index="2"}')).toBe('later `②`')
+  })
+
+  test('a reply first drawn just after its turn completes is still kept with the prompt', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    w.messages.push({ role: 'assistant', text: 'short :annotation{index="1"} :annotation{index="2"}', toolUses: [] })
+    await endTurn($)
+    expect(await drawRow($, w, 'AssistantMessage', 'late', 'short :annotation{index="1"} :annotation{index="2"}')).toBe('short `①` :annotation{index="2"}')
+    await tick(w)
+    expect((w.store.originals as Record<string, { replies?: string[] }>)[hashText(sent)]?.replies).toEqual(['late'])
+  })
+
+  test('an older reply first drawn during the turn keeps its own prompt\'s bound; one with none is let go by the check', async ($, on) => {
+    const earlier = '<annotations>\n...\n</annotations>\n\n<request>\nearlier\n</request>'
+    const w = await start($, on, { originals: { [hashText(earlier)]: { text: 'earlier', count: 3, replies: ['kept'] } } }, [earlier])
+    w.messages.push({ role: 'assistant', text: 'kept reply :annotation{index="3"}', toolUses: [] }, { role: 'assistant', text: 'unkept reply :annotation{index="3"}', toolUses: [] })
+    const sent = await sendOne($, w)
+    // Scrolled to while the turn runs: one known to answer an earlier prompt keeps its bound...
+    expect(await drawRow($, w, 'AssistantMessage', 'kept', 'kept reply :annotation{index="3"}')).toBe('kept reply `③`')
+    // ...one known to answer none is taken for the turn's until the check.
+    expect(await drawRow($, w, 'AssistantMessage', 'unkept', 'unkept reply :annotation{index="3"}')).toBe('unkept reply :annotation{index="3"}')
+    // A streaming reply is the turn's from its first words.
+    expect(await drawRow($, w, 'AssistantMessage', 'a1', 'kept reply :annotation{index="3"}')).toBe('kept reply :annotation{index="3"}')
+    await drawRow($, w, 'AssistantMessage', 'a1', 'the answer :annotation{index="1"}')
+    w.messages.push({ role: 'assistant', text: 'the answer :annotation{index="1"}', toolUses: [] })
+    await endTurn($)
+    expect((w.store.originals as Record<string, { replies?: string[] }>)[hashText(sent)]?.replies).toEqual(['a1'])
+    expect(await drawRow($, w, 'AssistantMessage', 'unkept', 'unkept reply :annotation{index="3"}')).toBe('unkept reply `③`')
+  })
+
+  test('a resumed session still bounds the Citations of the replies kept with a prompt', async ($, on) => {
+    const rewritten = '<annotations>\n...\n</annotations>\n\n<request>\nq\n</request>'
+    const w = await start($, on, { originals: { [hashText(rewritten)]: { text: 'q', count: 1, replies: ['a1'] } } }, [rewritten])
+    expect(await drawRow($, w, 'AssistantMessage', 'a1', 'x :annotation{index="3"}')).toBe('x :annotation{index="3"}')
+  })
+
   test("in the terminal Claude Code draws the prompt as typed; the mod's 📎 row holds a card of its Annotations", async ($, on) => {
     const w = await start($, on)
     const sent = await sendOne($, w)
@@ -533,25 +606,12 @@ describe('sent prompts', () => {
     expect(w.toasts).not.toContain(NOT_DRAWN)
   })
 
-  test('a prompt sent before Annotations were kept: read back from its text, and kept', async ($, on) => {
-    const list = [{ index: 1, text: 'npm test', source: 'assistant' as const, comment: 'why?' }]
-    const sent = renderTemplate(DEFAULT_TEMPLATE, 'q', list)
-    const hash = hashText(sent)
-    const w = await start($, on, { originals: { [hash]: { text: 'q', count: 1 } } }, [sent])
-    const row = await mountPrompt($, 'u1', sent)
-    expect((await row.findAll({ type: 'Text' })).map(t => t.text).join('\n')).toContain('“npm test”')
-    await row.press({ key: `clip-${hash}` })
-    expect((w.store.originals as Record<string, { annotations?: unknown }>)[hash]?.annotations).toEqual(list)
-    expect(await paneText($)).toContain('Comment: why?')
-  })
-
-  test('one whose template held no {{annotations_json}}: the 📎 says they were not kept', async ($, on) => {
-    const sent = 'my own template: q'
-    const w = await start($, on, { originals: { [hashText(sent)]: { text: 'q', count: 2 } } })
-    const row = await mountPrompt($, 'u1', sent)
-    await row.press({ key: `clip-${hashText(sent)}` })
-    expect(w.toasts.at(-1)).toBe(ANNOTATIONS_UNKNOWN)
-    expect(w.panes.has('add-to-chat')).toBe(false)
+  test('a prompt kept without its Annotations draws the text row, with no 📎 button', async ($, on) => {
+    const rewritten = '<annotations>\n...\n</annotations>\n\n<request>\nwhy?\n</request>'
+    const w = await start($, on, { originals: { [hashText(rewritten)]: { text: 'why?', count: 2 } } })
+    expect(await drawRow($, w, 'UserMessage', 'u1', rewritten)).toBe('why?\n📎 2 annotations')
+    const row = await mountPrompt($, 'u1', rewritten)
+    expect(await row.find({ key: `clip-${hashText(rewritten)}` })).toBeUndefined()
   })
 
   test("the history lists this conversation's prompts, not those the store keeps from other sessions", async ($, on) => {

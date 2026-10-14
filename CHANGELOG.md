@@ -6,7 +6,12 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ### Added
 
-- Sent prompts keep their annotations. Point at a sent prompt's `📎 N annotations ↗` for a card listing them; click it to open them in the pane, read-only, with a jump back to the prompt. `History (N) ›` in the pane lists every prompt sent with annotations. Prompts sent with 0.2.x are read back from their text the first time they are opened. The history is this conversation's: a `/branch` keeps it, `/clear` starts it over.
+- Sent prompts keep their annotations. Point at a sent prompt's `📎 N annotations ↗` for a card listing them; click it to open them in the pane, read-only, with a jump back to the prompt. `History (N) ›` in the pane lists every prompt sent with annotations. The history is this conversation's: a `/branch` keeps it, `/clear` starts it over.
+
+### Changed
+
+- The default template sends the annotations as XML, each with its index, before short instructions and your request in `<request>`; it no longer tells Claude to "treat items as Annotation 1, Annotation 2", which drew labels like `**Annotation 1**` into replies. The new `{{annotations_xml}}` gives custom templates the same escaped elements; `{{annotations_json}}` stays.
+- A Citation whose number names no annotation of the prompt the reply answers (0, or past their count) stays as written instead of being drawn as a number.
 
 ### Fixed
 

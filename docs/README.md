@@ -10,5 +10,6 @@
   - [0004](adr/0004-originals-in-store.md) what the person typed, kept in `$.store` by content
   - [0005](adr/0005-everything-in-a-pane.md) everything in a pane, open from the start
   - [0006](adr/0006-wrap-the-prompt-row.md) a sent prompt's 📎 row wraps Claude Code's own row, never redraws it
+  - [0007](adr/0007-xml-default-template.md) the default template: XML data first, indexed, and no "Annotation N"
 - [../e2e/README.md](../e2e/README.md) — the end-to-end suite and showcase.
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — setting up, testing, the engine's rules.

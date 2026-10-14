@@ -29,12 +29,9 @@ export type World = {
 
 /** The README's example of a template without `{{request}}`. */
 export const XML_TEMPLATE = `The user selected these excerpts from earlier in the conversation; their prompt refers to them by number.
-{{#annotations}}
-<annotation n="{{index}}" source="{{source}}">
-<excerpt>{{text}}</excerpt>
-{{#comment}}<comment>{{comment}}</comment>{{/comment}}
-</annotation>
-{{/annotations}}
+<annotations>
+{{annotations_xml}}
+</annotations>
 `
 
 export const BAND = {
@@ -105,6 +102,7 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   })
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('session.id', () => ({ value: w.sessionId }))
+  on('turn.complete', ($, e) => e as never)
   on('session.messages', () => ({ value: w.messages }) as never)
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -136,6 +134,11 @@ export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engi
 export function mountPrompt<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, requestId: string, text: string, surface: P = 'terminal' as P) {
   const props = { text, origin: { kind: 'composer' as const }, isExpanded: false }
   return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'UserMessage', requestId, props, viewport: { columns: 120, rows: 40, isFullscreen: true } })
+}
+
+/** Ends a turn: the main loop's, or with `agentId` a subagent's. */
+export function endTurn($: Engine, agentId?: string) {
+  return $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'end_turn', text: '', ...(agentId === undefined ? {} : { agentId }) } as never)
 }
 
 /** Selects `text`, in row `requestId` if given, and runs /add-to-chat. */
