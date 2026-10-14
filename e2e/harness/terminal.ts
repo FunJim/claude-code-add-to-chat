@@ -6,6 +6,8 @@ export type Key = 'enter' | 'escape' | 'down' | 'ctrl+o' | 'ctrl+u'
 export interface Terminal {
   /** The visible screen, rows joined with newlines. */
   screen(): Promise<string>
+  /** The visible screen with its colours, as ANSI escapes, where the driver can read them. */
+  screenAnsi?(): Promise<string>
   /** Writes bytes as typed (mouse sequences included). */
   write(bytes: string): Promise<void>
   press(...keys: Key[]): Promise<void>

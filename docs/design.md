@@ -143,12 +143,42 @@ Enter on an empty (or all-blank) draft does not raise `prompt.submit`, and a pro
 
 The `AssistantMessage` render hook replaces `:annotation{index="N"}` in a reply with a coloured `ⁿ` (①…⑳㉑…㊿); directives inside code stay as written. Citations stay for good, unlike marks; a number refers to the Annotations of the prompt that reply answers. `turn.complete` calls `$.ui.invalidate('ui.render')`, since a long reply's row can stay as drawn mid-stream, before its directives were complete.
 
+## Sent prompts
+
+A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations }` by the hash of the rewritten text, mirrored in `$.store` ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. A prompt sent before they were kept (0.2.x) has none until its `📎` is pressed: they are then read back from the rewritten text's `<response-annotations>` JSON (`historyOf`; its `<>&` are escaped, so an Excerpt cannot end the block early) and kept. A template without `{{annotations_json}}` leaves nothing to read: the `📎` says so in a toast.
+
+### The 📎 row
+
+In the terminal the `UserMessage` hook does not rewrite a sent prompt's row into text: it hands Claude Code the prompt as typed (marks drawn) and wraps the engine's drawing, `next(e)`, with a row of its own beneath ([ADR 0006](adr/0006-wrap-the-prompt-row.md)):
+
+```
+❯ why does the parser fail here?         ← Claude Code's own row, its look and theme
+  📎 2 annotations ↗                     ← the mod's: a Button
+```
+
+- **Hover**: the pointer anywhere on the `📎` row reveals a card of its Annotations (circled number, Source, Excerpt preview, Comment), up to six, then `+N more`. It is a `position: "absolute"` Box drawn `display: "none"` with `hover: { display: "flex" }`: no hook runs, nothing moves. It opens upward, over the prompt and the rows before it, since the rows drawn after this one would paint over a card below. It has the theme's `userMessageBackground`, so the rows beneath do not show through its blank cells.
+- **Press**: opens the pane on that prompt (below). A press is the person's ask, so the pane is placed at any width.
+- ctrl+o (`isExpanded`) shows the full rewritten text, as before. On other surfaces the row stays text: the prompt as typed and the `📎 N annotations` line.
+
+### The pane's history
+
+Below its first row (the offer, always one row) the pane shows one of three views, `paneMode`:
+
+- **pending**: the tabs of the Annotations to send ([The pane](#the-pane)); under them, once a prompt has been sent with Annotations, `History (N) ›`.
+- **history**: `← back`, `Sent with annotations`, and this conversation's prompts sent with them, newest first, the first nine answering to their digit.
+- **sent**: `← back`, `You sent “…”`, the prompt's Annotations in tabs as in the pending view, read-only (the Comment as text, `No comment` without one), and `↑ jump to prompt`, which `$.ui.scroll`s the transcript to the prompt's row. The jump needs the row's requestId: known when the view was opened from the row, or once the row has drawn in this load (`promptRows`, a cache like `roles`); without one there is no jump.
+
+The store keeps prompts from every session; the history lists those in this conversation's transcript. `sessionPrompts` holds their hashes: the user messages of `$.session.messages()` whose `hashText` is a key of `originals` (the text is the rewritten prompt byte for byte). It is read at `session.start`, after each `turn.complete` and when the history opens, and a prompt is added to it once sent. A `/branch` copies the transcript, so the fork's history still lists the prompts sent before it; `/clear` empties it.
+
+`← back` goes from sent to the history, and from the history to pending. Adding a selection shows the pending view with the new tab, whatever the pane showed. The history views' words are the pane's own: selecting them offers nothing.
+
 ## Lifecycle
 
 - `/clear` ends the session (`session.end`, reason `clear`) with no new `session.start`; the rows the pending Annotations point at are gone, so the list and the offer are cleared.
 - A reload keeps `$.state` but the pane does not redraw until state changes, so `session.start` clears the offer and the first poll writes it again. The pane itself stays open.
 - A turn in progress: an Annotation added then goes with the queued prompt, which Claude Code folds into the running turn.
 - `/compact` keeps the pending list.
+- `/branch` and `/resume` (as `/clear`) go on under another session id with `$.state` cleared and no `session.start` ([notes](claude-code-notes.md#lifecycle)). The poll reads `$.session.id()`; on a change it reloads `originals` from the store, so sent prompt rows draw what was typed again, and reads the new transcript's prompts for the history.
 
 ## State
 
@@ -163,7 +193,9 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | `isPaneDismissed` | the person closed the pane; it stays closed until `/add-to-chat` |
 | `paneTab` | the index of the Annotation whose tab the pane shows |
 | `isDraftEmpty` | whether the prompt draft is empty |
-| `originals` | rewritten prompt hash → `{ text, count }`, mirrored in `$.store` |
+| `originals` | rewritten prompt hash → `{ text, count, annotations? }`, mirrored in `$.store` |
+| `sessionPrompts` | hashes of the rewritten prompts in this conversation's transcript, oldest first |
+| `paneMode` | what the pane shows below its first row: `pending`, `history`, or one `sent` prompt (its hash, open tab and row) |
 
 ## Claude Code APIs used
 
@@ -177,6 +209,9 @@ The API (`claude-code.d.ts`, laid by the engine in `add-to-chat/.claude-plugin/t
 | opening it at the start | `ui.render` on `AbovePrompt` (drawing nothing), `viewport.isFullscreen` |
 | the pending count | `$.ui.status` |
 | marks, Citations, compact prompt rows | `ui.render` on `AssistantMessage`, `UserMessage` |
+| the 📎 row and its card | `ui.render` on `UserMessage` wrapping `next(e)` (an `engine` node); `Box` `position: "absolute"`, `display: "none"`, `hover` |
+| the jump to a sent prompt | `$.ui.scroll({ to: { requestId } })` |
+| this conversation's prompts, and a session switch | `$.session.messages()`, `$.session.id()` |
 | rewriting or adding to the prompt | `prompt.submit` |
 | `[ Send ]` and the draft | `$.prompt.fill`, `$.prompt.read` |
 | `/add-to-chat` | `$.command.register`, `command.run` |

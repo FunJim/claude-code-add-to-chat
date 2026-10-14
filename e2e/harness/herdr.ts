@@ -66,6 +66,10 @@ class HerdrPane implements Terminal {
     return (await this.host.herdrText('pane', 'read', this.paneId, '--source', 'visible')).replace(/\n$/, '')
   }
 
+  async screenAnsi() {
+    return (await this.host.herdrText('pane', 'read', this.paneId, '--source', 'visible', '--format', 'ansi')).replace(/\n$/, '')
+  }
+
   async write(bytes: string) {
     await this.host.herdr('pane', 'send-text', this.paneId, bytes)
   }

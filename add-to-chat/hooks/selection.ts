@@ -60,6 +60,8 @@ export type Surroundings = {
   pending: readonly Annotation[]
   /** `selectionKey` of the selection last added or ignored. */
   handled: string | null
+  /** Words the pane draws beyond the pending view's (its history views). */
+  paneWords?: readonly string[]
 }
 
 /**
@@ -70,7 +72,7 @@ function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean 
   if (excerpt.requestId !== undefined) return false
   // A selection across the Excerpt's frame in the pane picks up its border.
   const text = flatten(excerpt.text.replace(/[│╭╮╰╯─]/g, ' '))
-  return flatten(around.draft).includes(text) || paneLines(around.pending).some(line => flatten(line).includes(text))
+  return flatten(around.draft).includes(text) || [...paneLines(around.pending), ...(around.paneWords ?? [])].some(line => flatten(line).includes(text))
 }
 
 /** An Excerpt to offer, with the key that marks its selection handled; or why not. */

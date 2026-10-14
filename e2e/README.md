@@ -55,7 +55,7 @@ harness/
   fixtures.ts          sandboxes under $TMPDIR/atc-e2e; recording and installing the fixture transcript
   scenario.ts          scenario(): a node:test test with narration, evidence, cleanup
   report.ts            report.md and results.json
-scenarios/*.e2e.ts     pane, rows, filters, layout, lifecycle, model
+scenarios/*.e2e.ts     pane, rows, filters, layout, lifecycle, model, history
 fixtures/              the sandbox project, the XML template, the transcript and its rows
 probe/                 the test-only plugin
 ```

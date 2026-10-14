@@ -18,8 +18,22 @@ export type Annotation = {
 /** A selection the band offers to add. */
 export type Candidate = { text: string; requestId?: string }
 
-/** What a rewritten prompt row draws instead of the rendered template. */
-export type Original = { text: string; count: number }
+/**
+ * What a rewritten prompt row draws instead of the rendered template, and
+ * the Annotations it was sent with (absent for prompts sent before 0.3.0,
+ * until their row's 📎 is pressed and they are read back from the text).
+ */
+export type Original = { text: string; count: number; annotations?: Annotation[] }
+
+/**
+ * What the pane shows below its first row: the pending Annotations, the
+ * list of sent prompts that had some, or one of them (by `hashText` of its
+ * rewritten text), read-only; `requestId` is its row, when known, to jump to.
+ */
+export type PaneMode =
+  | { kind: 'pending' }
+  | { kind: 'history' }
+  | { kind: 'sent'; hash: string; tab: number; requestId?: string }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -37,6 +51,9 @@ declare module 'claude-code' {
       isDraftEmpty: boolean
       /** Keyed by `hashText` of the rewritten prompt; mirrored in `$.store`. */
       originals: Record<string, Original>
+      /** `hashText` of the rewritten prompts in this conversation's transcript, oldest first: what the pane's history lists. */
+      sessionPrompts: string[]
+      paneMode: PaneMode
     }
   }
 }

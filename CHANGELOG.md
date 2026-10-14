@@ -4,6 +4,14 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Sent prompts keep their annotations. Point at a sent prompt's `📎 N annotations ↗` for a card listing them; click it to open them in the pane, read-only, with a jump back to the prompt. `History (N) ›` in the pane lists every prompt sent with annotations. Prompts sent with 0.2.x are read back from their text the first time they are opened. The history is this conversation's: a `/branch` keeps it, `/clear` starts it over.
+
+### Fixed
+
+- After `/branch` or `/resume` inside a session, sent prompts drew the whole rendered template instead of what was typed.
+
 ## [0.2.1] - 2026-10-14
 
 ### Changed

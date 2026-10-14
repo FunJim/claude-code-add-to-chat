@@ -13,6 +13,11 @@ export function replyText(text: string, requestId: string | undefined, pending: 
  * A prompt row's text: the original for a rewritten prompt (with a `📎` line;
  * none while expanded, where ctrl+o shows what the model read), marks drawn.
  */
+/** A rewritten prompt row's original, as typed, with the marks of the Annotations pending in it. */
+export function originalText(original: Original, requestId: string | undefined, pending: readonly Annotation[]): string {
+  return drawMarks(original.text, marksFor(pending, requestId), 'user')
+}
+
 export function promptText(
   text: string,
   requestId: string | undefined,

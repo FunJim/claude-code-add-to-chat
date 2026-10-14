@@ -28,7 +28,7 @@ Sent, the prompt row shows what you typed; Claude's reply cites each annotation:
 
 ```
 ❯ for each annotation, answer its comment or say what it refers to
-  📎 2 annotations
+  📎 2 annotations ↗
 
 ⏺ The "quick brown fox" is a fox, a small wild canine. ①
 
@@ -57,7 +57,8 @@ A pane sits beside the transcript, open from the start (in a terminal under 144 
 1. **Select** text in the transcript with the mouse. The pane's first row becomes `[ ✚ Add to chat ] "…" ✕ ignore`. Click the button, or run `/add-to-chat`.
 2. The annotation gets a **tab** (`1: Claude ✕   2: You ✕`); press its digit to switch to it. The open tab shows the whole excerpt, where it came from, and a **Comment** field: click it, type, press Enter. Or leave it empty.
 3. Repeat. Each annotated text gets a mark like `⁽¹⁾` in the transcript. Close a tab with its `✕` to remove that annotation. The status line shows `📎 N annotations`.
-4. **Send** your prompt as usual. Your message shows as what you typed plus `📎 N annotations`; ctrl+o shows what the model received. With nothing to type, `[ Send ]` puts `(see annotations)` in the prompt for you to send.
+4. **Send** your prompt as usual. Your message shows as what you typed plus `📎 N annotations ↗`; ctrl+o shows what the model received. With nothing to type, `[ Send ]` puts `(see annotations)` in the prompt for you to send.
+5. **Look back**: point at a sent prompt's `📎 N annotations ↗` to see its annotations in a card; click it to open them in the pane, read-only, with `↑ jump to prompt`. `History (N) ›` under the pane's tabs lists every prompt you sent with annotations.
 
 Claude's reply cites what it answers: `:annotation{index="1"}` in its text is drawn as ①.
 

@@ -2,7 +2,9 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
-import { XML_TEMPLATE, addText, drawBand, drawRow, mountPane, runCommand, start, submit, tick } from './world'
+import { ANNOTATIONS_UNKNOWN, NOT_DRAWN } from '../hooks/labels'
+import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
+import { XML_TEMPLATE, addText, drawBand, drawRow, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
@@ -347,7 +349,7 @@ describe('marks in the transcript', () => {
 })
 
 describe('sending', () => {
-  test('the default template rewrites the prompt, and the row draws the original', async ($, on) => {
+  test('the default template rewrites the prompt; the row draws the original, its 📎 line drawn by the mod', async ($, on) => {
     const w = await start($, on)
     await drawRow($, w, 'AssistantMessage', 'r1', REPLY)
     await addText($, w, 'npm test', 'r1')
@@ -358,7 +360,8 @@ describe('sending', () => {
     expect(w.submitted[0]!.text).toEndWith('## My request:\nwhy?')
     expect(entered.text).toBe(w.submitted[0]!.text)
 
-    expect(await drawRow($, w, 'UserMessage', 'u2', w.submitted[0]!.text)).toBe('why?\n📎 1 annotation')
+    // In the terminal Claude Code draws what was typed; the 📎 row is the mod's.
+    expect(await drawRow($, w, 'UserMessage', 'u2', w.submitted[0]!.text)).toBe('why?')
     expect(await drawRow($, w, 'UserMessage', 'u2', w.submitted[0]!.text, { isExpanded: true })).toBe(w.submitted[0]!.text)
 
     // The list is empty afterwards: the next prompt goes as typed.
@@ -370,13 +373,17 @@ describe('sending', () => {
     const w = await start($, on)
     await addText($, w, 'npm test', 'r1')
     await submit($, 'why?')
-    expect(w.store.originals).toEqual({ [hashText(w.submitted[0]!.text)]: { text: 'why?', count: 1 } })
+    expect(w.store.originals).toEqual({
+      [hashText(w.submitted[0]!.text)]: { text: 'why?', count: 1, annotations: [{ index: 1, text: 'npm test', source: 'transcript', requestId: 'r1' }] },
+    })
   })
 
   test('a resumed session draws the original from the store', async ($, on) => {
     const rewritten = '# Response annotations:\n...\n## My request:\nwhy?'
     const w = await start($, on, { originals: { [hashText(rewritten)]: { text: 'why?', count: 2 } } })
-    expect(await drawRow($, w, 'UserMessage', 'u1', rewritten)).toBe('why?\n📎 2 annotations')
+    expect(await drawRow($, w, 'UserMessage', 'u1', rewritten)).toBe('why?')
+    const row = await mountPrompt($, 'u1', rewritten)
+    expect((await row.find({ key: `clip-${hashText(rewritten)}` }))?.text).toBe('📎 2 annotations ↗')
   })
 
   test('a template without {{request}} goes into context', { options: { templatePath: '~/xml.tmpl' } }, async ($, on) => {
@@ -448,3 +455,159 @@ describe('sending', () => {
   })
 
 })
+
+/** Sends `request` with one Annotation, Commented, and resolves the rewritten prompt. */
+async function sendOne($: Engine, w: Awaited<ReturnType<typeof start>>, request = 'q'): Promise<string> {
+  await addText($, w, 'npm test', 'r1')
+  await commentInPane($, 1, 'why?')
+  await submit($, request)
+  return w.submitted.at(-1)!.text
+}
+
+describe('sent prompts', () => {
+  test("in the terminal Claude Code draws the prompt as typed; the mod's 📎 row holds a card of its Annotations", async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    expect(await drawRow($, w, 'UserMessage', 'u2', sent)).toBe('q')
+    const row = await mountPrompt($, 'u2', sent)
+    expect((await row.find({ key: `clip-${hashText(sent)}` }))?.text).toBe('📎 1 annotation ↗')
+    const card = (await row.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+    expect(card).toContain('“npm test”')
+    expect(card).toContain('why?')
+    await row.unmount()
+  })
+
+  test('on another surface the row stays text: the prompt and its 📎 line', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    const row = await mountPrompt($, 'u2', sent, 'desktop')
+    expect((w.drawnProps.u2 as { text: string }).text).toBe('q\n📎 1 annotation')
+    expect(await row.find({ key: `clip-${hashText(sent)}` })).toBeUndefined()
+    await row.unmount()
+  })
+
+  test('the 📎 opens the pane on that prompt, read-only; back goes to the history, then to the pending view', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    const hash = hashText(sent)
+    const row = await mountPrompt($, 'u2', sent)
+    await row.press({ key: `clip-${hash}` })
+    expect(w.panes.has('add-to-chat')).toBe(true)
+    const pane = await mountPane($)
+    const view = await shown(pane)
+    expect(view).toContain('You sent “q”')
+    expect(view).toContain('“npm test”'.slice(1, -1))
+    expect(view).toContain('Comment: why?')
+    expect(await pane.find({ type: 'Input' })).toBeUndefined()
+    await pane.press({ key: 'back' })
+    expect(await shown(pane)).toContain('Sent with annotations')
+    await pane.press({ key: `sent-${hash}` })
+    expect(await shown(pane)).toContain('You sent “q”')
+    await pane.press({ key: 'back' })
+    await pane.press({ key: 'back' })
+    const pendingView = await shown(pane)
+    expect(pendingView).toContain('Nothing added yet.')
+    expect(pendingView).toContain('History (1) ›')
+  })
+
+  // The scroll itself is Claude Code's, and the e2e suite's to see; here no
+  // transcript scrolls, so the jump says it could not.
+  test('opened from its row, the prompt can be jumped to; a jump that cannot scroll says so', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    const row = await mountPrompt($, 'u2', sent)
+    await row.press({ key: `clip-${hashText(sent)}` })
+    const pane = await mountPane($)
+    await pane.press({ key: 'jump' })
+    expect(w.toasts.at(-1)).toBe(NOT_DRAWN)
+  })
+
+  test('opened from the history before its row is drawn, there is nothing to jump to', async ($, on) => {
+    const sent = renderTemplate(DEFAULT_TEMPLATE, 'q', [{ index: 1, text: 'npm test', source: 'assistant' }])
+    const w = await start($, on, { originals: { [hashText(sent)]: { text: 'q', count: 1, annotations: [{ index: 1, text: 'npm test', source: 'assistant' }] } } }, [sent])
+    const pane = await mountPane($)
+    await pane.press({ key: 'history' })
+    await pane.press({ key: `sent-${hashText(sent)}` })
+    expect(await shown(pane)).toContain('You sent “q”')
+    expect(await pane.find({ key: 'jump' })).toBeUndefined()
+    expect(w.toasts).not.toContain(NOT_DRAWN)
+  })
+
+  test('a prompt sent before Annotations were kept: read back from its text, and kept', async ($, on) => {
+    const list = [{ index: 1, text: 'npm test', source: 'assistant' as const, comment: 'why?' }]
+    const sent = renderTemplate(DEFAULT_TEMPLATE, 'q', list)
+    const hash = hashText(sent)
+    const w = await start($, on, { originals: { [hash]: { text: 'q', count: 1 } } }, [sent])
+    const row = await mountPrompt($, 'u1', sent)
+    expect((await row.findAll({ type: 'Text' })).map(t => t.text).join('\n')).toContain('“npm test”')
+    await row.press({ key: `clip-${hash}` })
+    expect((w.store.originals as Record<string, { annotations?: unknown }>)[hash]?.annotations).toEqual(list)
+    expect(await paneText($)).toContain('Comment: why?')
+  })
+
+  test('one whose template held no {{annotations_json}}: the 📎 says they were not kept', async ($, on) => {
+    const sent = 'my own template: q'
+    const w = await start($, on, { originals: { [hashText(sent)]: { text: 'q', count: 2 } } })
+    const row = await mountPrompt($, 'u1', sent)
+    await row.press({ key: `clip-${hashText(sent)}` })
+    expect(w.toasts.at(-1)).toBe(ANNOTATIONS_UNKNOWN)
+    expect(w.panes.has('add-to-chat')).toBe(false)
+  })
+
+  test("the history lists this conversation's prompts, not those the store keeps from other sessions", async ($, on) => {
+    const other = renderTemplate(DEFAULT_TEMPLATE, 'from another session', [{ index: 1, text: 'old', source: 'assistant' }])
+    const w = await start($, on, { originals: { [hashText(other)]: { text: 'from another session', count: 1, annotations: [{ index: 1, text: 'old', source: 'assistant' }] } } })
+    expect(await paneText($)).not.toContain('History (')
+    await sendOne($, w)
+    const pane = await mountPane($)
+    expect(await shown(pane)).toContain('History (1) ›')
+    await pane.press({ key: 'history' })
+    const list = await shown(pane)
+    expect(list).toContain('q')
+    expect(list).not.toContain('from another session')
+  })
+
+  test('a new session id (/branch, /resume, /clear) brings the originals back from the store; the history follows the new transcript', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    await tick(w)
+    // /clear: another id, an empty transcript.
+    w.sessionId = 's2'
+    w.messages = []
+    await tick(w)
+    expect(await paneText($)).not.toContain('History (')
+    // /resume of the first, or a /branch of it: the prompt is in the transcript again.
+    w.sessionId = 's3'
+    w.messages = [{ role: 'user', text: sent, toolUses: [] }]
+    await tick(w)
+    expect(await paneText($)).toContain('History (1) ›')
+    expect(await drawRow($, w, 'UserMessage', 'u9', sent)).toBe('q')
+  })
+
+  test('adding a selection while the pane shows the history shows the new tab', async ($, on) => {
+    const w = await start($, on)
+    await sendOne($, w)
+    const pane = await mountPane($)
+    await pane.press({ key: 'history' })
+    await addText($, w, 'another', 'r1')
+    const view = await shown(pane)
+    expect(view).toContain('“another”'.slice(1, -1))
+    expect(view).toContain('① from the transcript')
+    expect(view).not.toContain('Sent with annotations')
+  })
+
+  test("the history's words are the pane's own, not offered", async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    const pane = await mountPane($)
+    await addText($, w, 'History (1)')
+    await pane.press({ key: 'history' })
+    for (const text of ['Sent with annotations', '← back']) await addText($, w, text)
+    await pane.press({ key: `sent-${hashText(sent)}` })
+    for (const text of ['You sent', 'Comment: why?', 'No comment']) await addText($, w, text)
+    await pane.press({ key: 'back' })
+    await pane.press({ key: 'back' })
+    expect(await tabsOf(pane)).toBe(0)
+  })
+})
+

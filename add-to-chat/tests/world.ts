@@ -19,6 +19,9 @@ export type World = {
   status: (string | undefined)[]
   /** The ids of the panes open. */
   panes: Set<string>
+  /** The session's id, and its transcript's messages (a submit adds the prompt). */
+  sessionId: string
+  messages: { role: 'user' | 'assistant'; text: string; toolUses: [] }[]
   /** Prompts the engine's end refuses, as another plugin would. */
   dropWhen?: (text: string) => boolean
   clock: ReturnType<typeof mock.clock>
@@ -46,7 +49,7 @@ export const BAND = {
   },
 } as const
 
-export async function start($: Engine, on: On, store: Record<string, unknown> = {}): Promise<World> {
+export async function start($: Engine, on: On, store: Record<string, unknown> = {}, transcript: readonly string[] = []): Promise<World> {
   const w: World = {
     draft: '',
     isFullscreen: true,
@@ -57,6 +60,8 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     store: { ...store },
     drawnProps: {},
     panes: new Set(),
+    sessionId: 's1',
+    messages: transcript.map(text => ({ role: 'user' as const, text, toolUses: [] as [] })),
     status: [],
     clock: mock.clock(on),
   }
@@ -99,6 +104,8 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     return text === undefined ? { deny: `ENOENT: ${e.path}` } : { value: text }
   })
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('session.id', () => ({ value: w.sessionId }))
+  on('session.messages', () => ({ value: w.messages }) as never)
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
@@ -107,6 +114,7 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   on('prompt.submit', ($, e) => {
     if (w.dropWhen?.(e.text)) return { drop: 'refused' }
     w.submitted.push({ text: e.text, context: e.context })
+    w.messages.push({ role: 'user', text: e.text, toolUses: [] })
     return { text: e.text, context: e.context, origin: e.origin }
   })
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
@@ -122,6 +130,12 @@ export function drawBand($: Engine, isFullscreen = true) {
 export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, columns = 60) {
   const props = { title: 'Add to chat', isFocused: false, bodyColumns: columns, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 30 }, view: {} }
   return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'Pane', requestId: 'add-to-chat', props, viewport: { columns: 160, rows: 40, isFullscreen: true } })
+}
+
+/** Mounts a sent prompt row typed in the composer, to read and press what the plugin draws there. */
+export function mountPrompt<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, requestId: string, text: string, surface: P = 'terminal' as P) {
+  const props = { text, origin: { kind: 'composer' as const }, isExpanded: false }
+  return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'UserMessage', requestId, props, viewport: { columns: 120, rows: 40, isFullscreen: true } })
 }
 
 /** Selects `text`, in row `requestId` if given, and runs /add-to-chat. */

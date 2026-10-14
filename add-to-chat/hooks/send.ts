@@ -16,7 +16,7 @@ export type Annotated = {
 export function annotated(template: string, text: string, context: readonly string[] | undefined, list: readonly Annotation[]): Annotated {
   const rendered = renderTemplate(template, text, list)
   if (!usesRequest(template)) return { text, context: [...(context ?? []), rendered] }
-  return { text: rendered, context, original: { text, count: list.length } }
+  return { text: rendered, context, original: { text, count: list.length, annotations: [...list] } }
 }
 
 /** The originals map with one more, the oldest dropped past `max`. */

@@ -74,6 +74,18 @@ Rows by type (adding from each, with Source and mark):
 - A new process starts with empty `$.state`; `$.store` persists.
 - A resumed session draws its rows before `session.start`.
 - In the ctrl+o view there is no band; a selection made there is offered after leaving it.
+- `/branch`, `/resume` (in a session) and `/clear` go on under another session id (`$.session.id()`), clear `$.state`, and fire no `session.start`; `classic.SessionStart` fires with `source` `fork`, `resume` or `clear`, while `$.session.id()` still answers the old id. `$.store` is untouched. Measured 2026-10-14 by toasting from each hook in an e2e session.
+- After `/branch` the transcript (`$.session.messages()`) is a copy of the one branched from; after `/clear` it is empty.
+- A user message's `text` in `$.session.messages()` is the prompt as `prompt.submit` rewrote it, byte for byte: its `hashText` is the key `originals` keeps it under.
+- `$.ui.scroll({ to: { requestId } })` from a pane Button's press scrolls the transcript to that row. In `claude plugin test`, the same call from a plugin's press is not routed to the test's `on('ui.scroll')` ("no implementation"); from the test's own `$` it is.
+
+## Drawing around the engine
+
+- `next(e)` resolves to an `engine` node; a hook can return it inside its own tree (`<Box>{engine}<Button/></Box>`), and Claude Code draws its component exactly as unwrapped (same ANSI, every theme). A `UserMessage` row wrapped this way keeps its `❯` and background.
+- Claude Code raises no press for a transcript row itself: `ui.press` comes only from a plugin's `Button` or `Markdown` link.
+- A `position: "absolute"` Box in a transcript row is painted over by the rows drawn after it (a card below its row is hidden); above, over the rows before, it shows. Its blank cells are transparent without a `backgroundColor`; the theme key `userMessageBackground` resolves (to the sent-prompt background).
+- `hover: { display: "flex" }` on a Box drawn `display: "none"` in a keyed Box shows on pointer motion with no button held (SGR `35`); a hover `scope` reveals members in another site (a pane) too.
+- Claude cannot write the tag `<cite …>`: it comes out as `(cite …`.
 
 ## Driving a terminal (for the test harness)
 

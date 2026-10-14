@@ -3,12 +3,14 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register, UiPane } from 'claude-code'
 
-import type { Annotation, AnnotationSource, Candidate, Original } from '../types'
+import type { Annotation, AnnotationSource, Candidate, Original, PaneMode } from '../types'
 import { appended, withComment, without } from './annotations'
 import { hashText } from './hash'
-import { ALREADY_ADDED, NEEDS_FULLSCREEN, PANE_TITLE, SEND_PLACEHOLDER, addedToast, clipLine, unreadableTemplate } from './labels'
-import { PANE_COLUMNS, PANE_ID, paneView, tabAfterRemoving } from './pane'
-import { promptText, replyText } from './rows'
+import { historyOf, promptsIn, sentPrompts } from './history'
+import { ALREADY_ADDED, ANNOTATIONS_UNKNOWN, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast, clipLine, unreadableTemplate } from './labels'
+import { PANE_COLUMNS, PANE_ID, historyLines, paneView, tabAfterRemoving } from './pane'
+import { promptRow } from './prompt-row'
+import { originalText, promptText, replyText } from './rows'
 import { SYSTEM_ROWS, TOOL_ROWS, judge, rowSource, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
 import { annotated, withOriginal } from './send'
@@ -22,6 +24,8 @@ const isPaneDismissed = atom({ plugin: 'add-to-chat', key: 'isPaneDismissed' } a
 const paneTab = atom({ plugin: 'add-to-chat', key: 'paneTab' } as const, 1)
 const isDraftEmpty = atom({ plugin: 'add-to-chat', key: 'isDraftEmpty' } as const, true)
 const originals = atom({ plugin: 'add-to-chat', key: 'originals' } as const, {})
+const sessionPrompts = atom({ plugin: 'add-to-chat', key: 'sessionPrompts' } as const, [])
+const paneMode = atom({ plugin: 'add-to-chat', key: 'paneMode' } as const, { kind: 'pending' } as PaneMode)
 
 const POLL_MS = 250
 const STORE_ORIGINALS = 'originals'
@@ -39,13 +43,27 @@ function rememberRole(requestId: string | undefined, component: string, props: u
   if (requestId !== undefined && requestId !== 'placeholder') roles.set(requestId, rowSource(component, props))
 }
 
+/**
+ * Each rewritten prompt row's requestId, by `hashText` of its text: where
+ * the pane's history jumps to. Filled as rows draw, like `roles`; a prompt
+ * not drawn since the load has none, and the pane offers no jump.
+ */
+const promptRows = new Map<string, string>()
+
 async function surroundings($: EngineInterface): Promise<Surroundings> {
-  const [prompt, list, key] = await Promise.all([$.prompt.read(), read($, pending), read($, handled)])
-  return { draft: prompt.text, pending: list, handled: key }
+  const [prompt, list, key, mode, map, inSession] = await Promise.all([
+    $.prompt.read(),
+    read($, pending),
+    read($, handled),
+    read($, paneMode),
+    read($, originals),
+    read($, sessionPrompts),
+  ])
+  return { draft: prompt.text, pending: list, handled: key, paneWords: historyLines(mode, sentPrompts(map, inSession)) }
 }
 
 /** What the poll last wrote, so it writes state only on a change. */
-type PollWatch = { isDraftEmpty?: boolean; isPaneOpen?: boolean; isPaneDrawn?: boolean }
+type PollWatch = { isDraftEmpty?: boolean; isPaneOpen?: boolean; isPaneDrawn?: boolean; sessionId?: string }
 
 function offerKey(offer: Candidate | null): string | null {
   return offer === null ? null : selectionKey(offer)
@@ -53,7 +71,19 @@ function offerKey(offer: Candidate | null): string | null {
 
 /** One tick of the selection poll: what the pane offers, the draft's state, whether the pane is open. */
 async function poll($: EngineInterface, watch: PollWatch) {
-  const [selection, around, offered, panes] = await Promise.all([$.ui.selection(), surroundings($), read($, candidate), $.ui.panes()])
+  const [selection, around, offered, panes, sessionId] = await Promise.all([
+    $.ui.selection(),
+    surroundings($),
+    read($, candidate),
+    $.ui.panes(),
+    $.session.id(),
+  ])
+
+  // /branch, /resume and /clear go on under another session id, with
+  // $.state cleared and no session.start: the originals come back from the
+  // store, and the history follows the new transcript.
+  if (watch.sessionId !== undefined && watch.sessionId !== sessionId) await refreshSession($, true)
+  watch.sessionId = sessionId
 
   const isEmpty = around.draft.trim() === ''
   if (watch.isDraftEmpty !== isEmpty) {
@@ -90,7 +120,8 @@ async function addSelection($: EngineInterface): Promise<{ annotation: Annotatio
   const source = (excerpt.requestId !== undefined && roles.get(excerpt.requestId)) || 'transcript'
   const list = await update($, pending, now => appended(now, excerpt, source))
   const annotation = list.at(-1)!
-  await Promise.all([markHandled($, verdict.key), update($, paneTab, () => annotation.index)])
+  // The new tab shows, whatever the pane was showing.
+  await Promise.all([markHandled($, verdict.key), update($, paneTab, () => annotation.index), update($, paneMode, () => ({ kind: 'pending' }) as const)])
   showCount($, list, isPaneDrawn(await $.ui.panes()))
   return { annotation }
 }
@@ -138,9 +169,53 @@ async function loadTemplate($: EngineInterface, options: PluginOptions): Promise
   }
 }
 
+/**
+ * Reads which sent prompts are in this conversation's transcript, for the
+ * pane's history; with `reload`, takes the originals from the store first.
+ */
+async function refreshSession($: EngineInterface, reload: boolean) {
+  const [messages, stored] = await Promise.all([$.session.messages(), reload ? $.store.get(STORE_ORIGINALS) : undefined])
+  const map = reload
+    ? await update($, originals, now => (stored !== undefined && typeof stored === 'object' && stored !== null ? (stored as Record<string, Original>) : now))
+    : await read($, originals)
+  const hashes = Array.isArray(messages) ? promptsIn(messages, map) : []
+  await update($, sessionPrompts, now => (now.length === hashes.length && now.every((h, i) => h === hashes[i]) ? now : hashes))
+}
+
 async function rememberOriginal($: EngineInterface, rewritten: string, original: Original) {
   const map = await update($, originals, now => withOriginal(now, hashText(rewritten), original, MAX_ORIGINALS))
   await $.store.set(STORE_ORIGINALS, map)
+}
+
+/**
+ * Shows a sent prompt's Annotations in the pane, from its row's 📎. A prompt
+ * sent before they were kept has them read back from its text, and kept.
+ */
+async function showSentPrompt($: EngineInterface, hash: string, rewritten: string, requestId: string | undefined) {
+  const map = await read($, originals)
+  const original = map[hash]
+  if (original === undefined) return
+  if (original.annotations === undefined) {
+    const annotations = historyOf(rewritten)
+    if (annotations === undefined) {
+      $.ui.toast(ANNOTATIONS_UNKNOWN)
+      return
+    }
+    const kept = await update($, originals, now => (now[hash] === undefined ? now : { ...now, [hash]: { ...now[hash]!, annotations } }))
+    await $.store.set(STORE_ORIGINALS, kept)
+  }
+  await openPane($)
+  await update($, paneMode, () => ({ kind: 'sent', hash, tab: 1, ...(requestId === undefined ? {} : { requestId }) }) as const)
+}
+
+/** Scrolls the transcript to the sent prompt the pane shows. */
+async function jumpToSent($: EngineInterface) {
+  const mode = await read($, paneMode)
+  if (mode.kind !== 'sent') return
+  const requestId = mode.requestId ?? promptRows.get(mode.hash)
+  const moved =
+    requestId === undefined ? { deny: 'not drawn' } : await $.ui.scroll({ to: { requestId }, block: 'center' }).catch((err: unknown) => ({ deny: String(err) }))
+  if ('deny' in moved) $.ui.toast(NOT_DRAWN)
 }
 
 export const register: Register = (on, options) => {
@@ -149,10 +224,7 @@ export const register: Register = (on, options) => {
       name: 'add-to-chat',
       description: 'Add the text selected in the transcript to your next prompt',
     })
-    const stored = await $.store.get(STORE_ORIGINALS)
-    if (stored !== undefined && typeof stored === 'object' && stored !== null) {
-      await update($, originals, () => stored as Record<string, Original>)
-    }
+    await refreshSession($, true)
     // A reload keeps state but not the pane's drawing: clearing the offer
     // makes the first poll write it again, so the new code draws it.
     await update($, candidate, () => null)
@@ -193,7 +265,13 @@ export const register: Register = (on, options) => {
     const sent = annotated(await loadTemplate($, options), e.text, e.context, list)
     if (sent.original !== undefined) await rememberOriginal($, sent.text, sent.original)
     const entered = await next({ ...e, text: sent.text, context: sent.context })
-    if (!('drop' in entered)) await clearPending($)
+    if (!('drop' in entered)) {
+      await clearPending($)
+      if (sent.original !== undefined) {
+        const hash = hashText(sent.text)
+        await update($, sessionPrompts, now => (now.includes(hash) ? now : [...now, hash]))
+      }
+    }
     return entered
   }).catch(($, e, next) => next(e))
 
@@ -203,6 +281,7 @@ export const register: Register = (on, options) => {
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
     $.ui.invalidate('ui.render')
+    await refreshSession($, false)
     return done
   })
 
@@ -216,9 +295,24 @@ export const register: Register = (on, options) => {
     rememberRole(e.requestId, e.component, e.props)
     if (e.props.origin.kind !== 'composer') return next(e)
     const [list, map] = await Promise.all([read($, pending), read($, originals)])
-    const original = e.props.isExpanded ? undefined : map[hashText(e.props.text)]
-    const text = promptText(e.props.text, e.requestId, list, original)
-    return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
+    const hash = hashText(e.props.text)
+    const original = e.props.isExpanded ? undefined : map[hash]
+    if (original === undefined || e.surface !== 'terminal') {
+      const text = promptText(e.props.text, e.requestId, list, original)
+      return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
+    }
+    // In the terminal Claude Code draws the prompt as typed, and the mod its
+    // 📎 row beneath: a button to the pane, and a card on hover.
+    if (e.requestId !== undefined) promptRows.set(hash, e.requestId)
+    const engine = await next({ ...e, props: { ...e.props, text: originalText(original, e.requestId, list) } })
+    const rewritten = e.props.text
+    const requestId = e.requestId
+    return promptRow(
+      $.ui.resolve(e),
+      engine,
+      { hash, count: original.count, annotations: original.annotations ?? historyOf(rewritten), columns: e.viewport?.columns ?? 80 },
+      () => showSentPrompt($, hash, rewritten, requestId),
+    )
   })
 
   // The rows nothing here draws on are seen only for their Source.
@@ -250,10 +344,29 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e, next) => {
     // Mobile has no text field to edit a Comment in.
     if (e.surface === 'mobile') return next(e)
-    const [offer, list, tab, isEmpty] = await Promise.all([read($, candidate), read($, pending), read($, paneTab), read($, isDraftEmpty)])
+    const [offer, list, tab, isEmpty, mode, map, inSession] = await Promise.all([
+      read($, candidate),
+      read($, pending),
+      read($, paneTab),
+      read($, isDraftEmpty),
+      read($, paneMode),
+      read($, originals),
+      read($, sessionPrompts),
+    ])
+    const canJump = mode.kind === 'sent' && (mode.requestId ?? promptRows.get(mode.hash)) !== undefined
     return paneView(
       $.ui.resolve(e),
-      { offer, pending: list, tab, isDraftEmpty: isEmpty, isFullscreen: e.viewport?.isFullscreen === true, columns: e.props.bodyColumns },
+      {
+        offer,
+        pending: list,
+        tab,
+        isDraftEmpty: isEmpty,
+        isFullscreen: e.viewport?.isFullscreen === true,
+        columns: e.props.bodyColumns,
+        mode,
+        sent: sentPrompts(map, inSession),
+        canJump,
+      },
       {
         add: async () => {
           const added = await addSelection($)
@@ -268,6 +381,14 @@ export const register: Register = (on, options) => {
         remove: index => removeAnnotation($, index),
         comment: (index, value) => update($, pending, now => withComment(now, index, value)),
         send: () => $.prompt.fill({ text: SEND_PLACEHOLDER }),
+        openHistory: async () => {
+          await refreshSession($, false)
+          await update($, paneMode, () => ({ kind: 'history' }) as const)
+        },
+        openSent: hash => update($, paneMode, () => ({ kind: 'sent', hash, tab: 1 }) as const),
+        showSent: index => update($, paneMode, now => (now.kind === 'sent' ? { ...now, tab: index } : now)),
+        back: () => update($, paneMode, now => (now.kind === 'sent' ? { kind: 'history' } : { kind: 'pending' }) as PaneMode),
+        jump: () => jumpToSent($),
       },
     )
   })

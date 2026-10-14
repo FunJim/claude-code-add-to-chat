@@ -40,8 +40,10 @@ add-to-chat/                  the mod (what gets installed)
   .claude-plugin/plugin.json  manifest, userConfig, types
   hooks/register.tsx          engine glue: every hook and every `$` call
   hooks/*.ts(x)               pure modules: selection, annotations, rows, send,
-                              pane (the view), excerpt (markdown matching, marks,
-                              Citations), template, text (terminal cells), labels, hash
+                              pane (the view), prompt-row (a sent prompt's 📎 row),
+                              history (sent prompts' Annotations), excerpt (markdown
+                              matching, marks, Citations), template, text (terminal
+                              cells), labels, hash
   types/index.d.ts            the PluginState contract
   tests/                      unit tests; world.ts stands in for the engine
 e2e/                          end-to-end harness, scenarios and showcase
@@ -55,7 +57,7 @@ Start with [docs/design.md](docs/design.md). Use the [glossary](docs/glossary.md
 
 - **Every `$` call lives in `hooks/register.tsx`.** The engine follows `$` only into functions of the same file, never across an import, and `on()` takes a function literal or a function name. Logic goes in the pure modules, which take values and return values.
 - No DOM, no Node inside `add-to-chat/`. Everything outside goes through `$`; elements come from `$.ui.resolve(e)`.
-- State goes in `$.state` (`atom`/`read`/`update` from `'claude-code'`), never module variables: a reload starts the module over. Every key is declared in `types/index.d.ts`. Render hooks only read state. The one deliberate module variable is the `roles` cache in `register.tsx` ([design](docs/design.md#source)).
+- State goes in `$.state` (`atom`/`read`/`update` from `'claude-code'`), never module variables: a reload starts the module over. Every key is declared in `types/index.d.ts`. Render hooks only read state. The deliberate module variables are two caches render hooks fill in `register.tsx`: `roles` ([design](docs/design.md#source)) and `promptRows` ([design](docs/design.md#the-panes-history)).
 - `session.start` fires again on every reload; the engine drops the previous load's timers.
 - Node's type stripping runs the TypeScript: no enums, no parameter properties.
 - The API (`claude-code.d.ts`) is early access and is the authority over the docs; grep it by symbol name.

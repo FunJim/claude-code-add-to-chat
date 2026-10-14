@@ -26,6 +26,11 @@ export class Mouse {
     await this.term.write(`\x1b[<0;${at.x};${at.y}M`)
   }
 
+  /** Moves the pointer to `at` with no button held: what a hover is made of. */
+  async hover(at: Point) {
+    await this.term.write(`\x1b[<35;${at.x};${at.y}M`)
+  }
+
   /** Moves to `at` with the left button held. */
   async move(at: Point) {
     await this.term.write(`\x1b[<32;${at.x};${at.y}M`)

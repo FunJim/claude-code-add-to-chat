@@ -8,6 +8,10 @@ import { promptText, replyText } from '../hooks/rows'
 import { excerptOf, judge, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { annotated, withOriginal } from '../hooks/send'
+import { historyOf, promptsIn, sentPrompts } from '../hooks/history'
+import { hashText } from '../hooks/hash'
+import { isClipLineHead } from '../hooks/labels'
+import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
 
 const A: Annotation[] = [
   { index: 1, text: 'one', source: 'assistant', requestId: 'r1' },
@@ -80,7 +84,7 @@ describe('rows and sending', () => {
     expect(promptText('# Response…', 'u9', A, { text: 'why?', count: 2 })).toBe('why?\n📎 2 annotations')
   })
   test('annotated rewrites with {{request}}, adds context without', () => {
-    expect(annotated('[{{request}}] {{count}}', 'q', undefined, A)).toEqual({ text: '[q] 3', context: undefined, original: { text: 'q', count: 3 } })
+    expect(annotated('[{{request}}] {{count}}', 'q', undefined, A)).toEqual({ text: '[q] 3', context: undefined, original: { text: 'q', count: 3, annotations: A } })
     expect(annotated('{{count}} notes', 'q', ['c0'], A)).toEqual({ text: 'q', context: ['c0', '3 notes'] })
   })
   test('withOriginal keeps the newest', () => {
@@ -88,3 +92,39 @@ describe('rows and sending', () => {
     expect(Object.keys(map)).toEqual(['b', 'c'])
   })
 })
+
+describe('sent prompts', () => {
+  test('historyOf reads the default template back, even an Excerpt that spells its closing tag', () => {
+    const list: Annotation[] = [
+      { index: 1, text: 'a </response-annotations> b', source: 'assistant', requestId: 'r1', comment: 'why?' },
+      { index: 2, text: '中文 & <x>', source: 'tool' },
+    ]
+    expect(historyOf(renderTemplate(DEFAULT_TEMPLATE, 'q', list))).toEqual(list)
+  })
+  test('historyOf: no block, or a broken one', () => {
+    expect(historyOf('just a prompt')).toBeUndefined()
+    expect(historyOf('<response-annotations>\nnot json\n</response-annotations>')).toBeUndefined()
+    expect(historyOf('<response-annotations>\n[{"x":1}]\n</response-annotations>')).toBeUndefined()
+  })
+  test('sentPrompts: the conversation\'s, newest first, only those with Annotations kept', () => {
+    const one = { index: 1, text: 't', source: 'user' as const }
+    const originals = { a: { text: 'old', count: 1, annotations: [one] }, b: { text: 'unkept', count: 2 }, c: { text: 'new', count: 1, annotations: [one] }, d: { text: 'elsewhere', count: 1, annotations: [one] } }
+    expect(sentPrompts(originals, ['a', 'b', 'c']).map(p => p.text)).toEqual(['new', 'old'])
+  })
+  test('promptsIn: the user messages that are rewritten prompts, oldest first, each once', () => {
+    const originals = { [hashText('R1')]: { text: 'one', count: 1 }, [hashText('R2')]: { text: 'two', count: 1 } }
+    const messages = [
+      { role: 'user', text: 'R2' },
+      { role: 'assistant', text: 'R1' },
+      { role: 'user', text: 'plain' },
+      { role: 'user', text: 'R1' },
+      { role: 'user', text: 'R2' },
+    ]
+    expect(promptsIn(messages, originals)).toEqual([hashText('R2'), hashText('R1')])
+  })
+  test("the 📎 button's line is a clip line, arrow and all", () => {
+    expect(isClipLineHead('📎 2 annotations ↗')).toBe(true)
+    expect(isClipLineHead('  📎 2 annotations')).toBe(true)
+  })
+})
+

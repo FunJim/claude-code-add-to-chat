@@ -25,7 +25,7 @@
 
 ```
 ❯ for each annotation, answer its comment or say what it refers to
-  📎 2 annotations
+  📎 2 annotations ↗
 
 ⏺ The "quick brown fox" is a fox, a small wild canine. ①
 
@@ -54,7 +54,8 @@ transcript 旁边有一个面板，会话开始时自动打开（终端窄于 14
 1. **选中**：用鼠标在 transcript 里选中一段文字，面板第一行会变成 `[ ✚ Add to chat ] "…" ✕ ignore`。点按钮，或者执行 `/add-to-chat`。
 2. 每条 annotation 会有一个 **tab**（`1: Claude ✕   2: You ✕`），按对应的数字键可以切换。当前 tab 显示完整的原文、来源和一个 **Comment** 输入框：点击后输入，按 Enter 保存。也可以留空。
 3. 可以重复多次。每段被收录的文字在 transcript 里会带上 `⁽¹⁾` 这样的标记。点 tab 上的 `✕` 会删除这条 annotation。状态栏会显示 `📎 N annotations`。
-4. **发送**：像平常一样发送 prompt。transcript 里你的消息显示为你输入的内容加一行 `📎 N annotations`，按 ctrl+o 可以看到模型实际收到的完整内容。如果没有要输入的内容，点 `[ Send ]` 会在输入框里填上 `(see annotations)`，再按 Enter 发送即可。
+4. **发送**：像平常一样发送 prompt。transcript 里你的消息显示为你输入的内容加一行 `📎 N annotations ↗`，按 ctrl+o 可以看到模型实际收到的完整内容。如果没有要输入的内容，点 `[ Send ]` 会在输入框里填上 `(see annotations)`，再按 Enter 发送即可。
+5. **回看**：鼠标停在已发送 prompt 下面的 `📎 N annotations ↗` 上，会弹出卡片列出当时的 annotation；点击它会在面板里以只读方式打开，并可以用 `↑ jump to prompt` 跳回那条 prompt。面板 tab 下方的 `History (N) ›` 列出所有带 annotation 发送过的 prompt。
 
 Claude 回复里的 `:annotation{index="1"}` 会显示为 ①。
 

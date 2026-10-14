@@ -9,5 +9,6 @@
   - [0003](adr/0003-send-fills-the-draft.md) `[ Send ]` fills the draft rather than sending
   - [0004](adr/0004-originals-in-store.md) what the person typed, kept in `$.store` by content
   - [0005](adr/0005-everything-in-a-pane.md) everything in a pane, open from the start
+  - [0006](adr/0006-wrap-the-prompt-row.md) a sent prompt's 📎 row wraps Claude Code's own row, never redraws it
 - [../e2e/README.md](../e2e/README.md) — the end-to-end suite and showcase.
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — setting up, testing, the engine's rules.

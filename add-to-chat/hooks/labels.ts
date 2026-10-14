@@ -49,6 +49,19 @@ export const SENT_HINT = 'They go with your next prompt ↵'
 /** What `[ Send ]` puts in an empty prompt box. */
 export const SEND_PLACEHOLDER = '(see annotations)'
 
+/** The pane's way to the sent prompts' Annotations, and back. */
+export function historyLabel(count: number): string {
+  return `History (${count})`
+}
+export const BACK_LABEL = '← back'
+export const HISTORY_TITLE = 'Sent with annotations'
+export const HISTORY_EMPTY = 'No prompt sent with annotations yet.'
+export const SENT_TITLE = 'You sent'
+export const NO_COMMENT = 'No comment'
+export const JUMP_LABEL = 'jump to prompt'
+export const NOT_DRAWN = 'That prompt is not drawn yet: scroll to it once, then jump'
+export const ANNOTATIONS_UNKNOWN = "This prompt's annotations were not kept: it was sent with a template without {{annotations_json}}"
+
 export const ALREADY_ADDED = 'That selection is already added'
 export const NEEDS_FULLSCREEN = 'add-to-chat needs fullscreen mode (CLAUDE_CODE_NO_FLICKER=1) to read the selection'
 
@@ -65,9 +78,14 @@ export function clipLine(count: number): string {
   return `📎 ${count} annotation${count === 1 ? '' : 's'}`
 }
 
-/** Whether a line is a `📎 N annotations` line, or any head of one. */
+/** The button under a rewritten prompt row that opens its Annotations in the pane. */
+export function clipButtonLabel(count: number): string {
+  return `${clipLine(count)} ↗`
+}
+
+/** Whether a line is a `📎 N annotations` line (or its button), or any head of one. */
 export function isClipLineHead(line: string): boolean {
-  const head = line.trim()
+  const head = line.trim().replace(/\s*↗$/u, '')
   const count = /^📎 (\d+)/u.exec(head)?.[1]
   return head === '📎' || (count !== undefined && clipLine(Number(count)).startsWith(head))
 }
