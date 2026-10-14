@@ -104,7 +104,7 @@ After the prompt is sent the marks go and numbering restarts at 1.
 
 ## Style
 
-Numbers are bold orange; Sources are coloured (Claude orange for `assistant`, `suggestion` for `user`, `subtle` for the rest); Excerpts are italic in curly quotes; Comments, hints and secondary actions are dim; tabs not open are dim.
+The accent colour (Claude orange) marks the open tab, whose label is bold and underlined, and the circled number before its Source; Claude Code draws each tab's hotkey digit in it too. The offer's preview is italic in curly quotes; the open tab's Excerpt is upright and unquoted in a dim rounded frame. Where an Excerpt was selected, hints, the Comment placeholder, secondary actions and tabs not open are dim.
 
 ## Sending: the Annotation Template
 
