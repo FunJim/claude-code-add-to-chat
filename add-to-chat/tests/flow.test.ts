@@ -4,7 +4,7 @@ import type { Engine } from 'claude-code/testing'
 import { hashText } from '../hooks/hash'
 import { NOT_DRAWN } from '../hooks/labels'
 import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
-import { XML_TEMPLATE, addText, changeBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
+import { XML_TEMPLATE, addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
@@ -638,7 +638,7 @@ describe('sent prompts', () => {
     expect(await tabCount($)).toBe(2)
   })
 
-  test("a rewind's Annotations are the prompt's too: another prompt in the box takes them out, back to it brings them again; a clear leaves them", async ($, on) => {
+  test("a rewind's Annotations are the prompt's too: another prompt in the box takes them out, back to it brings them again, an emptied box takes them out", async ($, on) => {
     const w = await start($, on)
     const sent = await sendOne($, w, 'explain this')
     await submit($, 'a later prompt')
@@ -648,10 +648,24 @@ describe('sent prompts', () => {
     expect(await tabCount($)).toBe(0)
     await changeBox($, w, 'explain this', 'history')
     expect(await tabCount($)).toBe(1)
-    const clear = $.prompt as unknown as { change: (e: object) => Promise<unknown> }
-    w.draft = ''
-    await clear.change({ text: '', cursor: 0, origin: { kind: 'clear' } })
+    await clearBox($, w)
+    // A moment later: a submit empties the box too, before it reads them.
     expect(await tabCount($)).toBe(1)
+    await tick(w)
+    expect(await tabCount($)).toBe(0)
+  })
+
+  test('the box emptied by a submit of a prompt put back: its Annotations go with it', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w, 'explain this')
+    await changeBox($, w, sent, 'history')
+    expect(await tabCount($)).toBe(1)
+    // The engine empties the box, then the prompt reaches prompt.submit.
+    await clearBox($, w)
+    await submit($, 'explain this')
+    expect(sentAnnotations(w.submitted.at(-1)!.text).map(a => [a.text, a.annotation])).toEqual([['npm test', 'why?']])
+    await tick(w)
+    expect(await tabCount($)).toBe(0)
   })
 
   test('↑ to a prompt sent with Annotations brings them back; the next step through the history takes them out, a step back to it brings them again', async ($, on) => {

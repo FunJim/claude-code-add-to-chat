@@ -12,6 +12,7 @@
 //   toast      each toast add-to-chat raises
 //   input      each edit and Enter in a plugin's Input: element, kind, value
 //   prompt-change  each change of the prompt box no edit made: who (origin), the text's head
+//   submit     each prompt as it reaches the engine: its origin, whether it carries Annotations, its head
 //
 // Two commands make rows the harness cannot get otherwise: /probe-out
 // prints a command's output, /probe-say submits a prompt as a plugin.
@@ -91,6 +92,11 @@ export const register: Register = on => {
     const done = await next(e)
     void log($, 'turn', { phase: 'complete' })
     return done
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    void log($, 'submit', { origin: e.origin.kind, hasAnnotations: /<annotation /.test(e.text), text: e.text.slice(0, 60) })
+    return next(e)
   })
 
   on('prompt.change', async ($, e, next) => {

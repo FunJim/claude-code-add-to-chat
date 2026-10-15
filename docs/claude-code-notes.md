@@ -92,6 +92,7 @@ Rows by type (adding from each, with Source and mark):
 - `PromptHint` (the line under the prompt) takes a tree too: `next(e)` wrapped with a `Button` beneath keeps Claude Code's hint as drawn, and a click on the Button raises its press.
 - An `Input` is emptied on Enter. It keeps its text by its key and fills from `value` again only when `value` changes; a parent remounted under a new key does not reset it, a new key on the `Input` does. `onInput` gets every edit, and the emptying on Enter raises none.
 - A rewind (Esc Esc, a prompt, "Restore conversation") and ↑ through the prompt history fill the prompt box with the prompt as it was sent (after a `prompt.submit` rewrite, the rewritten text). Neither raises `prompt.fill`; both raise `prompt.change`, origin `engine` for the rewind and `history` for every step through the history (↑ ↓, stepping back out to the draft, `text` `''` for an empty one). A `$.prompt.fill` raises it with origin `plugin`. The rewind keeps the session id and the rows' requestIds.
+- A submit raises `prompt.change` origin `clear` (text `''`) before the prompt reaches `prompt.submit`; a quick Esc Esc on a box with text raises it too (one Esc, or Ctrl+C, leaves the text). Nothing in the event tells the two apart.
 - The prompt history keeps an entry as last filled: after a plugin's fill over a recalled entry, stepping back to it gives the filled text. It holds the project's prompts from every session.
 - While the box shows a history entry, the rule above it is labelled: `─── History 1/3 ───…`.
 

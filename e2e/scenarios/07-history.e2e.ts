@@ -140,6 +140,12 @@ describe(HISTORY, () => {
     await claude.press('up')
     await waitFor('the Annotation back', async () => (await pending()).length === 1, { timeoutMs: 3_000 })
     assert.equal(await claude.draft(), RECALL)
+    await ctx.step('Esc Esc empties the box: the Annotation goes with the prompt')
+    await claude.press('escape')
+    await sleep(150)
+    await claude.press('escape')
+    await waitFor('the box empty', async () => (await claude.draft()) === '', { timeoutMs: 3_000 })
+    await waitFor('the Annotation gone', async () => (await pending()).length === 0, { timeoutMs: 4_000 })
 
     await ctx.step('a new conversation in the same project: ↑ gives back the request as typed, without the Annotation, whose row is not in it')
     await claude.close()

@@ -132,6 +132,13 @@ export function changeBox($: Engine, w: World, text: string, origin: 'history' |
   return prompt.change({ text, cursor: text.length, origin: { kind: origin } })
 }
 
+/** The prompt box emptied (a clear, or a submit taking the draft), as Claude Code raises it. */
+export function clearBox($: Engine, w: World) {
+  w.draft = ''
+  const prompt = $.prompt as unknown as { change: (e: PromptChangeInput) => Promise<unknown> }
+  return prompt.change({ text: '', cursor: 0, origin: { kind: 'clear' } })
+}
+
 /** Mounts the hint line under the prompt, an empty draft and no turn running. */
 export function mountHint<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P) {
   const props = { isDraft: false, isWorking: false, hint: '? for shortcuts' }

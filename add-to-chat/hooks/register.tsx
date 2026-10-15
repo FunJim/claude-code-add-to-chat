@@ -36,6 +36,8 @@ const replyCounts = atom({ plugin: 'add-to-chat', key: 'replyCounts' } as const,
 const paneMode = atom({ plugin: 'add-to-chat', key: 'paneMode' } as const, { kind: 'pending' } as PaneMode)
 
 const POLL_MS = 250
+/** How long after the prompt box empties a submit has surely read what is pending. */
+const CLEAR_GRACE_MS = 1_000
 const STORE_ORIGINALS = 'originals'
 const MAX_ORIGINALS = 200
 
@@ -296,8 +298,8 @@ async function saveComment($: EngineInterface, index: number, value: string) {
  *
  * Annotations that came back with a prompt are that prompt's: they are
  * pending while the box shows it. So a rewind or a step through the
- * history first takes out those the last prompt brought back (a clear or
- * an undo puts no other prompt there, and leaves them). Then, a sent
+ * history first takes out those the last prompt brought back (a clear
+ * does too, a moment later: see the prompt.change hook). Then, a sent
  * prompt with Annotations back in the box gets what was typed in its
  * place, and its Annotations are pending again, to be edited and sent
  * anew. From the history only a prompt of this conversation brings its
@@ -327,10 +329,13 @@ async function boxChanged($: EngineInterface, text: string, by: string) {
   if (text !== sent.original.text) await $.prompt.fill({ text: sent.original.text, mode: 'replace' })
 }
 
-/** Takes out of pending the Annotations the last prompt put back in the box brought with it. */
-async function dropRecalled($: EngineInterface) {
+/**
+ * Takes out of pending the Annotations the last prompt put back in the box
+ * brought with it; with `only`, only if they are still those.
+ */
+async function dropRecalled($: EngineInterface, only?: string) {
   const last = await read($, recalled)
-  if (last === null) return
+  if (last === null || (only !== undefined && JSON.stringify(last) !== only)) return
   await update($, pending, now => withoutAll(now, last.annotations))
   await update($, recalled, () => null)
 }
@@ -565,7 +570,16 @@ export const register: Register = (on, options) => {
   // plugin's own fill): see boxChanged.
   on('prompt.change', async ($, e, next) => {
     const changed = await next(e)
-    if (e.origin.kind !== 'plugin') await boxChanged($, e.text, e.origin.kind)
+    if (e.origin.kind === 'clear') {
+      // An emptied box shows the prompt no more: what came back with it
+      // goes. But a submit empties the box too, before its prompt.submit
+      // has read pending: so a moment later, and only if they are still
+      // pending as that prompt's (a submit has taken them, and forgotten).
+      const last = await read($, recalled)
+      if (last !== null) $.clock.after(CLEAR_GRACE_MS, () => void dropRecalled($, JSON.stringify(last)))
+    } else if (e.origin.kind !== 'plugin') {
+      await boxChanged($, e.text, e.origin.kind)
+    }
     return changed
   })
 
