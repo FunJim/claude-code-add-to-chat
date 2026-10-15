@@ -49,7 +49,7 @@ Below the first row, which change only on clicks:
 - **The open tab**: its circled number, as its marks in the transcript carry it, and where the Excerpt was selected (`② from your prompt`), the whole Excerpt, wrapped, in a dim rounded frame (no italics, no quotes: Excerpts are often code or tool output), and its Comment ([Comment](#comment)). A selection across that frame picks up its border, which the own-words check below ignores.
 - **The footer**: `[ Send ] now, or type a prompt and press ↵` with an empty prompt ([An empty prompt](#an-empty-prompt)), else `They go with your next prompt ↵`.
 
-With nothing pending, the pane says `Nothing added yet.` under the first row. While any are pending and the pane is not drawn (closed, or waiting for room), the status line shows `📎 N annotations`, so they are not forgotten; with the pane drawn its tabs say as much. Claude Code draws the line as one of its pinned notices, `⚠ add-to-chat: …`.
+With nothing pending, the pane says `Nothing added yet.` under the first row. While any are pending and the pane is not drawn (closed, or waiting for room), the line under the prompt gets `📎 N annotations ↗` beneath Claude Code's own hint, so they are not forgotten; a click opens the pane, as `/add-to-chat` does. With the pane drawn its tabs say as much. The hook wraps the engine's drawing of the line (`next(e)` on `PromptHint`) as the 📎 row of a sent prompt does, so Claude Code's hint stays as it draws it. (`$.ui.status`, the pinned `⚠ add-to-chat: …` notice this replaced, takes text only: nothing in it can be pressed.)
 
 `✕ ignore` marks the selection handled. Without it a selection one doesn't want would stay offered until the next turn ends.
 
@@ -68,7 +68,10 @@ Adding creates the Annotation at once, with no Comment, numbered one past the pe
 
 ## Comment
 
-The open tab has an `Input` labelled `Comment`, holding the Annotation's Comment. Enter stores it (empty removes it); it can be changed at any time before sending.
+The open tab has an `Input` labelled `Comment`, holding the Annotation's Comment; it can be changed at any time before sending. What the field holds is the Comment, saved with Enter or not (empty removes it):
+
+- Every edit is noted in `commentDrafts` (`onInput`), which no drawing reads, so typing redraws nothing. The notes are kept as the Comments when a field is left (another tab shown, one added or closed, the history or a sent prompt opened) and when the prompt is sent, before the template is filled.
+- Enter saves at once. The terminal empties a field on Enter, keeps a field's text by its key, and fills it from `value` again only when `value` changes: a second Enter on an unchanged Comment would leave the field empty, and a third would save the emptiness. So each save bumps `commentSaves`, which is in the field's key (`comment-<index>-<saves>`): the field is drawn anew holding the Comment, and `$.ui.focus` gives the new key the keyboard back.
 
 A mouse click on a `Button` does not give the pane the keyboard: `autoFocus` and `$.ui.focus` cannot move it there. After Add the mod still calls `$.ui.focus` on the new tab's field (it works when the pane holds the keyboard); mouse users click the field.
 
@@ -174,6 +177,10 @@ The store keeps prompts from every session; the history lists those in this conv
 
 `← back` goes from sent to the history, and from the history to pending. Adding a selection shows the pending view with the new tab, whatever the pane showed. The history views' words are the pane's own: selecting them offers nothing.
 
+### Back in the prompt box
+
+A rewind (Esc Esc) or ↑ through the prompt history puts a sent prompt back in the box as it was sent: for a prompt add-to-chat rewrote, the whole rendered template. Left there, sending it would wrap the template in the template again, and its Excerpts, now in the draft, would not be offered when selected (a selection that is the draft's own text is not). Claude Code fills the box itself, without `prompt.fill`, so the poll watches the draft: when it changes to text whose `hashText` is a key of `originals` with Annotations, the mod puts what was typed in its place (`$.prompt.fill`, replace) and the prompt's Annotations, Comments and all, back in `pending` after any there (one already pending is not added twice), and shows the first of them.
+
 ## Lifecycle
 
 - `/clear` ends the session (`session.end`, reason `clear`) with no new `session.start`; the rows the pending Annotations point at are gone, so the list and the offer are cleared.
@@ -194,6 +201,9 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | `isPaneOpen` | whether the pane is open, as the poll last saw `$.ui.panes()` |
 | `isPaneDismissed` | the person closed the pane; it stays closed until `/add-to-chat` |
 | `paneTab` | the index of the Annotation whose tab the pane shows |
+| `isPaneDrawn` | whether the pane is drawn (open and placed), as the poll last saw; while not, the line under the prompt counts the Annotations |
+| `commentDrafts` | each Comment field's text by Annotation index, typed since the last save; read by no drawing |
+| `commentSaves` | Comments saved with Enter so far: in the Comment field's key |
 | `isDraftEmpty` | whether the prompt draft is empty |
 | `originals` | rewritten prompt hash → `{ text, count, annotations?, replies? }`, mirrored in `$.store` |
 | `sessionPrompts` | hashes of the rewritten prompts in this conversation's transcript, oldest first |
@@ -210,7 +220,7 @@ The API (`claude-code.d.ts`, laid by the engine in `add-to-chat/.claude-plugin/t
 | the poll | `$.clock.every(ms, fn)` |
 | the pane | `$.ui.open`, `$.ui.panes`, `ui.render` on `Pane`, `ui.close`; `Box`, `Text`, `Button`, `Input` from `$.ui.resolve(e)` |
 | opening it at the start | `ui.render` on `AbovePrompt` (drawing nothing), `viewport.isFullscreen` |
-| the pending count | `$.ui.status` |
+| the pending count, a click from the pane | `ui.render` on `PromptHint` wrapping `next(e)`; `Button` |
 | marks, Citations, compact prompt rows | `ui.render` on `AssistantMessage`, `UserMessage` |
 | the 📎 row and its card | `ui.render` on `UserMessage` wrapping `next(e)` (an `engine` node); `Box` `position: "absolute"`, `display: "none"`, `hover` |
 | the jump to a sent prompt | `$.ui.scroll({ to: { requestId } })` |

@@ -1,12 +1,12 @@
 // The pane beside the transcript: offering the selection, adding it, a tab
-// per Annotation with its Comment, closing tabs, /add-to-chat, and closing
-// the pane itself.
+// per Annotation with its Comment, closing tabs, /add-to-chat, closing the
+// pane itself, and the count under the prompt that opens it again.
 import { describe } from 'node:test'
 
-import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, IDLE_HINT, IGNORE_LABEL, PANE_EMPTY, addedToast } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, IGNORE_LABEL, PANE_EMPTY, SAVE_LABEL, addedToast, clipButtonLabel } from '../../add-to-chat/hooks/labels.ts'
 import { framed } from '../harness/claude.ts'
-import { waitFor } from '../harness/exec.ts'
-import { paneArea } from '../harness/screen.ts'
+import { sleep, waitFor } from '../harness/exec.ts'
+import { locate, paneArea } from '../harness/screen.ts'
 import { assert, scenario } from '../harness/scenario.ts'
 
 const PANE = 'pane'
@@ -87,6 +87,39 @@ describe(PANE, () => {
     await claude.command('/add-to-chat')
     await waitFor('the toast', async () => (await claude.toasts()).at(-1) === ALREADY_ADDED, { timeoutMs: 3_000 })
     assert.equal((await claude.probe.pending()).length, 1)
+  })
+
+  scenario(PANE, 'Enter saves a Comment and the field keeps it, Enter again too; one typed and not saved is kept when its tab is left', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture()
+    await claude.add('so reading it failed')
+    await ctx.step('type a Comment and press Enter, then Enter again: it stays, and the field keeps the keyboard')
+    await claude.comment(1, 'why did it fail?')
+    await claude.press('enter')
+    await sleep(800)
+    assert.ok(await claude.paneShows(`${COMMENT_LABEL}: why did it fail?`), 'the field still holds the Comment')
+    assert.ok(await claude.paneShows(`⏎ ${SAVE_LABEL}`), 'and still has the keyboard')
+    assert.equal((await claude.probe.pending())[0]?.comment, 'why did it fail?')
+    await ctx.step("add another, type its Comment without Enter, go back to the first tab: the typed one is kept")
+    await claude.add('Ran the')
+    await claude.typeComment(2, 'typed, not saved')
+    await claude.showTab(1)
+    await waitFor('the typed Comment kept', async () => (await claude.probe.pending())[1]?.comment === 'typed, not saved', { timeoutMs: 3_000 })
+    await ctx.evidence('screen', await claude.screen())
+  })
+
+  scenario(PANE, 'closed with Annotations pending, the pane is a click away: the count under the prompt opens it', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture()
+    await claude.add('Ran the')
+    await ctx.step(`close the pane: “${clipButtonLabel(1)}” shows under the prompt`)
+    await claude.clickInPane(CLOSE_TAB, { dx: 0 })
+    await waitFor('the pane to close', async () => paneArea(await claude.screen()) === undefined, { timeoutMs: 5_000 })
+    const spot = await waitFor('the count under the prompt', async () => locate(await claude.screen(), clipButtonLabel(1)), { timeoutMs: 5_000 })
+    await ctx.evidence('screen with the count', await claude.screen())
+    await ctx.step('click it: the pane opens on the Annotation, and the count goes')
+    await claude.mouse.click({ x: spot.x + 2, y: spot.y })
+    await waitFor('the pane', async () => paneArea(await claude.screen()) !== undefined, { timeoutMs: 5_000 })
+    assert.ok(await claude.paneShows(framed('Ran the')))
+    await waitFor('the count to go', async () => locate(await claude.screen(), clipButtonLabel(1)) === undefined, { timeoutMs: 5_000 })
   })
 
   scenario(PANE, 'a pane the person closes stays closed until /add-to-chat', { drivers: ['herdr'] }, async ctx => {

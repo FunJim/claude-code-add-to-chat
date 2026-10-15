@@ -1,7 +1,7 @@
 // What a scenario drives: a terminal it can read and type into, hosted by
 // tmux or by Herdr. Both drivers implement it; scenarios never know which.
 
-export type Key = 'enter' | 'escape' | 'down' | 'ctrl+o' | 'ctrl+u'
+export type Key = 'enter' | 'escape' | 'up' | 'down' | 'ctrl+o' | 'ctrl+u'
 
 export interface Terminal {
   /** The visible screen, rows joined with newlines. */

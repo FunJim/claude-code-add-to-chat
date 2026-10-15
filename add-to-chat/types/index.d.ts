@@ -45,10 +45,23 @@ declare module 'claude-code' {
       handled: string | null
       /** Whether the pane is open, as the poll last saw `$.ui.panes()`. */
       isPaneOpen: boolean
+      /** Whether the pane is drawn (open and placed), as the poll last saw: while not, the line under the prompt counts the Annotations. */
+      isPaneDrawn: boolean
       /** The person closed the pane: it stays closed until /add-to-chat. */
       isPaneDismissed: boolean
       /** The index of the Annotation whose tab the pane shows. */
       paneTab: number
+      /**
+       * What a Comment field holds, by its Annotation's index, typed since
+       * the last save: kept as the Comment when the field is left or the
+       * prompt goes. No drawing reads it, so typing redraws nothing.
+       */
+      commentDrafts: Record<string, string>
+      /**
+       * Comments saved with Enter so far. The terminal empties a field on
+       * Enter; the pane draws the field anew after each save, holding it.
+       */
+      commentSaves: number
       isDraftEmpty: boolean
       /** Keyed by `hashText` of the rewritten prompt; mirrored in `$.store`. */
       originals: Record<string, Original>

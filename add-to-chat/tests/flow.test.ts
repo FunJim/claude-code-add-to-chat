@@ -4,7 +4,7 @@ import type { Engine } from 'claude-code/testing'
 import { hashText } from '../hooks/hash'
 import { NOT_DRAWN } from '../hooks/labels'
 import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
-import { XML_TEMPLATE, addText, drawBand, drawRow, endTurn, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
+import { XML_TEMPLATE, addText, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
@@ -59,11 +59,17 @@ async function tabCount($: Engine): Promise<number> {
   return tabs
 }
 
-/** Writes a Comment in the pane's field for Annotation `index`. */
-async function commentInPane($: Engine, index: number, text: string) {
+/** The open tab's Comment field: its key (a new one after each save) and the text it is drawn with. */
+async function commentField(pane: { findAll: (query: { type: string }) => Promise<{ key: string | undefined; props: Record<string, unknown> }[]> }): Promise<{ key: string; value: unknown }> {
+  const field = (await pane.findAll({ type: 'Input' }))[0]!
+  return { key: field.key!, value: field.props.value }
+}
+
+/** Writes a Comment in the pane's field for Annotation `index`: saved with Enter, or with `kind: 'change'` only typed. */
+async function commentInPane($: Engine, index: number, text: string, kind: 'submit' | 'change' = 'submit') {
   const pane = await mountPane($)
   await pane.press({ key: `show-${index}` })
-  await pane.input({ key: `comment-${index}`, text })
+  await pane.input({ key: (await commentField(pane)).key, text, kind })
   await pane.unmount()
 }
 
@@ -88,11 +94,9 @@ describe('the pane', () => {
       const text = (await pane.findAll({ type: 'Text' })).map(t => t.text).join('\n')
       expect(text).toContain('npm test before you commit')
       expect(text).toContain("from Claude's reply")
-      expect(w.status.at(-1)).toBe('📎 1 annotation')
 
-      await pane.input({ key: 'comment-1', text: 'is this needed?' })
+      await pane.input({ key: (await commentField(pane)).key, text: 'is this needed?' })
       expect((await submitted($, w))[0]!.annotation).toBe('is this needed?')
-      expect(w.status.at(-1)).toBeUndefined()
 
       // The same selection keeps being returned; it is not offered again.
       await tick(w)
@@ -141,17 +145,73 @@ describe('the pane', () => {
     expect(tenth?.text).toBe('10: Transcript')
   })
 
-  test('the status line counts the Annotations while the pane is not drawn', async ($, on) => {
+  for (const surface of SURFACES) {
+    test(`while the pane is not drawn, the line under the prompt counts the Annotations; a click opens it (${surface})`, async ($, on) => {
+      const w = await start($, on)
+      await addText($, w, 'one', 'r1')
+      await addText($, w, 'two', 'r1')
+      await tick(w)
+      const hint = await mountHint($, surface)
+      expect(await hint.find({ key: 'hint-clip' })).toBeUndefined()
+      w.panes.delete('add-to-chat')
+      await tick(w)
+      expect((await hint.find({ key: 'hint-clip' }))?.text).toBe('📎 2 annotations ↗')
+      await hint.press({ key: 'hint-clip' })
+      expect(w.panes.has('add-to-chat')).toBe(true)
+      await tick(w)
+      expect(await hint.find({ key: 'hint-clip' })).toBeUndefined()
+      await hint.unmount()
+    })
+  }
+
+  test('the line under the prompt says nothing with nothing pending', async ($, on) => {
+    const w = await start($, on)
+    w.panes.delete('add-to-chat')
+    await tick(w)
+    const hint = await mountHint($)
+    expect(await hint.find({ key: 'hint-clip' })).toBeUndefined()
+  })
+
+  test("Enter saves the Comment and draws its field anew holding it, Enter again too (the terminal empties a field on Enter)", async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'one', 'r1')
+    const pane = await mountPane($)
+    const first = await commentField(pane)
+    await pane.input({ key: first.key, text: 'why?' })
+    const second = await commentField(pane)
+    expect(second.key).not.toBe(first.key)
+    expect(second.value).toBe('why?')
+    await pane.input({ key: second.key, text: 'why?' })
+    const third = await commentField(pane)
+    expect(third.key).not.toBe(second.key)
+    expect(third.value).toBe('why?')
+    expect((await submitted($, w))[0]!.annotation).toBe('why?')
+  })
+
+  test('a Comment typed and not saved goes with the prompt, and is kept with it', async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'one', 'r1')
+    await commentInPane($, 1, 'typed, never saved', 'change')
+    const sent = await submitted($, w)
+    expect(sent[0]!.annotation).toBe('typed, never saved')
+    const kept = Object.values(w.store['originals'] as Record<string, { annotations: { comment?: string }[] }>)
+    expect(kept[0]!.annotations[0]!.comment).toBe('typed, never saved')
+  })
+
+  test('a Comment field left for another tab keeps what it holds; one emptied drops the Comment', async ($, on) => {
     const w = await start($, on)
     await addText($, w, 'one', 'r1')
     await addText($, w, 'two', 'r1')
-    expect(w.status.at(-1)).toBeUndefined()
-    w.panes.delete('add-to-chat')
-    await tick(w)
-    expect(w.status.at(-1)).toBe('📎 2 annotations')
-    await runCommand($, w)
-    await tick(w)
-    expect(w.status.at(-1)).toBeUndefined()
+    await commentInPane($, 1, 'saved')
+    const pane = await mountPane($)
+    await pane.press({ key: 'show-2' })
+    await pane.input({ key: (await commentField(pane)).key, text: 'typed in two', kind: 'change' })
+    await pane.press({ key: 'show-1' })
+    await pane.input({ key: (await commentField(pane)).key, text: '', kind: 'change' })
+    await pane.press({ key: 'show-2' })
+    expect((await commentField(pane)).value).toBe('typed in two')
+    await pane.unmount()
+    expect((await submitted($, w)).map(a => a.annotation)).toEqual([undefined, 'typed in two'])
   })
 
   test('the pane stays open with nothing pending, and says so', async ($, on) => {
@@ -160,7 +220,6 @@ describe('the pane', () => {
     const pane = await mountPane($)
     await pane.press({ key: 'close-1' })
     expect(await shown(pane)).toContain('Nothing added yet.')
-    expect(w.status.at(-1)).toBeUndefined()
   })
 
   test('the band\'s first fullscreen drawing opens the pane; the main screen does not', async ($, on) => {
@@ -482,6 +541,34 @@ async function sendOne($: Engine, w: Awaited<ReturnType<typeof start>>, request 
 }
 
 describe('sent prompts', () => {
+  test('a prompt sent with Annotations, back in the box (a rewind, ↑): what was typed, its Annotations pending again', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w, 'explain this')
+    await addText($, w, 'already pending', 'r2')
+    w.draft = sent
+    await tick(w)
+    expect(w.fills.at(-1)).toBe('explain this')
+    expect(w.draft).toBe('explain this')
+    const pane = await mountPane($)
+    expect(await tabsOf(pane)).toBe(2)
+    expect(await shown(pane)).toContain('\nnpm test')
+    expect((await commentField(pane)).value).toBe('why?')
+    await pane.unmount()
+    // Once more, and the Annotation already back is not added twice.
+    w.draft = sent
+    await tick(w)
+    expect(await tabCount($)).toBe(2)
+  })
+
+  test('a prompt typed as it was sent before, without Annotations, is left alone', async ($, on) => {
+    const w = await start($, on)
+    await submit($, 'plain')
+    w.draft = 'plain'
+    await tick(w)
+    expect(w.fills).toEqual([])
+    expect(await tabCount($)).toBe(0)
+  })
+
   test("a reply to a prompt sent with Annotations draws only their numbers; kept with the prompt when the turn ends", async ($, on) => {
     const w = await start($, on)
     const reply = 'one :annotation{index="1"}, two :annotation{index="2"}'

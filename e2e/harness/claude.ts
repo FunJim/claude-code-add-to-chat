@@ -322,14 +322,19 @@ export class ClaudeSession {
 
   /** Types a Comment into Annotation `index`'s field in the pane (clicking it to take the keyboard). */
   async comment(index: number, text: string) {
+    await this.typeComment(index, text)
+    await this.press('enter')
+    await waitFor(`Comment ${index} to be saved`, async () => (await this.probe.pending())[index - 1]?.comment === text, { timeoutMs: 5_000 })
+  }
+
+  /** Types a Comment in Annotation `index`'s field, and leaves it unsaved (no Enter). */
+  async typeComment(index: number, text: string) {
     await this.showTab(index)
     await retry(`the Comment field to take the keyboard on ${this.name}`, () => this.clickInPane(`${COMMENT_LABEL}: `, { dx: COMMENT_LABEL.length + 3 }), () =>
       this.paneShows(`⏎ ${SAVE_LABEL}`),
     )
     await this.type(text)
     await sleep(200)
-    await this.press('enter')
-    await waitFor(`Comment ${index} to be saved`, async () => (await this.probe.pending())[index - 1]?.comment === text, { timeoutMs: 5_000 })
   }
 
   /** Annotation `index`'s tab as the pane draws it, `1: Claude`. */

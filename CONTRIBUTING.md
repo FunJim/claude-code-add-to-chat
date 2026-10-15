@@ -42,6 +42,7 @@ add-to-chat/                  the mod (what gets installed)
   hooks/register.tsx          engine glue: every hook and every `$` call
   hooks/*.ts(x)               pure modules: selection, annotations, rows, send,
                               pane (the view), prompt-row (a sent prompt's 📎 row),
+                              prompt-hint (the count under the prompt),
                               history (sent prompts' Annotations), excerpt (markdown
                               matching, marks, Citations), template, text (terminal
                               cells), labels, hash

@@ -15,8 +15,6 @@ export type World = {
   store: Record<string, unknown>
   /** The props each row last reached the engine with, by requestId. */
   drawnProps: Record<string, unknown>
-  /** Each status line the plugin set, undefined when it cleared it. */
-  status: (string | undefined)[]
   /** The ids of the panes open. */
   panes: Set<string>
   /** The session's id, and its transcript's messages (a submit adds the prompt). */
@@ -59,7 +57,6 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     panes: new Set(),
     sessionId: 's1',
     messages: transcript.map(text => ({ role: 'user' as const, text, toolUses: [] as [] })),
-    status: [],
     clock: mock.clock(on),
   }
   on('store.get', ($, e) => ({ value: w.store[e.key] }))
@@ -83,10 +80,6 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   })
   on('ui.panes', () => ({ value: [...w.panes].map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })) }))
   on('prompt.read', () => ({ value: { text: w.draft, cursor: w.draft.length } }))
-  on('ui.status', ($, e) => {
-    w.status.push(e.text)
-    return { value: undefined }
-  })
   on('ui.toast', ($, e) => {
     w.toasts.push(e.text)
     return { value: undefined }
@@ -128,6 +121,12 @@ export function drawBand($: Engine, isFullscreen = true) {
 export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, columns = 60) {
   const props = { title: 'Add to chat', isFocused: false, bodyColumns: columns, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 30 }, view: {} }
   return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'Pane', requestId: 'add-to-chat', props, viewport: { columns: 160, rows: 40, isFullscreen: true } })
+}
+
+/** Mounts the hint line under the prompt, an empty draft and no turn running. */
+export function mountHint<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P) {
+  const props = { isDraft: false, isWorking: false, hint: '? for shortcuts' }
+  return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'PromptHint', requestId: 'prompt-hint', props, viewport: { columns: 120, rows: 40, isFullscreen: true } })
 }
 
 /** Mounts a sent prompt row typed in the composer, to read and press what the plugin draws there. */

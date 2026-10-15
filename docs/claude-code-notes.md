@@ -88,6 +88,9 @@ Rows by type (adding from each, with Source and mark):
 - A `position: "absolute"` Box in a transcript row is painted over by the rows drawn after it (a card below its row is hidden); above, over the rows before, it shows. Its blank cells are transparent without a `backgroundColor`; the theme key `userMessageBackground` resolves (to the sent-prompt background).
 - `hover: { display: "flex" }` on a Box drawn `display: "none"` in a keyed Box shows on pointer motion with no button held (SGR `35`); a hover `scope` reveals members in another site (a pane) too.
 - Claude cannot write the tag `<cite …>`: it comes out as `(cite …`.
+- `PromptHint` (the line under the prompt) takes a tree too: `next(e)` wrapped with a `Button` beneath keeps Claude Code's hint as drawn, and a click on the Button raises its press.
+- An `Input` is emptied on Enter. It keeps its text by its key and fills from `value` again only when `value` changes; a parent remounted under a new key does not reset it, a new key on the `Input` does. `onInput` gets every edit, and the emptying on Enter raises none.
+- A rewind (Esc Esc, a prompt, "Restore conversation") and ↑ through the prompt history fill the prompt box with the prompt as it was sent (after a `prompt.submit` rewrite, the rewritten text), raising no `prompt.fill`. The rewind keeps the session id and the rows' requestIds.
 
 ## Driving a terminal (for the test harness)
 

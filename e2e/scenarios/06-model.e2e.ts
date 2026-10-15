@@ -92,16 +92,17 @@ describe(MODEL, () => {
     await again.waitShowing(clipLine(2))
   })
 
-  scenario(MODEL, 'Send with an empty prompt: the Annotations go alone', { drivers: ['herdr'], usesModel: true }, async ctx => {
+  scenario(MODEL, 'Send with an empty prompt: the Annotations go alone, a Comment typed and not saved with them', { drivers: ['herdr', 'tmux'], usesModel: true }, async ctx => {
     const claude = await primed(ctx)
     await claude.add('lazy dog')
-    await claude.comment(1, 'rewrite this part with a cat')
+    await claude.typeComment(1, 'rewrite this part with a cat')
     await ctx.step(`[ Send ] fills the prompt with “${SEND_PLACEHOLDER}”; Enter sends it`)
     await claude.clickInPane('[ Send ]', { dx: 3 })
     await waitFor('the filled prompt', async () => (await claude.draft()) === SEND_PLACEHOLDER, { timeoutMs: 5_000 })
     await claude.send()
     const x = await exchange(claude, SEND_PLACEHOLDER)
     assert.match(x.prompt, /<request>\n\(see annotations\)\n<\/request>$/)
+    assert.deepEqual(annotationsXml(x.prompt).map(a => a.comment), ['rewrite this part with a cat'], 'the Comment never saved went too')
     assert.match(x.reply, /:annotation\{index="1"\}/)
     if (ctx.isRealModel) assert.match(x.reply, /cat/i, 'the model acted on the Comment')
     await ctx.evidence('reply as written', x.reply)

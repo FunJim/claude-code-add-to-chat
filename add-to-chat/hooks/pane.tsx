@@ -61,6 +61,8 @@ export type PaneValues = {
   pending: readonly Annotation[]
   /** The index of the Annotation whose tab is open. */
   tab: number
+  /** Comments saved with Enter so far: the field's key (`commentKey`). */
+  commentSaves: number
   isDraftEmpty: boolean
   /** The fullscreen terminal, the only place a selection reads. */
   isFullscreen: boolean
@@ -78,6 +80,9 @@ export type PaneActions = {
   ignore: () => unknown
   show: (index: number) => unknown
   remove: (index: number) => unknown
+  /** The Comment field's text, at each edit. */
+  draft: (index: number, value: string) => unknown
+  /** The Comment field's text, at Enter. */
   comment: (index: number, value: string) => unknown
   send: () => unknown
   openHistory: () => unknown
@@ -85,6 +90,16 @@ export type PaneActions = {
   showSent: (index: number) => unknown
   back: () => unknown
   jump: () => unknown
+}
+
+/**
+ * The key of Annotation `index`'s Comment field after `saves` saves. The
+ * terminal empties a field on Enter and keeps its text by key, filling it
+ * again only with another value: a new key after each save draws the field
+ * anew, holding the Comment.
+ */
+export function commentKey(index: number, saves: number): string {
+  return `comment-${index}-${saves}`
 }
 
 /** The tab open for `count` Annotations: `tab`, kept within them. */
@@ -306,11 +321,12 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
       <Text> </Text>
       {excerptBlock(el, open)}
       <Input
-        key={`comment-${open.index}`}
+        key={commentKey(open.index, v.commentSaves)}
         label={COMMENT_LABEL}
         placeholder={COMMENT_PLACEHOLDER}
         value={open.comment ?? ''}
         submitLabel={SAVE_LABEL}
+        onInput={value => act.draft(open.index, value)}
         onSubmit={value => act.comment(open.index, value)}
       />
       {rule('rule-foot')}

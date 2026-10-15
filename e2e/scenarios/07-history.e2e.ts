@@ -1,7 +1,7 @@
 // A sent prompt's Annotations, seen again: the 📎 row under the prompt
 // (Claude Code's own row above it, untouched), its hover card, the pane's
 // read-only view of them, the jump back to the prompt, the history list,
-// and all of it after the session is resumed.
+// all of it after the session is resumed; and a rewind to it.
 import { describe } from 'node:test'
 
 import { BACK_LABEL, HISTORY_TITLE, JUMP_LABEL, SENT_TITLE, clipButtonLabel, clipLine, historyLabel } from '../../add-to-chat/hooks/labels.ts'
@@ -14,6 +14,7 @@ import { assert, scenario } from '../harness/scenario.ts'
 
 const HISTORY = 'history'
 const REQUEST = 'HISTORY-1: reply with the single word OK.'
+const REWIND = 'HISTORY-2: reply with the single word OK.'
 
 /** The transcript's rows, the pane's left out. */
 async function transcript(claude: ClaudeSession): Promise<string> {
@@ -120,5 +121,30 @@ describe(HISTORY, () => {
     await ctx.step('/clear: a new conversation, an empty history')
     await run(again, '/clear')
     await waitFor('the history to go', async () => !(await again.pane()).join('\n').includes('History ('), { timeoutMs: 10_000 })
+  })
+
+  scenario(HISTORY, 'a rewind to a prompt sent with Annotations gives back what was typed, and its Annotations pending again', { drivers: ['herdr'], usesModel: true }, async ctx => {
+    const claude = await ctx.launchFixture()
+    await claude.add('so reading it failed')
+    await claude.comment(1, 'why did it fail?')
+    await claude.submit(REWIND)
+    await ctx.step('Esc Esc, the prompt just sent, Restore conversation')
+    await claude.press('escape')
+    await sleep(150)
+    await claude.press('escape')
+    await waitFor('the rewind menu', async () => (await claude.screen()).includes('Restore the code and/or conversation'), { timeoutMs: 5_000 })
+    await claude.press('up')
+    await waitFor('the prompt chosen', async () => (await claude.screen()).includes(`❯ ${REWIND}`), { timeoutMs: 3_000 })
+    await claude.press('enter')
+    await waitFor('the confirmation', async () => (await claude.screen()).includes('Restore conversation'), { timeoutMs: 5_000 })
+    await claude.press('enter')
+    await ctx.step('the prompt box holds the request as typed, not the template; the Annotation is pending again, its Comment too')
+    await waitFor('the request as typed', async () => (await claude.draft()) === REWIND, { timeoutMs: 5_000 })
+    await waitFor('the Annotation pending again', async () => (await claude.probe.pending()).length === 1, { timeoutMs: 3_000 })
+    assert.deepEqual((await claude.probe.pending()).map(a => [a.text, a.comment]), [['so reading it failed', 'why did it fail?']])
+    await ctx.evidence('screen after the rewind', await claude.screen())
+    await ctx.step('a selection is offered and added as before')
+    await claude.add('Ran the')
+    assert.equal((await claude.probe.pending()).length, 2)
   })
 })

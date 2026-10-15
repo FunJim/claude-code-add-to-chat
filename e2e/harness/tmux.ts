@@ -5,7 +5,7 @@ import { commandLine, run, sleep } from './exec.ts'
 import { INHERITED } from './terminal.ts'
 import type { Host, Key, Slot, SpawnOptions, Terminal } from './terminal.ts'
 
-const KEYS: Record<Key, string> = { enter: 'Enter', escape: 'Escape', down: 'Down', 'ctrl+o': 'C-o', 'ctrl+u': 'C-u' }
+const KEYS: Record<Key, string> = { enter: 'Enter', escape: 'Escape', up: 'Up', down: 'Down', 'ctrl+o': 'C-o', 'ctrl+u': 'C-u' }
 
 const SIZES: Record<Slot, { cols: number; rows: number }> = { main: { cols: 160, rows: 50 }, side: { cols: 140, rows: 40 }, small: { cols: 80, rows: 24 } }
 

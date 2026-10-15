@@ -8,8 +8,9 @@
 //   selection  each change of $.ui.selection()
 //   row        each transcript row drawn: component, requestId, text
 //   turn       each turn's start and end
-//   state      each change of add-to-chat's pending/candidate/paneTab/replyCounts
+//   state      each change of add-to-chat's pending/candidate/paneTab/replyCounts/commentDrafts
 //   toast      each toast add-to-chat raises
+//   input      each edit and Enter in a plugin's Input: element, kind, value
 //
 // Two commands make rows the harness cannot get otherwise: /probe-out
 // prints a command's output, /probe-say submits a prompt as a plugin.
@@ -44,6 +45,7 @@ const PENDING = { plugin: 'add-to-chat', key: 'pending' } as never
 const CANDIDATE = { plugin: 'add-to-chat', key: 'candidate' } as never
 const PANE_TAB = { plugin: 'add-to-chat', key: 'paneTab' } as never
 const REPLY_COUNTS = { plugin: 'add-to-chat', key: 'replyCounts' } as never
+const COMMENT_DRAFTS = { plugin: 'add-to-chat', key: 'commentDrafts' } as never
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -52,17 +54,18 @@ export const register: Register = on => {
     await $.command.register({ name: 'probe-out', description: 'Print a two-line command output (e2e)' })
     await $.command.register({ name: 'probe-say', description: 'Submit a prompt as a plugin (e2e)' })
     $.clock.every(200, async () => {
-      const [sessionId, selection, pending, candidate, paneTab, replyCounts] = await Promise.all([
+      const [sessionId, selection, pending, candidate, paneTab, replyCounts, commentDrafts] = await Promise.all([
         $.session.id(),
         $.ui.selection(),
         $.state.get(PENDING),
         $.state.get(CANDIDATE),
         $.state.get(PANE_TAB),
         $.state.get(REPLY_COUNTS),
+        $.state.get(COMMENT_DRAFTS),
       ])
       logChange($, 'session-id', { id: sessionId })
       logChange($, 'selection', { selection: selection ?? null })
-      logChange($, 'state', { pending: pending.value ?? [], candidate: candidate.value ?? null, paneTab: paneTab.value ?? 1, replyCounts: replyCounts.value ?? {} })
+      logChange($, 'state', { pending: pending.value ?? [], candidate: candidate.value ?? null, paneTab: paneTab.value ?? 1, replyCounts: replyCounts.value ?? {}, commentDrafts: commentDrafts.value ?? {} })
     })
     return next(e)
   })
@@ -87,6 +90,11 @@ export const register: Register = on => {
     const done = await next(e)
     void log($, 'turn', { phase: 'complete' })
     return done
+  })
+
+  on('ui.input', async ($, e, next) => {
+    void log($, 'input', { plugin: e.plugin, element: e.element, kind: e.kind, value: e.value })
+    return next(e)
   })
 
   on('ui.toast', async ($, e, next) => {
