@@ -31,6 +31,7 @@ No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Ins
 
 - **Fixed terminal sizes.** Herdr's pane size follows its client window, so the runner starts an *isolated* Herdr session (`atc-e2e`) whose client runs in a tmux window of 240×64 with `window-size manual`: the main pane is 133×63 on every machine and every run, whatever size your own terminal is. The tmux driver uses fixed-size sessions (160×50).
 - **The pane's own width.** A dock width dragged by hand is kept in `~/.claude.json` (`pluginPanes.dockColumns`) for every session, these too, and beats the width add-to-chat asks for. The runner stops before starting if one is kept: remove the key, with Claude Code closed, and run again.
+- **The person's own settings left out where they move the screen.** A status line draws when its command answers, at times seconds after the session starts; the footer grows and the transcript moves under a drag. Sessions get a status line that prints nothing.
 - **A recorded transcript.** Selection scenarios `--resume` [`fixtures/transcript.jsonl`](fixtures/transcript.jsonl), one real session holding every kind of row:
   - a prompt and replies (table, quote, lists, link, code, CJK, emoji, strikethrough);
   - tool calls, a collapsed tool group, a subagent, a background command and their notifications;

@@ -15,7 +15,9 @@ The model is Codex's "Add to chat": select text → a floating "Add to chat" but
 
 `session.start` starts a 250ms `$.clock.every` poll of `$.ui.selection()` (`{ text, requestId? }`, where `requestId` is the transcript row the selection lies in). A reload fires `session.start` again and the engine drops the previous load's timers, so one poll runs at a time. When `$.ui.selection()` returns `undefined` (not fullscreen) the poll does nothing.
 
-A selection outlives its highlight: Esc, a click elsewhere or typing take the highlight down, but `$.ui.selection()` keeps returning it until text is selected again or the next prompt's turn ends. So the mod remembers the `text + requestId` it last added or ignored (`handled`), and offers a selection only when it differs. `handled` survives a submit: between submit and the end of that turn the selection still returns what was just added. Selecting the same text in the same row twice cannot add it twice; that is accepted.
+A selection outlives its highlight: Esc, a click elsewhere or typing take the highlight down, but `$.ui.selection()` keeps returning it until text is selected again, a command has run or the next prompt's turn ends. So the mod remembers the `text + requestId` it last added or ignored (`handled`), and offers a selection only when it differs. `handled` survives a submit: between submit and the end of that turn the selection still returns what was just added.
+
+`handled` holds only while the engine still reports that selection: once the poll sees none or another, it is forgotten, so the same text selected after a command or a turn is offered. Selecting the very same text again while the engine still reports it is no change the poll can see (there is no selection event, and a mod cannot dismiss a selection). Two consequences: an ignored selection selected again is not offered until another is made; and closing an Annotation's tab, while the engine still reports the selection it came from, forgets `handled`, so that selection is offered again at once, to be added again or ignored.
 
 ### The pane
 

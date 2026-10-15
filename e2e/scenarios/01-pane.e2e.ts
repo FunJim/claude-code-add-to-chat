@@ -72,6 +72,18 @@ describe(PANE, () => {
     assert.equal(await claude.paneShows('3: '), false)
   })
 
+  scenario(PANE, 'an Annotation removed can be added again from the same selection', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture()
+    await claude.add('so reading it failed')
+    await ctx.step(`close its tab: the selection it came from is offered again`)
+    await claude.remove(1)
+    await waitFor('the offer', () => claude.paneShows(ADD_LABEL), { timeoutMs: 5_000 })
+    await ctx.step('select the same text and add it: a tab again')
+    const again = await claude.add('so reading it failed')
+    assert.equal(again.text, 'so reading it failed')
+    assert.equal((await claude.probe.pending()).length, 1)
+  })
+
   scenario(PANE, '/add-to-chat adds the selection, and never the same Excerpt twice', { drivers: ['herdr'] }, async ctx => {
     const claude = await ctx.launchFixture()
     await claude.select('so reading it failed')

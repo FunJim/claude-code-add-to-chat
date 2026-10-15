@@ -13,7 +13,7 @@ import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView, tabAfterRemo
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
 import { originalText, promptText, replyText } from './rows'
-import { SYSTEM_ROWS, TOOL_ROWS, judge, rowSource, selectionKey } from './selection'
+import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, rowSource, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
 import { annotated, withOriginal } from './send'
 import { DEFAULT_TEMPLATE } from './template'
@@ -185,8 +185,18 @@ async function poll($: EngineInterface, watch: PollWatch) {
     await update($, isPaneDrawn, () => isDrawn)
   }
 
+  // `handled` holds only while the engine still reports that selection.
+  // Once it reports none or another (a new drag, a command run, the turn's
+  // end), the same text selected again is a new selection. Cleared only if
+  // unchanged since read: an ignore landing meanwhile stays.
+  let decide = around
+  if (around.handled !== null && (selection === undefined || selectionKey(selection) !== around.handled)) {
+    await update($, handled, now => (now === around.handled ? null : now))
+    decide = { ...around, handled: null }
+  }
+
   // The pane previews the Excerpt as it will be kept, marks and 📎 gone.
-  const verdict = judge(selection, around)
+  const verdict = judge(selection, decide)
   const offer = 'excerpt' in verdict ? verdict.excerpt : null
   if (offerKey(offer) !== offerKey(offered)) await update($, candidate, () => offer)
 }
@@ -226,7 +236,14 @@ function isPanePlaced(panes: readonly UiPane[]): boolean {
 
 async function removeAnnotation($: EngineInterface, index: number) {
   await keepDrafts($)
+  const [list, selection, key] = await Promise.all([read($, pending), $.ui.selection(), read($, handled)])
+  const removed = list.find(a => a.index === index)
   await Promise.all([update($, pending, now => without(now, index)), update($, paneTab, at => tabAfterRemoving(at, index))])
+  // The selection it came from, still reported, can be added again: offered
+  // once more, as the engine reports it until another is made.
+  if (removed !== undefined && key !== null && selection !== undefined && selectionKey(selection) === key && isSelectionOf(selection, removed)) {
+    await update($, handled, now => (now === key ? null : now))
+  }
 }
 
 async function clearPending($: EngineInterface) {

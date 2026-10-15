@@ -75,6 +75,12 @@ function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean 
   return flatten(around.draft).includes(text) || [...paneLines(around.pending), ...(around.paneWords ?? [])].some(line => flatten(line).includes(text))
 }
 
+/** Whether `selection` is where Annotation `a` was added from: its Excerpt, in its row. */
+export function isSelectionOf(selection: Selection | undefined, a: { text: string; requestId?: string }): boolean {
+  const excerpt = excerptOf(selection)
+  return excerpt !== null && excerpt.text === a.text && excerpt.requestId === a.requestId
+}
+
 /** An Excerpt to offer, with the key that marks its selection handled; or why not. */
 export type Verdict = { excerpt: Selection; key: string } | { reason: 'nothing' | 'already' }
 

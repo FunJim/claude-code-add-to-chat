@@ -277,6 +277,51 @@ describe('the pane', () => {
     await tick(w)
     expect(await pane.find({ key: 'add' })).toBeDefined()
   })
+
+  test("closing an Annotation's tab offers its selection again, still reported, to be added again", async ($, on) => {
+    const w = await start($, on)
+    await drawRow($, w, 'AssistantMessage', 'r1', REPLY)
+    const pane = await mountPane($)
+    w.selection = { text: 'npm test before you commit', requestId: 'r1' }
+    await tick(w)
+    await pane.press({ key: 'add' })
+    await tick(w)
+    expect(await pane.find({ key: 'add' })).toBeUndefined()
+    await pane.press({ key: 'close-1' })
+    await tick(w)
+    await pane.press({ key: 'add' })
+    expect(await tabsOf(pane)).toBe(1)
+  })
+
+  test('closing a tab leaves an ignored selection ignored', async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'one', 'r1')
+    const pane = await mountPane($)
+    w.selection = { text: 'not this', requestId: 'r1' }
+    await tick(w)
+    await pane.press({ key: 'ignore' })
+    await pane.press({ key: 'close-1' })
+    await tick(w)
+    expect(await pane.find({ key: 'add' })).toBeUndefined()
+  })
+
+  test('once the selection is gone (a command, the turn ended), the same text selected again is offered', async ($, on) => {
+    const w = await start($, on)
+    await drawRow($, w, 'AssistantMessage', 'r1', REPLY)
+    const pane = await mountPane($)
+    w.selection = { text: 'npm test before you commit', requestId: 'r1' }
+    await tick(w)
+    await pane.press({ key: 'add' })
+    await submit($, 'q')
+    // Until the turn ends the selection is still reported: not offered.
+    await tick(w)
+    expect(await pane.find({ key: 'add' })).toBeUndefined()
+    w.selection = undefined
+    await tick(w)
+    w.selection = { text: 'npm test before you commit', requestId: 'r1' }
+    await tick(w)
+    expect(await pane.find({ key: 'add' })).toBeDefined()
+  })
 })
 
 describe('adding a selection', () => {

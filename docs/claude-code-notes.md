@@ -101,6 +101,7 @@ Rows by type (adding from each, with Source and mark):
 - Mouse acts less than ~1.3s apart count as a double click and select a whole line.
 - Don't press Esc before a drag, or put stray motion events in it.
 - Wait for the screen to stop moving before dragging; a session starting up still scrolls.
+- A `statusLine` command's output draws when it answers, at times seconds after start (after the screen has held still for over a second): the footer grows by its rows and the transcript moves up under the mouse.
 - With a selection active, ctrl+u can extend the selection instead of clearing the prompt.
 - A reply's bullet is `⏺` on macOS and `●` on Linux.
 

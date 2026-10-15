@@ -76,6 +76,10 @@ export class ClaudeSession {
     // a bearer token goes unasked. Neither reaches anything but the mock.
     if (model.kind === 'mock') Object.assign(env, { ANTHROPIC_BASE_URL: model.url, ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: 'mock' })
     if (Object.keys(env).length > 0) settings.env = env
+    // The person's own status line draws when its command answers, seconds
+    // in at times: the footer grows and the transcript moves under a drag.
+    // One that prints nothing keeps the layout as it starts.
+    settings.statusLine = { type: 'command', command: 'true' }
     if (o.templatePath !== undefined) {
       const options = { templatePath: o.templatePath }
       settings.pluginConfigs = { 'add-to-chat': { options }, 'add-to-chat@inline': { options } }
@@ -296,6 +300,7 @@ export class ClaudeSession {
    * `holdMs` before going on and letting go. Resolves what reads as selected.
    */
   async slowSelect(text: string, holdMs: number): Promise<Selection | null> {
+    await this.waitStill()
     const spot = await this.find(text)
     await this.mouse.drag({ x: spot.x, y: spot.y }, { x: spot.x + spot.width - 1, y: spot.y }, { holdMs })
     await sleep(1_500)
