@@ -28,6 +28,21 @@ test('exchanges: prompts (folded ones too), their context and replies', async ()
   assert.equal((await t.exchange('<annotation'))?.prompt, 'first prompt')
 })
 
+test("an auto-compaction: its summary, written between the prompt and the reply, is no prompt; compactions() says what set each off", async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'atc-transcript-'))
+  const file = join(dir, 's.jsonl')
+  const compacted = [
+    { type: 'user', message: { role: 'user', content: 'the prompt' } },
+    { type: 'system', subtype: 'compact_boundary', compactMetadata: { trigger: 'auto' } },
+    { type: 'user', isCompactSummary: true, message: { role: 'user', content: 'This session is being continued…' } },
+    { type: 'assistant', message: { content: [{ type: 'text', text: 'the reply' }] } },
+  ]
+  await writeFile(file, compacted.map(r => JSON.stringify(r)).join('\n'))
+  const t = new Transcript(file)
+  assert.deepEqual(await t.exchanges(), [{ prompt: 'the prompt', context: [], reply: 'the reply' }])
+  assert.deepEqual(await t.compactions(), ['auto'])
+})
+
 test('annotationsXml reads the default template block, unescaped', () => {
   const prompt = '<annotations>\n<annotation index="1" source="assistant" requestId="r1">\n<excerpt>a &lt;b&gt; &amp; c</excerpt>\n<comment>why?</comment>\n</annotation>\n<annotation index="2" source="tool">\n<excerpt>x</excerpt>\n</annotation>\n</annotations>'
   assert.deepEqual(annotationsXml(prompt), [

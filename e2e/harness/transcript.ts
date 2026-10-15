@@ -9,8 +9,11 @@ type Entry = {
   type: string
   uuid?: string
   isMeta?: boolean
+  isCompactSummary?: boolean
   message?: { role?: string; content?: string | Block[] }
   attachment?: { type: string; content?: unknown; prompt?: string }
+  subtype?: string
+  compactMetadata?: { trigger?: string }
 }
 
 /** Claude Code's folder name for a working directory. */
@@ -55,7 +58,9 @@ export class Transcript {
   async exchanges(): Promise<Exchange[]> {
     const out: Exchange[] = []
     for (const entry of await this.entries()) {
-      const isPrompt = entry.type === 'user' && !entry.isMeta && typeof entry.message?.content === 'string'
+      // A compaction's summary is a user message too; an auto-compaction writes
+      // it between the prompt that set it off and the reply.
+      const isPrompt = entry.type === 'user' && !entry.isMeta && !entry.isCompactSummary && typeof entry.message?.content === 'string'
       if (isPrompt) out.push({ prompt: textOf(entry.message?.content), context: [], reply: '' })
       // A prompt typed mid-turn and folded into it is kept as an attachment.
       if (entry.type === 'attachment' && entry.attachment?.type === 'queued_command' && entry.attachment.prompt !== undefined) {
@@ -70,6 +75,11 @@ export class Transcript {
       if (entry.type === 'assistant') current.reply += textOf(entry.message?.content)
     }
     return out
+  }
+
+  /** What set off each compaction, in order: `manual` (`/compact`) or `auto`. */
+  async compactions(): Promise<string[]> {
+    return (await this.entries()).filter(e => e.type === 'system' && e.subtype === 'compact_boundary').map(e => e.compactMetadata?.trigger ?? '')
   }
 
   /** The exchange whose prompt contains `marker`. */

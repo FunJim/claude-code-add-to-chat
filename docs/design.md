@@ -194,7 +194,7 @@ A rewind (Esc Esc) or a step through the prompt history (↑ ↓, its search or 
 - `/clear` ends the session (`session.end`, reason `clear`) with no new `session.start`; the rows the pending Annotations point at are gone, so the list and the offer are cleared.
 - A reload keeps `$.state` but the pane does not redraw until state changes, so `session.start` clears the offer and the first poll writes it again. The pane itself stays open.
 - A turn in progress: an Annotation added then goes with the queued prompt, which Claude Code folds into the running turn.
-- `/compact` keeps the pending list.
+- A compaction, `/compact` or automatic, keeps the pending list, and the prompts sent before it keep their 📎 row, their place in the pane's history and their Annotations on ↑: the session id stays, the rows stay on screen and `$.session.messages()` still holds those prompts. The prompt that sets off an automatic one has been rewritten by then, so its Annotations go with it; its summary sits between that prompt and the reply, which is still kept with the prompt it answers ([notes](claude-code-notes.md#lifecycle)).
 - `/branch` and `/resume` (as `/clear`) go on under another session id with `$.state` cleared and no `session.start` ([notes](claude-code-notes.md#lifecycle)). The poll reads `$.session.id()`; on a change it reloads `originals` from the store, so sent prompt rows draw what was typed again, and reads the new transcript's prompts for the history.
 
 ## State

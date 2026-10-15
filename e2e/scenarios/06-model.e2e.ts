@@ -5,12 +5,14 @@ import { copyFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe } from 'node:test'
 
-import { SEND_PLACEHOLDER, clipLine } from '../../add-to-chat/hooks/labels.ts'
+import { SEND_PLACEHOLDER, clipButtonLabel, clipLine, historyLabel } from '../../add-to-chat/hooks/labels.ts'
 import type { ClaudeSession } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
 import { FIXTURES_DIR } from '../harness/fixtures.ts'
+import { AUTO_COMPACT_WINDOW, FILL_CONTEXT } from '../harness/mock-model.ts'
 import { assert, scenario } from '../harness/scenario.ts'
 import type { Context } from '../harness/scenario.ts'
+import { textIn, transcriptArea } from '../harness/screen.ts'
 import { annotationsXml } from '../harness/transcript.ts'
 
 const MODEL = 'model'
@@ -37,6 +39,34 @@ async function exchange(claude: ClaudeSession, marker: string) {
     const x = await transcript.exchange(marker)
     return x !== undefined && x.reply.trim() !== '' ? x : undefined
   }, { timeoutMs: 30_000 })
+}
+
+/**
+ * After a compaction, a prompt sent before it with `excerpt` still has its
+ * 📎 row under it and its place in the history (of `sent` such prompts),
+ * and ↑ to it brings its Annotation back; Esc Esc takes it out again.
+ */
+async function keptAcrossCompaction(ctx: Context, claude: ClaudeSession, prompt: string, excerpt: string, sent: number) {
+  await ctx.step('the prompt sent before the compaction keeps its 📎 row and its place in the history')
+  const screen = await claude.screen()
+  const rows = textIn(screen, transcriptArea(screen))
+  const at = rows.findIndex(r => r.startsWith(`❯ ${prompt}`))
+  assert.ok(at >= 0, 'the prompt row, as typed')
+  assert.equal(rows[at + 1]?.trim(), clipButtonLabel(1), 'its 📎 row right under it')
+  await waitFor('the history', () => claude.paneShows(historyLabel(sent)), { timeoutMs: 5_000 })
+  await ctx.evidence('screen after the compaction', screen)
+
+  await ctx.step('↑ to it: what was typed, its Annotation pending again; Esc Esc takes it out')
+  for (let presses = 0; (await claude.draft()) !== prompt; presses += 1) {
+    assert.ok(presses < 6, `"${prompt}" within 6 presses of ↑`)
+    await claude.press('up')
+    await sleep(400)
+  }
+  await waitFor('the Annotation back', async () => (await claude.probe.pending()).map(a => a.text).join() === excerpt, { timeoutMs: 3_000 })
+  await claude.press('escape')
+  await sleep(150)
+  await claude.press('escape')
+  await waitFor('the Annotation gone', async () => (await claude.probe.pending()).length === 0, { timeoutMs: 4_000 })
 }
 
 describe(MODEL, () => {
@@ -142,19 +172,53 @@ describe(MODEL, () => {
     else assert.match(x.reply, /:annotation\{index="1"\}/)
   })
 
-  scenario(MODEL, '/compact keeps the pending Annotations for the next prompt', { drivers: ['herdr'], usesModel: true, timeoutMs: 420_000 }, async ctx => {
+  scenario(MODEL, '/compact: the pending Annotations go with the next prompt; one sent before keeps its 📎 row and its Annotations', { drivers: ['herdr'], usesModel: true, timeoutMs: 420_000 }, async ctx => {
     const claude = await primed(ctx)
+    await claude.add('quick brown fox')
+    const EARLIER = 'MODEL-REQ-6A: what is annotation 1?'
+    await claude.submit(EARLIER)
+    await exchange(claude, 'MODEL-REQ-6A')
+    await claude.waitIdle()
     await claude.add('capital of France')
     await ctx.step('/compact')
     const before = await claude.probe.turnsCompleted()
     await claude.command('/compact')
     await waitFor('the compaction', async () => /Compacted/.test(await claude.screen()) || (await claude.probe.turnsCompleted()) > before, { timeoutMs: 240_000, intervalMs: 1_000 })
     await claude.waitIdle()
+    assert.deepEqual(await (await claude.transcript()).compactions(), ['manual'])
     assert.equal((await claude.probe.pending()).length, 1)
     await claude.submit('MODEL-REQ-6: what city is my annotation about? One word.')
     const x = await exchange(claude, 'MODEL-REQ-6')
     assert.deepEqual(annotationsXml(x.prompt).map(a => a.text), ['capital of France'])
     if (ctx.isRealModel) assert.match(x.reply, /Paris/i)
     else assert.match(x.reply, /:annotation\{index="1"\}/)
+    await claude.waitIdle()
+    await keptAcrossCompaction(ctx, claude, EARLIER, 'quick brown fox', 2)
+  })
+
+  // Only the mock can fill the context cheaply: it reports a reply's input tokens near the window.
+  scenario(MODEL, 'an auto-compaction: the prompt that sets it off goes with its Annotations; one sent before keeps its 📎 row and its Annotations', { drivers: ['herdr'], usesModel: true, models: ['mock'], timeoutMs: 420_000 }, async ctx => {
+    // Short enough not to wrap: the 📎 row is looked for right under it.
+    const FILLING = `MODEL-REQ-7A: ${FILL_CONTEXT} what is annotation 1?`
+    const claude = await primed(ctx, { name: 'auto-compact', env: { CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(AUTO_COMPACT_WINDOW) } })
+    await claude.add('quick brown fox')
+    await ctx.step('a reply that leaves the context nearly full')
+    await claude.submit(FILLING)
+    await exchange(claude, 'MODEL-REQ-7A')
+    await claude.waitIdle()
+    await ctx.step('the next prompt, with an Annotation: Claude Code compacts, then sends it with the Annotation')
+    await claude.add('capital of France')
+    await claude.submit('MODEL-REQ-7: what city is my annotation about? One word.')
+    const x = await exchange(claude, 'MODEL-REQ-7:')
+    assert.deepEqual(await (await claude.transcript()).compactions(), ['auto'])
+    assert.deepEqual(annotationsXml(x.prompt).map(a => a.text), ['capital of France'])
+    assert.match(x.reply, /:annotation\{index="1"\}/)
+    assert.deepEqual(await claude.probe.pending(), [])
+    await claude.waitIdle()
+    await ctx.step('the reply, past the summary, is kept with the prompt: it shows ①, not the directive')
+    await waitFor('the reply row kept', async () => Object.values((await claude.probe.state()).replyCounts).length === 2, { timeoutMs: 5_000 })
+    await sleep(800)
+    assert.equal(await claude.isShowing(':annotation{'), false, 'no directive shows')
+    await keptAcrossCompaction(ctx, claude, FILLING, 'quick brown fox', 2)
   })
 })

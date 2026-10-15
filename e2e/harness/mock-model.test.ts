@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { MockModel, chunks, citing, fileText, replyTo } from './mock-model.ts'
+import { FILL_CONTEXT, FULL_CONTEXT_TOKENS, MockModel, chunks, citing, fileText, inputTokens, replyTo } from './mock-model.ts'
 import type { MessagesRequest } from './mock-model.ts'
 
 // The shapes Claude Code sends: the prompt, then its context as a system message.
@@ -86,6 +86,14 @@ test('side calls: a compaction gets a summary, a title a short one, a prompt sug
   assert.match((compaction[0] as { text: string }).text, /<summary>[\s\S]+<\/summary>/)
   assert.deepEqual(replyTo({ messages: [{ role: 'user', content: '<session>\nRead line.txt\n</session>' }] }), [{ type: 'text', text: 'Mock session' }])
   assert.deepEqual(replyTo(ask('[SUGGESTION MODE: Suggest what the user might naturally type next')), [{ type: 'text', text: '' }])
+})
+
+test(`input tokens: the request's size; near the window after a ${FILL_CONTEXT} prompt, but not for its compaction or a side call`, () => {
+  assert.equal(inputTokens(ask('hi'), 'x'.repeat(400)), 100)
+  assert.equal(inputTokens(ask(`MODEL-REQ-7A: ${FILL_CONTEXT} what is annotation 1?`), 'x'), FULL_CONTEXT_TOKENS)
+  const compaction = ask(`${FILL_CONTEXT}\nYour task is to create a detailed summary of the conversation so far.`)
+  assert.equal(inputTokens(compaction, 'x'.repeat(8)), 2)
+  assert.equal(inputTokens({ messages: [{ role: 'user', content: `<session>\n${FILL_CONTEXT}\n</session>` }] }, 'x'.repeat(8)), 2)
 })
 
 test('helpers: a Read result made plain, Citations, stream pieces', () => {

@@ -42,7 +42,7 @@ No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Ins
   - a drag over a still-moving screen;
   - two presses close enough to count as a double click;
   - a drag ending on a line's last character, which takes the line end too.
-- **The model's part is scripted.** The mock ([ADR 0008](../docs/adr/0008-mock-model-for-e2e.md)) streams the same reply on every run: a Read or Bash call where the prompt asks for one, a file's text as written, a sentence ending in a Citation for each Annotation in the turn, a summary for `/compact`. With `--model haiku`, the reply text to select from still comes from a file the model copies, and assertions on what it wrote are on structure (the Citations) or on a word it must use (`ctx.isRealModel`).
+- **The model's part is scripted.** The mock ([ADR 0008](../docs/adr/0008-mock-model-for-e2e.md)) streams the same reply on every run: a Read or Bash call where the prompt asks for one, a file's text as written, a sentence ending in a Citation for each Annotation in the turn, a summary for a compaction. A prompt holding `FILL-CONTEXT` gets a reply that reports the context nearly full, so a session launched with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (`AUTO_COMPACT_WINDOW`) compacts by itself before the next request; a scenario that needs it runs on the mock alone (`models: ['mock']`). With `--model haiku`, the reply text to select from still comes from a file the model copies, and assertions on what it wrote are on structure (the Citations) or on a word it must use (`ctx.isRealModel`).
 
 ## Layout
 
@@ -78,6 +78,7 @@ scenario('pane', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
 
 - `drivers` says where it runs: tmux runs only the basic scenarios.
 - Set `usesModel: true` when it sends prompts. The mock answers them by what they ask (read a file, run a command in backticks) and the Annotations they carry; assert on what only the real model would write under `if (ctx.isRealModel)`.
+- `models: ['mock']` keeps a scenario off `--model haiku` when only the mock can stage it (an automatic compaction).
 - Select text from inside a line, not at its end.
 - Prefer assertions on the probe's state (`claude.probe.pending()`) and the transcript (`claude.transcript()`) over screen text.
 - Match the pane's words through `add-to-chat/hooks/labels.ts` (`ADD_LABEL`, `clipLine(n)`, …), not literals.

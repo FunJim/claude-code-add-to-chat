@@ -7,6 +7,9 @@
 //     its Citation;
 //   - a compaction: a summary; a title or a prompt suggestion: a short one;
 //   - anything else: "OK."
+// A prompt holding FILL-CONTEXT is answered as if the context were nearly
+// full (`FULL_CONTEXT_TOKENS`), so Claude Code compacts before the next
+// request, in a session whose window is `AUTO_COMPACT_WINDOW`.
 // Whether the model *understands* the template is not tested here: that is
 // `--model haiku`'s part.
 import { appendFile } from 'node:fs/promises'
@@ -60,6 +63,21 @@ export function citing(turn: string): string | undefined {
     .join('\n\n')
 }
 
+/** Launch with this `CLAUDE_CODE_AUTO_COMPACT_WINDOW`: the least Claude Code takes. */
+export const AUTO_COMPACT_WINDOW = 100_000
+export const FILL_CONTEXT = 'FILL-CONTEXT'
+/** Past the window's threshold (13,000 under it), short of its blocking limit (3,000 under). */
+export const FULL_CONTEXT_TOKENS = 90_000
+/** In the instruction of a compaction request, beside the last message. */
+const COMPACTION = 'create a detailed summary of the conversation'
+
+/** The input tokens a reply reports: the request's size, or near the window after a FILL_CONTEXT prompt. */
+export function inputTokens(body: MessagesRequest, raw: string): number {
+  const said = textOf(partsOf((body.messages ?? []).findLast(m => m.role === 'user')))
+  const isTurn = (body.tools?.length ?? 0) > 0 && !said.includes(COMPACTION)
+  return isTurn && said.includes(FILL_CONTEXT) ? FULL_CONTEXT_TOKENS : Math.ceil(raw.length / 4)
+}
+
 let calls = 0
 const callId = () => `toolu_mock_${(calls += 1)}`
 
@@ -80,7 +98,7 @@ export function replyTo(body: MessagesRequest): Block[] {
   const text = (t: string): Block[] => [{ type: 'text', text: t }]
 
   if (said.startsWith('[SUGGESTION MODE')) return text('')
-  if (said.includes('create a detailed summary of the conversation')) {
+  if (said.includes(COMPACTION)) {
     return text('<analysis>A test conversation.</analysis>\n<summary>The user had a file read back and asked about parts of the reply.</summary>')
   }
   if (!body.tools?.length) return text('Mock session')
@@ -157,7 +175,7 @@ export class MockModel {
     const blocks = replyTo(body)
     await appendFile(this.log, `${JSON.stringify({ requestId, headers: loggable(req.headers), request: body, reply: blocks })}\n`)
     const stop = blocks.some(b => b.type === 'tool_use') ? 'tool_use' : 'end_turn'
-    const usage = { input_tokens: Math.ceil(raw.length / 4), output_tokens: 0 }
+    const usage = { input_tokens: inputTokens(body, raw), output_tokens: 0 }
     const message = { id: `msg_mock_${this.requests}`, type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, stop_sequence: null, usage }
     if (!body.stream) return json(200, { ...message, content: blocks, stop_reason: stop })
 

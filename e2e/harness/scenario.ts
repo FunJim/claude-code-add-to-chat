@@ -70,6 +70,8 @@ export type ScenarioMeta = {
   drivers: readonly Driver[]
   /** Whether it sends prompts: to the mock model, or with `--model haiku` to haiku (costs money, varies a little). */
   usesModel?: boolean
+  /** Models it runs against; both when left out. */
+  models?: readonly ModelTarget['kind'][]
   timeoutMs?: number
 }
 
@@ -83,10 +85,14 @@ export function scenario(group: string, title: string, meta: ScenarioMeta, body:
   // when tests run in the runner's own process.
   if (current?.only !== undefined && !current.only.test(group) && !current.only.test(title)) return
   const base = { order, group, title, ms: 0, usesModel: meta.usesModel ?? false }
-  const skip = current !== undefined && !meta.drivers.includes(current.driver)
-  // Listed in the report even when this driver does not run it.
-  if (skip) current!.results.push({ ...base, status: 'skip', evidence: [] })
-  test(title, { skip: skip ? `not on ${current?.driver}` : false, timeout: meta.timeoutMs ?? (meta.usesModel ? 300_000 : 180_000) }, async () => {
+  const skip =
+    current === undefined ? false
+    : !meta.drivers.includes(current.driver) ? `not on ${current.driver}`
+    : meta.models !== undefined && !meta.models.includes(current.model.kind) ? `not with the ${current.model.kind} model`
+    : false
+  // Listed in the report even when this driver or model does not run it.
+  if (skip !== false) current!.results.push({ ...base, status: 'skip', evidence: [] })
+  test(title, { skip, timeout: meta.timeoutMs ?? (meta.usesModel ? 300_000 : 180_000) }, async () => {
     const w = world()
     const started = Date.now()
     const evidenceDir = join(w.runDir, 'evidence', slug(`${group}-${title}`))

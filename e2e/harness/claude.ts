@@ -40,6 +40,8 @@ export type LaunchOptions = {
   templatePath?: string
   /** Where add-to-chat loads from: a copy a scenario may edit; the repository's own when left out. */
   pluginDir?: string
+  /** Variables for Claude Code, through its settings. */
+  env?: Record<string, string>
 }
 
 export class NotOnScreen extends Error {}
@@ -75,6 +77,7 @@ export class ClaudeSession {
     // An API key, even a made-up one, has Claude Code ask whether to use it;
     // a bearer token goes unasked. Neither reaches anything but the mock.
     if (model.kind === 'mock') Object.assign(env, { ANTHROPIC_BASE_URL: model.url, ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: 'mock' })
+    Object.assign(env, o.env)
     if (Object.keys(env).length > 0) settings.env = env
     // The person's own status line draws when its command answers, seconds
     // in at times: the footer grows and the transcript moves under a drag.
