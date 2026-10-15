@@ -34,7 +34,7 @@
 
 ## 环境要求
 
-- Claude Code 2.1.296 或更新版本，需要支持 mods。
+- Claude Code 2.1.300 或更新版本，需要支持 mods。更早的版本无法加载当前版本的 mod，请使用 0.2.1。
 - **fullscreen 模式**：`CLAUDE_CODE_NO_FLICKER=1`。非 fullscreen 时鼠标选区由终端管理，插件读不到（[原因](docs/adr/0001-fullscreen-only-polled-selection.md)）。
 
 ## 安装

@@ -4,7 +4,7 @@ Thanks for helping. Bug reports with a way to reproduce them are as welcome as p
 
 ## Setting up
 
-You need Claude Code (≥ 2.1.296, with mods) and Node ≥ 23.6, which runs the TypeScript as is. For the end-to-end suite, also tmux, and [Herdr](https://herdr.dev) for the full run.
+You need Claude Code (≥ 2.1.300, with mods) and Node ≥ 23.6, which runs the TypeScript as is. For the end-to-end suite, also tmux, and [Herdr](https://herdr.dev) for the full run.
 
 ```sh
 git clone https://github.com/FunJim/claude-code-add-to-chat

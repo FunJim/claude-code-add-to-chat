@@ -10,7 +10,7 @@ permissions:
 
 env:
   # The mod API is early access: pin the build the tests were written against.
-  CLAUDE_CODE_VERSION: 2.1.296
+  CLAUDE_CODE_VERSION: 2.1.300
 
 jobs:
   check:

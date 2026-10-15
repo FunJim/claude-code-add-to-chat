@@ -6,7 +6,7 @@ The model is Codex's "Add to chat": select text → a floating "Add to chat" but
 
 ## Requirements
 
-- Claude Code with function-hook mods (built against 2.1.296).
+- Claude Code with function-hook mods, 2.1.300 or later: the mod hooks `prompt.change`, which earlier versions do not have ([ADR 0009](adr/0009-require-claude-code-2-1-300.md)).
 - Fullscreen mode (`CLAUDE_CODE_NO_FLICKER=1`). Only there can a mod read the mouse selection: [ADR 0001](adr/0001-fullscreen-only-polled-selection.md).
 
 ## Collecting an Annotation

@@ -37,7 +37,7 @@ Sent, the prompt row shows what you typed; Claude's reply cites each annotation:
 
 ## Requirements
 
-- Claude Code 2.1.296 or later, with mods.
+- Claude Code 2.1.300 or later, with mods. Earlier versions do not load this version of the mod; on them, use 0.2.1.
 - **Fullscreen mode**: `CLAUDE_CODE_NO_FLICKER=1`. Outside it the terminal owns the mouse selection and no mod can read it ([why](docs/adr/0001-fullscreen-only-polled-selection.md)).
 
 ## Install

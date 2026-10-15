@@ -10,6 +10,7 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ### Changed
 
+- Requires Claude Code 2.1.300 or later: the mod hooks `prompt.change`, which earlier versions do not have, and they do not load it. On them, stay on 0.2.1.
 - The default template sends the annotations as XML, each with its index, before short instructions and your request in `<request>`; it no longer tells Claude to "treat items as Annotation 1, Annotation 2", which drew labels like `**Annotation 1**` into replies. The new `{{annotations_xml}}` gives custom templates the same escaped elements; `{{annotations_json}}` stays.
 - A Citation whose number names no annotation of the prompt the reply answers (0, or past their count) stays as written instead of being drawn as a number.
 - The offer's `✕ ignore` is now just `✕`: it dismisses this offer, nothing more; select the text again and it is offered. `/add-to-chat` adds a selection whose offer was dismissed too.

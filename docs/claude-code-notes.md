@@ -1,6 +1,6 @@
 # Claude Code behaviours add-to-chat relies on
 
-Measured on Claude Code 2.1.296 (October 2026). The mod API is early access; after an update, re-run the end-to-end suite (`npm run e2e`), which exercises most of these. Each note says where the design depends on it.
+Measured on Claude Code 2.1.296, and on 2.1.300 where a note says so (October 2026). The mod API is early access; after an update, re-run the end-to-end suite (`npm run e2e`), which exercises most of these. Each note says where the design depends on it.
 
 How they were measured: a record-only probe mod (now [`e2e/probe/`](../e2e/probe/)) loaded beside add-to-chat in a fullscreen session in tmux or Herdr, with SGR mouse sequences written to the pane to drag-select (now [`e2e/harness/mouse.ts`](../e2e/harness/mouse.ts)). The probe logs the selection, every row's component, `requestId` and props, prompts and turns; what the model was sent is read from the session's JSONL transcript.
 
@@ -70,6 +70,7 @@ Rows by type (adding from each, with Source and mark):
 ## Lifecycle
 
 - A reload fires `session.start` again and drops the previous load's timers; `$.state` stays, but the band does not redraw until state changes.
+- `prompt.change` is an event from 2.1.300. An engine refuses, as a whole, a hooks module that hooks an event it does not know; a plugin has one hooks module, and `on()` takes the event as a string literal: a mod hooking it does not load on 2.1.296.
 - A reload follows the module's text. From 2.1.300 a change of a file's time alone (a `touch`) reloads nothing; 2.1.296 reloaded on it.
 - `/clear` raises `session.end` with reason `clear`, and no `session.start` follows.
 - A new process starts with empty `$.state`; `$.store` persists.
