@@ -12,6 +12,7 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 - The default template sends the annotations as XML, each with its index, before short instructions and your request in `<request>`; it no longer tells Claude to "treat items as Annotation 1, Annotation 2", which drew labels like `**Annotation 1**` into replies. The new `{{annotations_xml}}` gives custom templates the same escaped elements; `{{annotations_json}}` stays.
 - A Citation whose number names no annotation of the prompt the reply answers (0, or past their count) stays as written instead of being drawn as a number.
+- When a selection is not offered, the pane's first row says why: `"…" added as ①` when it is already pending, `"…" ignored · /add-to-chat adds it` after ✕ ignore. `/add-to-chat` now adds an ignored selection after all.
 - The pending count sits under the prompt, instead of in the status line, as a toggle of the pane: `📎 N annotations · hide pane`, or `· show pane` while it is hidden.
 
 ### Fixed

@@ -18,6 +18,15 @@ export type Annotation = {
 /** A selection the band offers to add. */
 export type Candidate = { text: string; requestId?: string }
 
+/** The selection last added or ignored: its `selectionKey`, and how. */
+export type Handled = { key: string; isIgnored: boolean }
+
+/**
+ * Why the pane's first row offers nothing for the selection reported: its
+ * Excerpt is pending (`added`, as Annotation `index`), or was ignored.
+ */
+export type SelectionNote = { kind: 'added'; text: string; index: number } | { kind: 'ignored'; text: string }
+
 /**
  * What a rewritten prompt row draws instead of the rendered template, the
  * Annotations it was sent with (absent for a prompt sent before 0.3.0), and
@@ -42,7 +51,9 @@ declare module 'claude-code' {
       pending: Annotation[]
       candidate: Candidate | null
       /** `selectionKey` of the selection last added or ignored; outlives a submit. */
-      handled: string | null
+      handled: Handled | null
+      /** What the pane's first row says when the selection reported is not offered, or null. */
+      selectionNote: SelectionNote | null
       /** Whether the pane is open, as the poll last saw `$.ui.panes()`. */
       isPaneOpen: boolean
       /** Whether the pane is drawn (open and placed), as the poll last saw: while not, the line under the prompt counts the Annotations. */

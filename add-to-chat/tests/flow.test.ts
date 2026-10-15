@@ -293,6 +293,40 @@ describe('the pane', () => {
     expect(await tabsOf(pane)).toBe(1)
   })
 
+  test('the first row says why a selection is not offered: added as ①, or ignored and how to add it after all', async ($, on) => {
+    const w = await start($, on)
+    const pane = await mountPane($)
+    // With nothing offered, the first row is a lone Text, the pane's first.
+    const firstRow = async () => (await pane.findAll({ type: 'Text' }))[0]?.text ?? ''
+    w.selection = { text: 'npm test', requestId: 'r1' }
+    await tick(w)
+    await pane.press({ key: 'add' })
+    await tick(w)
+    expect(await firstRow()).toBe('“npm test” added as ①')
+    w.selection = { text: 'not this', requestId: 'r1' }
+    await tick(w)
+    await pane.press({ key: 'ignore' })
+    await tick(w)
+    expect(await firstRow()).toBe('“not this” ignored · /add-to-chat adds it')
+    w.selection = undefined
+    await tick(w)
+    expect(await firstRow()).toContain('Select text in the transcript')
+  })
+
+  test('/add-to-chat adds an ignored selection after all; one pending it still does not add twice', async ($, on) => {
+    const w = await start($, on)
+    const pane = await mountPane($)
+    w.selection = { text: 'not this', requestId: 'r1' }
+    await tick(w)
+    await pane.press({ key: 'ignore' })
+    await runCommand($, w)
+    expect(w.toasts.at(-1)).toBe('Added ①: a Comment can go with it in the pane')
+    expect(await tabsOf(pane)).toBe(1)
+    await runCommand($, w)
+    expect(w.toasts.at(-1)).toMatch(/already added/)
+    expect(await tabsOf(pane)).toBe(1)
+  })
+
   test('closing a tab leaves an ignored selection ignored', async ($, on) => {
     const w = await start($, on)
     await addText($, w, 'one', 'r1')

@@ -13,7 +13,7 @@
 // change on clicks only.
 import type { BoxProps, ButtonProps, ElementConstructor, InputProps, RenderElement, TextProps } from 'claude-code'
 
-import type { Annotation, Candidate, PaneMode } from '../types'
+import type { Annotation, Candidate, PaneMode, SelectionNote } from '../types'
 import type { SentPrompt } from './history'
 import {
   ADD_LABEL,
@@ -24,6 +24,7 @@ import {
   HISTORY_EMPTY,
   HISTORY_TITLE,
   IDLE_HINT,
+  IGNORED_NOTE,
   IGNORE_LABEL,
   JUMP_LABEL,
   MAX_TAB_HOTKEY,
@@ -35,6 +36,7 @@ import {
   SENT_HINT,
   SENT_TITLE,
   SOURCE_HINT,
+  addedNote,
   circled,
   clipLine,
   historyLabel,
@@ -58,6 +60,8 @@ export type PaneElements = {
 
 export type PaneValues = {
   offer: Candidate | null
+  /** Why the selection reported is not offered, when the row says so. */
+  note: SelectionNote | null
   pending: readonly Annotation[]
   /** The index of the Annotation whose tab is open. */
   tab: number
@@ -204,9 +208,11 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
   )
 
   // The offer, cut to one row: the button, the preview, and the ✕ (just
-  // the mark where room is short).
+  // the mark where room is short). With none, why the selection is not
+  // offered (added, ignored), or the hint.
   const ignore = v.columns >= 40 ? IGNORE_LABEL : CLOSE_TAB
   const room = v.columns - (width(ADD_LABEL) + 4) - width(ignore) - 4
+  const noteWords = v.note === null ? '' : v.note.kind === 'added' ? addedNote(v.note.index) : IGNORED_NOTE
   const offer =
     v.offer !== null ? (
       <Box key="offer" gap={1}>
@@ -218,6 +224,10 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
           <Text dimColor>{ignore}</Text>
         </Button>
       </Box>
+    ) : v.note !== null ? (
+      <Text key="offer" dimColor wrap="truncate">
+        “{preview(v.note.text, Math.max(8, v.columns - width(noteWords) - 4))}” {noteWords}
+      </Text>
     ) : (
       <Text key="offer" dimColor wrap="truncate">
         {v.isFullscreen ? IDLE_HINT : NEEDS_FULLSCREEN_HINT}

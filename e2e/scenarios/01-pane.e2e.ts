@@ -3,7 +3,7 @@
 // pane itself, and the count under the prompt that shows or hides it.
 import { describe } from 'node:test'
 
-import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, IGNORE_LABEL, PANE_EMPTY, SAVE_LABEL, addedToast, hintLabel } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, IGNORED_NOTE, IGNORE_LABEL, PANE_EMPTY, SAVE_LABEL, addedNote, addedToast, hintLabel } from '../../add-to-chat/hooks/labels.ts'
 import { framed } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
 import { locate, paneArea } from '../harness/screen.ts'
@@ -19,7 +19,7 @@ describe(PANE, () => {
     await ctx.evidence('screen', await claude.screen())
   })
 
-  scenario(PANE, 'selecting text offers it in the first row; ✕ ignore takes the offer away', { drivers: ['herdr', 'tmux'] }, async ctx => {
+  scenario(PANE, 'selecting text offers it in the first row; ✕ ignore takes the offer away and says /add-to-chat adds it after all', { drivers: ['herdr', 'tmux'] }, async ctx => {
     const claude = await ctx.launchFixture()
     const before = await claude.pane()
     await ctx.step('select a phrase in the report')
@@ -33,6 +33,11 @@ describe(PANE, () => {
     await claude.clickInPane(IGNORE_LABEL, { dx: 0 })
     assert.equal(await claude.offers(), false)
     assert.deepEqual(await claude.probe.pending(), [])
+    await waitFor('the first row to say so', () => claude.paneShows(`“Ran the” ${IGNORED_NOTE}`), { timeoutMs: 3_000 })
+    await ctx.step('/add-to-chat adds it after all')
+    await claude.command('/add-to-chat')
+    await waitFor('the Annotation', async () => (await claude.probe.pending()).length === 1, { timeoutMs: 3_000 })
+    assert.equal((await claude.toasts()).at(-1), addedToast(1))
   })
 
   scenario(PANE, 'Add to chat makes a tab; its whole Excerpt and its Comment show there', { drivers: ['herdr', 'tmux'] }, async ctx => {
@@ -75,6 +80,7 @@ describe(PANE, () => {
   scenario(PANE, 'an Annotation removed can be added again from the same selection', { drivers: ['herdr', 'tmux'] }, async ctx => {
     const claude = await ctx.launchFixture()
     await claude.add('so reading it failed')
+    await waitFor('the first row to say it is added', () => claude.paneShows(`“so reading it failed” ${addedNote(1)}`), { timeoutMs: 3_000 })
     await ctx.step(`close its tab: the selection it came from is offered again`)
     await claude.remove(1)
     await waitFor('the offer', () => claude.paneShows(ADD_LABEL), { timeoutMs: 5_000 })

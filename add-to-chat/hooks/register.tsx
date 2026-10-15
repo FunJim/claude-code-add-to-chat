@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register, SessionMessage, UiPane } from 'claude-code'
 
-import type { Annotation, AnnotationSource, Candidate, Original, PaneMode } from '../types'
+import type { Annotation, AnnotationSource, Candidate, Original, PaneMode, SelectionNote } from '../types'
 import { appended, restored, withComment, withComments, without, withoutAll } from './annotations'
 import { hashText } from './hash'
 import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies, withReplies } from './history'
@@ -13,7 +13,7 @@ import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView, tabAfterRemo
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
 import { originalText, promptText, replyText } from './rows'
-import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, rowSource, selectionKey } from './selection'
+import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, noteOf, rowSource, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
 import { annotated, withOriginal } from './send'
 import { DEFAULT_TEMPLATE } from './template'
@@ -21,6 +21,7 @@ import { DEFAULT_TEMPLATE } from './template'
 const pending = atom({ plugin: 'add-to-chat', key: 'pending' } as const, [])
 const candidate = atom({ plugin: 'add-to-chat', key: 'candidate' } as const, null)
 const handled = atom({ plugin: 'add-to-chat', key: 'handled' } as const, null)
+const selectionNote = atom({ plugin: 'add-to-chat', key: 'selectionNote' } as const, null)
 const isPaneOpen = atom({ plugin: 'add-to-chat', key: 'isPaneOpen' } as const, false)
 const isPaneDrawn = atom({ plugin: 'add-to-chat', key: 'isPaneDrawn' } as const, false)
 const isPaneDismissed = atom({ plugin: 'add-to-chat', key: 'isPaneDismissed' } as const, false)
@@ -147,7 +148,7 @@ async function surroundings($: EngineInterface): Promise<Surroundings> {
 }
 
 /** What the poll last wrote, so it writes state only on a change. */
-type PollWatch = { isDraftEmpty?: boolean; isPaneOpen?: boolean; isPaneDrawn?: boolean; sessionId?: string }
+type PollWatch = { isDraftEmpty?: boolean; isPaneOpen?: boolean; isPaneDrawn?: boolean; sessionId?: string; note?: string }
 
 function offerKey(offer: Candidate | null): string | null {
   return offer === null ? null : selectionKey(offer)
@@ -190,28 +191,42 @@ async function poll($: EngineInterface, watch: PollWatch) {
   // end), the same text selected again is a new selection. Cleared only if
   // unchanged since read: an ignore landing meanwhile stays.
   let decide = around
-  if (around.handled !== null && (selection === undefined || selectionKey(selection) !== around.handled)) {
-    await update($, handled, now => (now === around.handled ? null : now))
+  const was = around.handled
+  if (was !== null && (selection === undefined || selectionKey(selection) !== was.key)) {
+    await update($, handled, now => (now?.key === was.key ? null : now))
     decide = { ...around, handled: null }
   }
 
-  // The pane previews the Excerpt as it will be kept, marks and 📎 gone.
+  // The pane previews the Excerpt as it will be kept, marks and 📎 gone;
+  // or says why it offers nothing.
   const verdict = judge(selection, decide)
-  const offer = 'excerpt' in verdict ? verdict.excerpt : null
+  const offer = 'key' in verdict ? verdict.excerpt : null
   if (offerKey(offer) !== offerKey(offered)) await update($, candidate, () => offer)
+  const note = noteOf(verdict)
+  const noteKey = JSON.stringify(note)
+  if (watch.note !== noteKey) {
+    watch.note = noteKey
+    await update($, selectionNote, () => note)
+  }
 }
 
 /** Done with a selection: it is not offered again until another is made. */
-async function markHandled($: EngineInterface, key: string | undefined) {
+async function markHandled($: EngineInterface, key: string | undefined, isIgnored: boolean) {
   // `handled` before the offer goes: a poll that reads the offer gone then
   // reads the selection handled, and does not offer it again.
-  if (key !== undefined) await update($, handled, () => key)
+  if (key !== undefined) await update($, handled, () => ({ key, isIgnored }))
   await update($, candidate, () => null)
 }
 
-async function addSelection($: EngineInterface): Promise<{ annotation: Annotation } | Exclude<Verdict, { excerpt: unknown }>> {
-  const verdict = judge(await $.ui.selection(), await surroundings($))
-  if (!('excerpt' in verdict)) return verdict
+/**
+ * Adds the selection as an Annotation, if it can be. `isAsked` (from
+ * /add-to-chat) adds a selection last added or ignored too: the command is
+ * the person asking for it; one pending is still not added twice.
+ */
+async function addSelection($: EngineInterface, isAsked = false): Promise<{ annotation: Annotation } | Exclude<Verdict, { key: string }>> {
+  const around = await surroundings($)
+  const verdict = judge(await $.ui.selection(), isAsked ? { ...around, handled: null } : around)
+  if (!('key' in verdict)) return verdict
 
   const { excerpt } = verdict
   const source = (excerpt.requestId !== undefined && roles.get(excerpt.requestId)) || 'transcript'
@@ -220,13 +235,13 @@ async function addSelection($: EngineInterface): Promise<{ annotation: Annotatio
   const list = await update($, pending, now => appended(now, excerpt, source))
   const annotation = list.at(-1)!
   // The new tab shows, whatever the pane was showing.
-  await Promise.all([markHandled($, verdict.key), update($, paneTab, () => annotation.index), update($, paneMode, () => ({ kind: 'pending' }) as const)])
+  await Promise.all([markHandled($, verdict.key, false), update($, paneTab, () => annotation.index), update($, paneMode, () => ({ kind: 'pending' }) as const)])
   return { annotation }
 }
 
 async function ignoreSelection($: EngineInterface) {
   const selection = await $.ui.selection()
-  await markHandled($, selection === undefined ? undefined : selectionKey(selection))
+  await markHandled($, selection === undefined ? undefined : selectionKey(selection), true)
 }
 
 /** Whether the pane is drawn now: open, and placed by the surface. */
@@ -241,8 +256,8 @@ async function removeAnnotation($: EngineInterface, index: number) {
   await Promise.all([update($, pending, now => without(now, index)), update($, paneTab, at => tabAfterRemoving(at, index))])
   // The selection it came from, still reported, can be added again: offered
   // once more, as the engine reports it until another is made.
-  if (removed !== undefined && key !== null && selection !== undefined && selectionKey(selection) === key && isSelectionOf(selection, removed)) {
-    await update($, handled, now => (now === key ? null : now))
+  if (removed !== undefined && key !== null && selection !== undefined && selectionKey(selection) === key.key && isSelectionOf(selection, removed)) {
+    await update($, handled, now => (now?.key === key.key ? null : now))
   }
 }
 
@@ -411,9 +426,9 @@ export const register: Register = (on, options) => {
       return {}
     }
     await openPane($)
-    const added = await addSelection($)
+    const added = await addSelection($, true)
     if ('annotation' in added) $.ui.toast(addedToast(added.annotation.index))
-    else if (added.reason === 'already') $.ui.toast(ALREADY_ADDED)
+    else if (added.reason === 'pending') $.ui.toast(ALREADY_ADDED)
     return {}
   })
 
@@ -549,8 +564,9 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e, next) => {
     // Mobile has no text field to edit a Comment in.
     if (e.surface === 'mobile') return next(e)
-    const [offer, list, tab, saves, isEmpty, mode, map, inSession] = await Promise.all([
+    const [offer, note, list, tab, saves, isEmpty, mode, map, inSession] = await Promise.all([
       read($, candidate),
+      read($, selectionNote),
       read($, pending),
       read($, paneTab),
       read($, commentSaves),
@@ -564,6 +580,7 @@ export const register: Register = (on, options) => {
       $.ui.resolve(e),
       {
         offer,
+        note,
         pending: list,
         tab,
         commentSaves: saves,
