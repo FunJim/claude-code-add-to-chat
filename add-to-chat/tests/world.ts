@@ -2,7 +2,7 @@
 // toasts and the engine's end of a submit.
 import { mock } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On, PromptSubmitInput, RenderElement } from 'claude-code'
+import type { On, PromptChangeInput, PromptSubmitInput, RenderElement } from 'claude-code'
 
 export type World = {
   selection?: { text: string; requestId?: string }
@@ -84,6 +84,7 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     w.toasts.push(e.text)
     return { value: undefined }
   })
+  on('prompt.change', ($, e) => ({ text: e.text }))
   on('prompt.fill', ($, e) => {
     w.fills.push(e.text)
     w.draft = e.text
@@ -121,6 +122,14 @@ export function drawBand($: Engine, isFullscreen = true) {
 export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, columns = 60) {
   const props = { title: 'Add to chat', isFocused: false, bodyColumns: columns, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 30 }, view: {} }
   return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'Pane', requestId: 'add-to-chat', props, viewport: { columns: 160, rows: 40, isFullscreen: true } })
+}
+
+/** The prompt box changed by no edit, as Claude Code raises it: a step through the prompt history, or `engine` (a rewind putting a prompt back). */
+export function changeBox($: Engine, w: World, text: string, origin: 'history' | 'engine') {
+  w.draft = text
+  // Raised by the engine alone, so not among the calls the kit types on `$`.
+  const prompt = $.prompt as unknown as { change: (e: PromptChangeInput) => Promise<unknown> }
+  return prompt.change({ text, cursor: text.length, origin: { kind: origin } })
 }
 
 /** Mounts the hint line under the prompt, an empty draft and no turn running. */

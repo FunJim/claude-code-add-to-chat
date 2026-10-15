@@ -27,6 +27,31 @@ export function sentPrompts(originals: Record<string, Original>, inSession: read
     .reverse()
 }
 
+/** A sent prompt with Annotations that a text in the prompt box is. */
+export type InBox = {
+  hash: string
+  original: Original & { annotations: Annotation[] }
+  /** Whether it was sent in this conversation (`inSession`). */
+  isHere: boolean
+}
+
+/**
+ * The sent prompt with Annotations that `text` is: its rewritten text, as a
+ * rewind or the prompt history first gives it back, or what was typed for
+ * one of this conversation's, as the history gives it back once the mod
+ * filled that in. The newest of several.
+ */
+export function sentInBox(text: string, originals: Record<string, Original>, inSession: readonly string[]): InBox | undefined {
+  const withAnnotations = (hash: string): InBox | undefined => {
+    const o = originals[hash]
+    return o?.annotations !== undefined && o.annotations.length > 0 ? { hash, original: { ...o, annotations: o.annotations }, isHere: inSession.includes(hash) } : undefined
+  }
+  const rewritten = withAnnotations(hashText(text))
+  if (rewritten !== undefined) return rewritten
+  const typed = [...inSession].reverse().find(hash => originals[hash]?.text === text)
+  return typed === undefined ? undefined : withAnnotations(typed)
+}
+
 /** Each reply row known to answer a prompt in `inSession` → that prompt's Annotation count. */
 export function replyCountsOf(originals: Record<string, Original>, inSession: readonly string[]): Record<string, number> {
   const counts: Record<string, number> = {}

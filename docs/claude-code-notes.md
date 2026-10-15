@@ -70,6 +70,7 @@ Rows by type (adding from each, with Source and mark):
 ## Lifecycle
 
 - A reload fires `session.start` again and drops the previous load's timers; `$.state` stays, but the band does not redraw until state changes.
+- A reload follows the module's text. From 2.1.300 a change of a file's time alone (a `touch`) reloads nothing; 2.1.296 reloaded on it.
 - `/clear` raises `session.end` with reason `clear`, and no `session.start` follows.
 - A new process starts with empty `$.state`; `$.store` persists.
 - A resumed session draws its rows before `session.start`.
@@ -90,7 +91,9 @@ Rows by type (adding from each, with Source and mark):
 - Claude cannot write the tag `<cite …>`: it comes out as `(cite …`.
 - `PromptHint` (the line under the prompt) takes a tree too: `next(e)` wrapped with a `Button` beneath keeps Claude Code's hint as drawn, and a click on the Button raises its press.
 - An `Input` is emptied on Enter. It keeps its text by its key and fills from `value` again only when `value` changes; a parent remounted under a new key does not reset it, a new key on the `Input` does. `onInput` gets every edit, and the emptying on Enter raises none.
-- A rewind (Esc Esc, a prompt, "Restore conversation") and ↑ through the prompt history fill the prompt box with the prompt as it was sent (after a `prompt.submit` rewrite, the rewritten text), raising no `prompt.fill`. The rewind keeps the session id and the rows' requestIds.
+- A rewind (Esc Esc, a prompt, "Restore conversation") and ↑ through the prompt history fill the prompt box with the prompt as it was sent (after a `prompt.submit` rewrite, the rewritten text). Neither raises `prompt.fill`; both raise `prompt.change`, origin `engine` for the rewind and `history` for every step through the history (↑ ↓, stepping back out to the draft, `text` `''` for an empty one). A `$.prompt.fill` raises it with origin `plugin`. The rewind keeps the session id and the rows' requestIds.
+- The prompt history keeps an entry as last filled: after a plugin's fill over a recalled entry, stepping back to it gives the filled text. It holds the project's prompts from every session.
+- While the box shows a history entry, the rule above it is labelled: `─── History 1/3 ───…`.
 
 ## Driving a terminal (for the test harness)
 

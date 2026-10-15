@@ -38,6 +38,8 @@ export type LaunchOptions = {
   fullscreen?: boolean
   /** add-to-chat's `templatePath` option. */
   templatePath?: string
+  /** Where add-to-chat loads from: a copy a scenario may edit; the repository's own when left out. */
+  pluginDir?: string
 }
 
 export class NotOnScreen extends Error {}
@@ -83,7 +85,7 @@ export class ClaudeSession {
       '--model',
       REAL_MODEL,
       '--plugin-dir',
-      PLUGIN_DIR,
+      o.pluginDir ?? PLUGIN_DIR,
       '--plugin-dir',
       PROBE_DIR,
       ...(o.resume === undefined ? [] : ['--resume', o.resume]),

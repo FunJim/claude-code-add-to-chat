@@ -1,5 +1,5 @@
 // A session's life: hot reload, /clear, the main screen, ctrl+o.
-import { utimes } from 'node:fs/promises'
+import { appendFile, cp } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe } from 'node:test'
 
@@ -14,11 +14,14 @@ const LIFE = 'lifecycle'
 
 describe(LIFE, () => {
   scenario(LIFE, 'a hot reload keeps the Annotations and the pane', { drivers: ['herdr'] }, async ctx => {
-    const claude = await ctx.launchFixture()
+    // A copy of the mod, so the edit below never touches the repository's.
+    const copy = join(await ctx.sandbox(), 'add-to-chat')
+    await cp(PLUGIN_DIR, copy, { recursive: true })
+    const claude = await ctx.launchFixture({ pluginDir: copy })
     await claude.add('so reading it failed')
-    await ctx.step('touch the hooks module: the session reloads add-to-chat')
-    const now = new Date()
-    await utimes(join(PLUGIN_DIR, 'hooks', 'register.tsx'), now, now)
+    // A touch that changes only the file's time reloads nothing: the text must change.
+    await ctx.step('edit the hooks module: the session reloads add-to-chat')
+    await appendFile(join(copy, 'hooks', 'register.tsx'), '// edited by the hot reload scenario\n')
     await waitFor('the reload notice', async () => /add-to-chat: reloaded/.test(await claude.screen()), { timeoutMs: 20_000 })
     await waitFor('the pane with its tab', () => claude.paneShows(framed('so reading it failed')), { timeoutMs: 10_000 })
     await claude.comment(1, 'after reload')

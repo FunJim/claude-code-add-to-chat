@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { locate, paneArea, textIn, transcriptArea } from './screen.ts'
+import { isRule, locate, paneArea, textIn, transcriptArea } from './screen.ts'
 
 test('locate counts wide characters as two cells', () => {
   const screen = 'first row\n  混合中文 and emoji 🚀 with snake_case'
@@ -47,4 +47,11 @@ test('no pane: the transcript is everything above the prompt box', () => {
   const screen = ['a', 'b', RULE, '❯', RULE].join('\n')
   assert.equal(paneArea(screen), undefined)
   assert.deepEqual(transcriptArea(screen), { top: 1, bottom: 2, left: 1, right: 40 })
+})
+
+test('a rule: plain, or labelled while browsing the prompt history; not a frame or a text line', () => {
+  assert.ok(isRule('─'.repeat(40)))
+  assert.ok(isRule(`─── History 1/3 ${'─'.repeat(40)}`))
+  assert.ok(!isRule(`╭${'─'.repeat(40)}╮`))
+  assert.ok(!isRule('── a heading drawn in text ──'))
 })

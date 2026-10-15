@@ -82,6 +82,11 @@ export function clipButtonLabel(count: number): string {
   return `${clipLine(count)} ↗`
 }
 
+/** The count under the prompt, a toggle: it shows the pane, or hides the pane drawn. */
+export function hintLabel(count: number, isPaneDrawn: boolean): string {
+  return `${clipLine(count)} · ${isPaneDrawn ? 'hide' : 'show'} pane`
+}
+
 /** Whether a line is a `📎 N annotations` line (or its button), or any head of one. */
 export function isClipLineHead(line: string): boolean {
   const head = line.trim().replace(/\s*↗$/u, '')

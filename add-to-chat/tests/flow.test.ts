@@ -4,7 +4,7 @@ import type { Engine } from 'claude-code/testing'
 import { hashText } from '../hooks/hash'
 import { NOT_DRAWN } from '../hooks/labels'
 import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
-import { XML_TEMPLATE, addText, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
+import { XML_TEMPLATE, addText, changeBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
@@ -146,20 +146,22 @@ describe('the pane', () => {
   })
 
   for (const surface of SURFACES) {
-    test(`while the pane is not drawn, the line under the prompt counts the Annotations; a click opens it (${surface})`, async ($, on) => {
+    test(`while Annotations are pending, the line under the prompt counts them and shows or hides the pane (${surface})`, async ($, on) => {
       const w = await start($, on)
       await addText($, w, 'one', 'r1')
       await addText($, w, 'two', 'r1')
       await tick(w)
       const hint = await mountHint($, surface)
-      expect(await hint.find({ key: 'hint-clip' })).toBeUndefined()
-      w.panes.delete('add-to-chat')
-      await tick(w)
-      expect((await hint.find({ key: 'hint-clip' }))?.text).toBe('📎 2 annotations ↗')
+      expect((await hint.find({ key: 'hint-clip' }))?.text).toBe('📎 2 annotations · hide pane')
+      await hint.press({ key: 'hint-clip' })
+      expect(w.panes.has('add-to-chat')).toBe(false)
+      expect((await hint.find({ key: 'hint-clip' }))?.text).toBe('📎 2 annotations · show pane')
+      // Hidden from here, it stays hidden: the band does not open it again.
+      await drawBand($)
+      expect(w.panes.has('add-to-chat')).toBe(false)
       await hint.press({ key: 'hint-clip' })
       expect(w.panes.has('add-to-chat')).toBe(true)
-      await tick(w)
-      expect(await hint.find({ key: 'hint-clip' })).toBeUndefined()
+      expect((await hint.find({ key: 'hint-clip' }))?.text).toBe('📎 2 annotations · hide pane')
       await hint.unmount()
     })
   }
@@ -541,12 +543,11 @@ async function sendOne($: Engine, w: Awaited<ReturnType<typeof start>>, request 
 }
 
 describe('sent prompts', () => {
-  test('a prompt sent with Annotations, back in the box (a rewind, ↑): what was typed, its Annotations pending again', async ($, on) => {
+  test('a rewind puts a prompt sent with Annotations back: what was typed, its Annotations pending again', async ($, on) => {
     const w = await start($, on)
     const sent = await sendOne($, w, 'explain this')
     await addText($, w, 'already pending', 'r2')
-    w.draft = sent
-    await tick(w)
+    await changeBox($, w, sent, 'engine')
     expect(w.fills.at(-1)).toBe('explain this')
     expect(w.draft).toBe('explain this')
     const pane = await mountPane($)
@@ -555,16 +556,45 @@ describe('sent prompts', () => {
     expect((await commentField(pane)).value).toBe('why?')
     await pane.unmount()
     // Once more, and the Annotation already back is not added twice.
-    w.draft = sent
-    await tick(w)
+    await changeBox($, w, sent, 'engine')
     expect(await tabCount($)).toBe(2)
+  })
+
+  test('↑ to a prompt sent with Annotations brings them back; the next step through the history takes them out, a step back to it brings them again', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w, 'explain this')
+    await submit($, 'a later prompt')
+    await addText($, w, 'added meanwhile', 'r2')
+    await changeBox($, w, sent, 'history')
+    expect(w.draft).toBe('explain this')
+    expect(await tabCount($)).toBe(2)
+    await changeBox($, w, 'a later prompt', 'history')
+    expect(await tabCount($)).toBe(1)
+    expect(await paneText($)).toContain('added meanwhile')
+    // The history keeps the entry as the mod filled it: what was typed.
+    await changeBox($, w, 'explain this', 'history')
+    expect(await tabCount($)).toBe(2)
+    await changeBox($, w, '', 'history')
+    expect(await tabCount($)).toBe(1)
+  })
+
+  test("↑ to another conversation's prompt gives back what was typed, and not its Annotations, whose rows this transcript does not hold", async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w, 'explain this')
+    await tick(w)
+    // A new conversation: its transcript holds none of it.
+    w.sessionId = 's2'
+    w.messages = []
+    await tick(w)
+    await changeBox($, w, sent, 'history')
+    expect(w.draft).toBe('explain this')
+    expect(await tabCount($)).toBe(0)
   })
 
   test('a prompt typed as it was sent before, without Annotations, is left alone', async ($, on) => {
     const w = await start($, on)
     await submit($, 'plain')
-    w.draft = 'plain'
-    await tick(w)
+    await changeBox($, w, 'plain', 'history')
     expect(w.fills).toEqual([])
     expect(await tabCount($)).toBe(0)
   })

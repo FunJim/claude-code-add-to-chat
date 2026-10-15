@@ -12,14 +12,14 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 - The default template sends the annotations as XML, each with its index, before short instructions and your request in `<request>`; it no longer tells Claude to "treat items as Annotation 1, Annotation 2", which drew labels like `**Annotation 1**` into replies. The new `{{annotations_xml}}` gives custom templates the same escaped elements; `{{annotations_json}}` stays.
 - A Citation whose number names no annotation of the prompt the reply answers (0, or past their count) stays as written instead of being drawn as a number.
-- While the pane is closed, the pending count sits under the prompt as `📎 N annotations ↗`, which opens the pane at a click, instead of in the status line.
+- The pending count sits under the prompt, instead of in the status line, as a toggle of the pane: `📎 N annotations · hide pane`, or `· show pane` while it is hidden.
 
 ### Fixed
 
 - After `/branch` or `/resume` inside a session, sent prompts drew the whole rendered template instead of what was typed.
 - A comment typed and not saved with Enter was not sent; it now goes with the prompt, and is kept when you switch tabs.
 - Pressing Enter twice in the comment field emptied it, and a third Enter deleted the comment.
-- Rewinding (Esc Esc) or recalling with ↑ a prompt sent with annotations put the whole rendered template back in the prompt box, so excerpts in it could not be selected again. You now get back what you typed, and its annotations are pending again.
+- Rewinding (Esc Esc) or recalling with ↑ a prompt sent with annotations put the whole rendered template back in the prompt box, so excerpts in it could not be selected again. You now get back what you typed, and its annotations are pending again; stepping on through the history takes them out again. A prompt recalled from another conversation comes back as typed, without its annotations.
 
 ## [0.2.1] - 2026-10-14
 

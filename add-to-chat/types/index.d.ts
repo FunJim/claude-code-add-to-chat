@@ -63,6 +63,12 @@ declare module 'claude-code' {
        */
       commentSaves: number
       isDraftEmpty: boolean
+      /**
+       * The Annotations a recall from the prompt history put back in
+       * pending: the next step through the history takes them out again.
+       * Null once none is pending.
+       */
+      recalled: { annotations: Pick<Annotation, 'text' | 'requestId'>[] } | null
       /** Keyed by `hashText` of the rewritten prompt; mirrored in `$.store`. */
       originals: Record<string, Original>
       /** `hashText` of the rewritten prompts in this conversation's transcript, oldest first: what the pane's history lists. */

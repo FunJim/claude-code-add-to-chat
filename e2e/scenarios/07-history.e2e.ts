@@ -1,7 +1,7 @@
 // A sent prompt's Annotations, seen again: the 📎 row under the prompt
 // (Claude Code's own row above it, untouched), its hover card, the pane's
 // read-only view of them, the jump back to the prompt, the history list,
-// all of it after the session is resumed; and a rewind to it.
+// all of it after the session is resumed; a rewind to it, and ↑ to it.
 import { describe } from 'node:test'
 
 import { BACK_LABEL, HISTORY_TITLE, JUMP_LABEL, SENT_TITLE, clipButtonLabel, clipLine, historyLabel } from '../../add-to-chat/hooks/labels.ts'
@@ -15,6 +15,7 @@ import { assert, scenario } from '../harness/scenario.ts'
 const HISTORY = 'history'
 const REQUEST = 'HISTORY-1: reply with the single word OK.'
 const REWIND = 'HISTORY-2: reply with the single word OK.'
+const RECALL = 'HISTORY-3: reply with the single word OK.'
 
 /** The transcript's rows, the pane's left out. */
 async function transcript(claude: ClaudeSession): Promise<string> {
@@ -121,6 +122,32 @@ describe(HISTORY, () => {
     await ctx.step('/clear: a new conversation, an empty history')
     await run(again, '/clear')
     await waitFor('the history to go', async () => !(await again.pane()).join('\n').includes('History ('), { timeoutMs: 10_000 })
+  })
+
+  scenario(HISTORY, "↑ to a prompt sent with Annotations brings them back, stepping on takes them out; another conversation's ↑ brings back only the text", { drivers: ['herdr'], usesModel: true }, async ctx => {
+    const claude = await ctx.launchFixture()
+    await claude.add('so reading it failed')
+    await claude.submit(RECALL)
+    const pending = async () => (await claude.probe.pending()).map(a => a.text)
+    await ctx.step('↑: the request as typed, its Annotation pending again')
+    await claude.press('up')
+    await waitFor('the request as typed', async () => (await claude.draft()) === RECALL, { timeoutMs: 5_000 })
+    await waitFor('the Annotation back', async () => (await pending()).length === 1, { timeoutMs: 3_000 })
+    await ctx.step('↓ out of the history: the Annotation goes with the entry')
+    await claude.press('down')
+    await waitFor('the Annotation gone', async () => (await pending()).length === 0, { timeoutMs: 3_000 })
+    await ctx.step('↑ again: the history now holds what was typed; the Annotation comes back')
+    await claude.press('up')
+    await waitFor('the Annotation back', async () => (await pending()).length === 1, { timeoutMs: 3_000 })
+    assert.equal(await claude.draft(), RECALL)
+
+    await ctx.step('a new conversation in the same project: ↑ gives back the request as typed, without the Annotation, whose row is not in it')
+    await claude.close()
+    const fresh = await ctx.launch({ name: 'fresh', cwd: claude.cwd })
+    await fresh.press('up')
+    await waitFor('the request as typed', async () => (await fresh.draft()) === RECALL, { timeoutMs: 5_000 })
+    await sleep(800)
+    assert.deepEqual(await fresh.probe.pending(), [])
   })
 
   scenario(HISTORY, 'a rewind to a prompt sent with Annotations gives back what was typed, and its Annotations pending again', { drivers: ['herdr'], usesModel: true }, async ctx => {

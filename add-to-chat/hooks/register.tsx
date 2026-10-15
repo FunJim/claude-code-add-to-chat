@@ -4,9 +4,9 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register, SessionMessage, UiPane } from 'claude-code'
 
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode } from '../types'
-import { appended, restored, withComment, withComments, without } from './annotations'
+import { appended, restored, withComment, withComments, without, withoutAll } from './annotations'
 import { hashText } from './hash'
-import { promptsIn, replyCountsOf, sameRecord, sentPrompts, turnReplies, withReplies } from './history'
+import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies, withReplies } from './history'
 import type { NotedReply } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast, unreadableTemplate } from './labels'
 import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView, tabAfterRemoving } from './pane'
@@ -28,6 +28,7 @@ const paneTab = atom({ plugin: 'add-to-chat', key: 'paneTab' } as const, 1)
 const commentDrafts = atom({ plugin: 'add-to-chat', key: 'commentDrafts' } as const, {})
 const commentSaves = atom({ plugin: 'add-to-chat', key: 'commentSaves' } as const, 0)
 const isDraftEmpty = atom({ plugin: 'add-to-chat', key: 'isDraftEmpty' } as const, true)
+const recalled = atom({ plugin: 'add-to-chat', key: 'recalled' } as const, null)
 const originals = atom({ plugin: 'add-to-chat', key: 'originals' } as const, {})
 const sessionPrompts = atom({ plugin: 'add-to-chat', key: 'sessionPrompts' } as const, [])
 const replyCounts = atom({ plugin: 'add-to-chat', key: 'replyCounts' } as const, {})
@@ -146,7 +147,7 @@ async function surroundings($: EngineInterface): Promise<Surroundings> {
 }
 
 /** What the poll last wrote, so it writes state only on a change. */
-type PollWatch = { draft?: string; isDraftEmpty?: boolean; isPaneOpen?: boolean; isPaneDrawn?: boolean; sessionId?: string }
+type PollWatch = { isDraftEmpty?: boolean; isPaneOpen?: boolean; isPaneDrawn?: boolean; sessionId?: string }
 
 function offerKey(offer: Candidate | null): string | null {
   return offer === null ? null : selectionKey(offer)
@@ -154,13 +155,9 @@ function offerKey(offer: Candidate | null): string | null {
 
 /** One tick of the selection poll: what the pane offers, the draft's state, whether the pane is open. */
 async function poll($: EngineInterface, watch: PollWatch) {
-  const [selection, around, offered, panes, sessionId] = await Promise.all([
-    $.ui.selection(),
-    surroundings($),
-    read($, candidate),
-    $.ui.panes(),
-    $.session.id(),
-  ])
+  // The offer before what decides it (see markHandled).
+  const offered = await read($, candidate)
+  const [selection, around, panes, sessionId] = await Promise.all([$.ui.selection(), surroundings($), $.ui.panes(), $.session.id()])
 
   // /branch, /resume and /clear go on under another session id, with
   // $.state cleared and no session.start: the originals come back from the
@@ -172,10 +169,6 @@ async function poll($: EngineInterface, watch: PollWatch) {
   watch.sessionId = sessionId
   await keepReplies($)
 
-  if (watch.draft !== around.draft) {
-    watch.draft = around.draft
-    await restoreSent($, around.draft)
-  }
   const isEmpty = around.draft.trim() === ''
   if (watch.isDraftEmpty !== isEmpty) {
     watch.isDraftEmpty = isEmpty
@@ -200,7 +193,10 @@ async function poll($: EngineInterface, watch: PollWatch) {
 
 /** Done with a selection: it is not offered again until another is made. */
 async function markHandled($: EngineInterface, key: string | undefined) {
-  await Promise.all([key === undefined ? null : update($, handled, () => key), update($, candidate, () => null)])
+  // `handled` before the offer goes: a poll that reads the offer gone then
+  // reads the selection handled, and does not offer it again.
+  if (key !== undefined) await update($, handled, () => key)
+  await update($, candidate, () => null)
 }
 
 async function addSelection($: EngineInterface): Promise<{ annotation: Annotation } | Exclude<Verdict, { excerpt: unknown }>> {
@@ -234,7 +230,7 @@ async function removeAnnotation($: EngineInterface, index: number) {
 }
 
 async function clearPending($: EngineInterface) {
-  await Promise.all([update($, pending, () => []), update($, commentDrafts, () => ({}))])
+  await Promise.all([update($, pending, () => []), update($, commentDrafts, () => ({})), update($, recalled, () => null)])
 }
 
 /**
@@ -258,28 +254,57 @@ async function saveComment($: EngineInterface, index: number, value: string) {
 }
 
 /**
- * A prompt add-to-chat rewrote, back in the prompt box (a rewind, ↑ through
- * the history): what was typed goes back in its place, and its Annotations
- * are pending again, so it can be edited and sent anew.
+ * The prompt box changed by no edit: a rewind put a prompt back, or a step
+ * through the prompt history (`isHistory`).
+ *
+ * A step through the history first takes out the Annotations the last
+ * recall put back: they were that entry's. Then, a sent prompt with
+ * Annotations back in the box gets what was typed in its place, and its
+ * Annotations are pending again, to be edited and sent anew. From the
+ * history only a prompt of this conversation brings its Annotations back:
+ * another's point at rows this transcript does not hold.
  */
-async function restoreSent($: EngineInterface, draft: string) {
-  if (draft === '') return
-  const original = (await read($, originals))[hashText(draft)]
-  if (original?.annotations === undefined) return
-  const sent = original.annotations
-  let first = 1
-  await update($, pending, now => {
-    first = now.length + 1
-    return restored(now, sent)
-  })
-  await Promise.all([update($, paneMode, () => ({ kind: 'pending' }) as const), update($, paneTab, () => first)])
-  await $.prompt.fill({ text: original.text, mode: 'replace' })
+async function boxChanged($: EngineInterface, text: string, isHistory: boolean) {
+  if (isHistory) await dropRecalled($)
+  const [map, inSession] = await Promise.all([read($, originals), read($, sessionPrompts)])
+  const sent = sentInBox(text, map, inSession)
+  if (sent === undefined) return
+  if (!isHistory || sent.isHere) {
+    let added: Annotation[] = []
+    await update($, pending, now => {
+      const back = restored(now, sent.original.annotations)
+      added = back.slice(now.length)
+      return back
+    })
+    if (added.length > 0) {
+      await Promise.all([
+        update($, paneMode, () => ({ kind: 'pending' }) as const),
+        update($, paneTab, () => added[0]!.index),
+        isHistory ? update($, recalled, () => ({ annotations: added.map(a => ({ text: a.text, requestId: a.requestId })) })) : null,
+      ])
+    }
+  }
+  if (text !== sent.original.text) await $.prompt.fill({ text: sent.original.text, mode: 'replace' })
+}
+
+/** Takes out of pending the Annotations the last recall from the prompt history put back. */
+async function dropRecalled($: EngineInterface) {
+  const last = await read($, recalled)
+  if (last === null) return
+  await update($, pending, now => withoutAll(now, last.annotations))
+  await update($, recalled, () => null)
 }
 
 /** Opens the pane at the person's asking: placed at any width, and no longer dismissed. */
 async function openPane($: EngineInterface) {
-  await $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS })
-  await Promise.all([update($, isPaneOpen, () => true), update($, isPaneDismissed, () => false)])
+  const opened = await $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS })
+  await Promise.all([update($, isPaneOpen, () => true), update($, isPaneDismissed, () => false), update($, isPaneDrawn, () => opened.isPlaced)])
+}
+
+/** Closes the pane at the person's asking, from the count under the prompt: closed until they ask for it again. */
+async function hidePane($: EngineInterface) {
+  await Promise.all([update($, isPaneOpen, () => false), update($, isPaneDismissed, () => true), update($, isPaneDrawn, () => false)])
+  await $.ui.close({ id: PANE_ID })
 }
 
 async function loadTemplate($: EngineInterface, options: PluginOptions): Promise<string> {
@@ -486,13 +511,22 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // While the pane is not drawn (closed, or waiting for room), the line
-  // under the prompt counts the pending Annotations; a click opens the pane.
+  // While Annotations are pending, the line under the prompt counts them,
+  // and a click shows the pane or hides it.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const engine = await next(e)
-    const [list, isDrawn] = await Promise.all([read($, pending), read($, isPaneDrawn)])
-    if (list.length === 0 || isDrawn) return engine
-    return promptHint($.ui.resolve(e), engine, list.length, () => openPane($))
+    const list = await read($, pending)
+    if (list.length === 0) return engine
+    const isDrawn = await read($, isPaneDrawn)
+    return promptHint($.ui.resolve(e), engine, list.length, isDrawn, () => (isDrawn ? hidePane($) : openPane($)))
+  })
+
+  // A rewind or a step through the prompt history (no edit, and not this
+  // plugin's own fill): see boxChanged.
+  on('prompt.change', async ($, e, next) => {
+    const changed = await next(e)
+    if (e.origin.kind !== 'plugin') await boxChanged($, e.text, e.origin.kind === 'history')
+    return changed
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e, next) => {

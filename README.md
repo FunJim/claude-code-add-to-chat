@@ -56,7 +56,7 @@ A pane sits beside the transcript, open from the start (in a terminal under 144 
 
 1. **Select** text in the transcript with the mouse. The pane's first row becomes `[ ✚ Add to chat ] "…" ✕ ignore`. Click the button, or run `/add-to-chat`.
 2. The annotation gets a **tab** (`1: Claude ✕   2: You ✕`); press its digit to switch to it. The open tab shows the whole excerpt, where it came from, and a **Comment** field: click it and type (Enter saves it; switching tabs or sending keeps it too). Or leave it empty.
-3. Repeat. Each annotated text gets a mark like `⁽¹⁾` in the transcript. Close a tab with its `✕` to remove that annotation. While the pane is closed, `📎 N annotations ↗` under the prompt counts them; click it to open the pane.
+3. Repeat. Each annotated text gets a mark like `⁽¹⁾` in the transcript. Close a tab with its `✕` to remove that annotation. `📎 N annotations · hide pane` under the prompt counts them; click it to hide the pane or show it again.
 4. **Send** your prompt as usual. Your message shows as what you typed plus `📎 N annotations ↗`; ctrl+o shows what the model received. With nothing to type, `[ Send ]` puts `(see annotations)` in the prompt for you to send.
 5. **Look back**: point at a sent prompt's `📎 N annotations ↗` to see its annotations in a card; click it to open them in the pane, read-only, with `↑ jump to prompt`. `History (N) ›` under the pane's tabs lists every prompt you sent with annotations.
 

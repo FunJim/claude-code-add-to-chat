@@ -51,7 +51,8 @@ export function textIn(screen: string, area: Area): string[] {
 
 /** Whether a row is one of the horizontal rules around the prompt box. */
 export function isRule(row: string): boolean {
-  return /^─{20,}/.test(row)
+  // Browsing the prompt history labels the rule above the box: `─── History 1/3 ───…`.
+  return /^─+(?: [^─]+ )?─{20,}/.test(row)
 }
 
 /** The 1-based row of the rule above the prompt box (or past the last row). */

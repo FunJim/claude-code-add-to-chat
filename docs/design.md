@@ -49,7 +49,7 @@ Below the first row, which change only on clicks:
 - **The open tab**: its circled number, as its marks in the transcript carry it, and where the Excerpt was selected (`② from your prompt`), the whole Excerpt, wrapped, in a dim rounded frame (no italics, no quotes: Excerpts are often code or tool output), and its Comment ([Comment](#comment)). A selection across that frame picks up its border, which the own-words check below ignores.
 - **The footer**: `[ Send ] now, or type a prompt and press ↵` with an empty prompt ([An empty prompt](#an-empty-prompt)), else `They go with your next prompt ↵`.
 
-With nothing pending, the pane says `Nothing added yet.` under the first row. While any are pending and the pane is not drawn (closed, or waiting for room), the line under the prompt gets `📎 N annotations ↗` beneath Claude Code's own hint, so they are not forgotten; a click opens the pane, as `/add-to-chat` does. With the pane drawn its tabs say as much. The hook wraps the engine's drawing of the line (`next(e)` on `PromptHint`) as the 📎 row of a sent prompt does, so Claude Code's hint stays as it draws it. (`$.ui.status`, the pinned `⚠ add-to-chat: …` notice this replaced, takes text only: nothing in it can be pressed.)
+With nothing pending, the pane says `Nothing added yet.` under the first row. While any are pending, the line under the prompt gets `📎 N annotations · hide pane` beneath Claude Code's own hint, `· show pane` while the pane is not drawn (closed, or waiting for room): a toggle. Show opens the pane as `/add-to-chat` does; hide closes it as its `✕` does, so it stays closed until asked for. The hook wraps the engine's drawing of the line (`next(e)` on `PromptHint`) as the 📎 row of a sent prompt does, so Claude Code's hint stays as it draws it. (`$.ui.status`, the pinned `⚠ add-to-chat: …` notice this replaced, takes text only: nothing in it can be pressed.)
 
 `✕ ignore` marks the selection handled. Without it a selection one doesn't want would stay offered until the next turn ends.
 
@@ -179,7 +179,12 @@ The store keeps prompts from every session; the history lists those in this conv
 
 ### Back in the prompt box
 
-A rewind (Esc Esc) or ↑ through the prompt history puts a sent prompt back in the box as it was sent: for a prompt add-to-chat rewrote, the whole rendered template. Left there, sending it would wrap the template in the template again, and its Excerpts, now in the draft, would not be offered when selected (a selection that is the draft's own text is not). Claude Code fills the box itself, without `prompt.fill`, so the poll watches the draft: when it changes to text whose `hashText` is a key of `originals` with Annotations, the mod puts what was typed in its place (`$.prompt.fill`, replace) and the prompt's Annotations, Comments and all, back in `pending` after any there (one already pending is not added twice), and shows the first of them.
+A rewind (Esc Esc) or a step through the prompt history (↑ ↓, its search or picker) puts a sent prompt back in the box as it was sent: for a prompt add-to-chat rewrote, the whole rendered template. Left there, sending it would wrap the template in the template again, and its Excerpts, now in the draft, would not be offered when selected (a selection that is the draft's own text is not). Claude Code raises `prompt.change` for both, with who changed the box: `engine` for the rewind, `history` for the history. The mod's own fill (`plugin`) it leaves alone.
+
+- A sent prompt with Annotations back in the box (its `hashText` a key of `originals`) gets what was typed in its place (`$.prompt.fill`, replace), and its Annotations, Comments and all, are pending again after any there (one already pending is not added twice); the first of them shows.
+- The history keeps an entry as the mod filled it, so stepping back to it brings what was typed: that is recognised too, as the typed text of one of this conversation's sent prompts.
+- From the history, only a prompt of this conversation (in `sessionPrompts`) brings its Annotations back. The history holds the project's prompts from every session; another conversation's Annotations point at rows this transcript does not hold, so such a prompt comes back as typed and nothing more. A rewind is this conversation's.
+- Annotations a recall brought back are the entry's: `recalled` notes them, and the next step through the history takes them out of `pending` again before it brings the next entry's. Those added meanwhile stay. A submit or a `/clear` forgets `recalled`.
 
 ## Lifecycle
 
@@ -204,6 +209,7 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | `isPaneDrawn` | whether the pane is drawn (open and placed), as the poll last saw; while not, the line under the prompt counts the Annotations |
 | `commentDrafts` | each Comment field's text by Annotation index, typed since the last save; read by no drawing |
 | `commentSaves` | Comments saved with Enter so far: in the Comment field's key |
+| `recalled` | the Annotations the last recall from the prompt history put back; null once none is pending |
 | `isDraftEmpty` | whether the prompt draft is empty |
 | `originals` | rewritten prompt hash → `{ text, count, annotations?, replies? }`, mirrored in `$.store` |
 | `sessionPrompts` | hashes of the rewritten prompts in this conversation's transcript, oldest first |
@@ -227,6 +233,8 @@ The API (`claude-code.d.ts`, laid by the engine in `add-to-chat/.claude-plugin/t
 | this conversation's prompts, and a session switch | `$.session.messages()`, `$.session.id()` |
 | rewriting or adding to the prompt | `prompt.submit` |
 | `[ Send ]` and the draft | `$.prompt.fill`, `$.prompt.read` |
+| a sent prompt back in the box | `prompt.change` (`origin`: `history`, `engine`) |
+| hiding the pane | `$.ui.close` |
 | `/add-to-chat` | `$.command.register`, `command.run` |
 | redrawing after a turn | `turn.complete`, `$.ui.invalidate('ui.render')` |
 | `/clear` | `session.end` |

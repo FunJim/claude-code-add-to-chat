@@ -11,6 +11,7 @@
 //   state      each change of add-to-chat's pending/candidate/paneTab/replyCounts/commentDrafts
 //   toast      each toast add-to-chat raises
 //   input      each edit and Enter in a plugin's Input: element, kind, value
+//   prompt-change  each change of the prompt box no edit made: who (origin), the text's head
 //
 // Two commands make rows the harness cannot get otherwise: /probe-out
 // prints a command's output, /probe-say submits a prompt as a plugin.
@@ -90,6 +91,11 @@ export const register: Register = on => {
     const done = await next(e)
     void log($, 'turn', { phase: 'complete' })
     return done
+  })
+
+  on('prompt.change', async ($, e, next) => {
+    void log($, 'prompt-change', { origin: e.origin.kind, text: e.text.slice(0, 80) })
+    return next(e)
   })
 
   on('ui.input', async ($, e, next) => {

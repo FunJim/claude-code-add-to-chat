@@ -21,6 +21,11 @@ export function without(list: readonly Annotation[], index: number): Annotation[
   return list.filter(a => a.index !== index).map((a, i) => ({ ...a, index: i + 1 }))
 }
 
+/** The list without those of `taken` (same Excerpt, same row), renumbered from 1. */
+export function withoutAll(list: readonly Annotation[], taken: readonly Pick<Annotation, 'text' | 'requestId'>[]): Annotation[] {
+  return list.filter(a => !taken.some(t => t.text === a.text && t.requestId === a.requestId)).map((a, i) => ({ ...a, index: i + 1 }))
+}
+
 /**
  * The list with a sent prompt's Annotations back, after those it holds,
  * numbered on; one already in the list (same Excerpt, same row) is not

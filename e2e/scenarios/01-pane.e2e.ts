@@ -1,9 +1,9 @@
 // The pane beside the transcript: offering the selection, adding it, a tab
 // per Annotation with its Comment, closing tabs, /add-to-chat, closing the
-// pane itself, and the count under the prompt that opens it again.
+// pane itself, and the count under the prompt that shows or hides it.
 import { describe } from 'node:test'
 
-import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, IGNORE_LABEL, PANE_EMPTY, SAVE_LABEL, addedToast, clipButtonLabel } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, IGNORE_LABEL, PANE_EMPTY, SAVE_LABEL, addedToast, hintLabel } from '../../add-to-chat/hooks/labels.ts'
 import { framed } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
 import { locate, paneArea } from '../harness/screen.ts'
@@ -107,19 +107,22 @@ describe(PANE, () => {
     await ctx.evidence('screen', await claude.screen())
   })
 
-  scenario(PANE, 'closed with Annotations pending, the pane is a click away: the count under the prompt opens it', { drivers: ['herdr', 'tmux'] }, async ctx => {
+  scenario(PANE, 'with Annotations pending, the count under the prompt hides the pane and shows it again', { drivers: ['herdr', 'tmux'] }, async ctx => {
     const claude = await ctx.launchFixture()
     await claude.add('Ran the')
-    await ctx.step(`close the pane: “${clipButtonLabel(1)}” shows under the prompt`)
-    await claude.clickInPane(CLOSE_TAB, { dx: 0 })
-    await waitFor('the pane to close', async () => paneArea(await claude.screen()) === undefined, { timeoutMs: 5_000 })
-    const spot = await waitFor('the count under the prompt', async () => locate(await claude.screen(), clipButtonLabel(1)), { timeoutMs: 5_000 })
+    const at = (label: string) => waitFor(`“${label}” under the prompt`, async () => locate(await claude.screen(), label), { timeoutMs: 5_000 })
+    await ctx.step(`“${hintLabel(1, true)}” shows under the prompt; click it`)
+    const hide = await at(hintLabel(1, true))
     await ctx.evidence('screen with the count', await claude.screen())
-    await ctx.step('click it: the pane opens on the Annotation, and the count goes')
-    await claude.mouse.click({ x: spot.x + 2, y: spot.y })
+    await claude.mouse.click({ x: hide.x + 2, y: hide.y })
+    await waitFor('the pane to close', async () => paneArea(await claude.screen()) === undefined, { timeoutMs: 5_000 })
+    await ctx.step(`it reads “${hintLabel(1, false)}”: click it, the pane shows the Annotation again`)
+    await claude.waitStill()
+    const show = await at(hintLabel(1, false))
+    await claude.mouse.click({ x: show.x + 2, y: show.y })
     await waitFor('the pane', async () => paneArea(await claude.screen()) !== undefined, { timeoutMs: 5_000 })
     assert.ok(await claude.paneShows(framed('Ran the')))
-    await waitFor('the count to go', async () => locate(await claude.screen(), clipButtonLabel(1)) === undefined, { timeoutMs: 5_000 })
+    await at(hintLabel(1, true))
   })
 
   scenario(PANE, 'a pane the person closes stays closed until /add-to-chat', { drivers: ['herdr'] }, async ctx => {
