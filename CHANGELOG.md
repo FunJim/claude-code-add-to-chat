@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
 ### Added
 
 - Sent prompts keep their annotations. Point at a sent prompt's `📎 N annotations ↗` for a card listing them; click it to open them in the pane, read-only, with a jump back to the prompt. `History (N) ›` in the pane lists every prompt sent with annotations. The history is this conversation's: a `/branch` keeps it, `/clear` starts it over.
@@ -56,7 +58,8 @@ First release, for Claude Code 2.1.296.
 - The Annotation Template: a Codex-style default, or a Mustache-subset file (`templatePath`) that replaces the prompt or rides beside it as context.
 - Prompt rows drawn as what was typed plus `📎 N annotations`, kept across `--resume`.
 
-[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/FunJim/claude-code-add-to-chat/releases/tag/v0.1.0
