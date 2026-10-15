@@ -201,6 +201,16 @@ export class ClaudeSession {
     await this.mouse.click({ x: spot.x + dx, y: spot.y })
   }
 
+  /** Clicks the offer's ✕, at the end of the pane's first row (the pane's frame and each tab have their own). */
+  async dismissOffer() {
+    const add = await this.findInPane(ADD_LABEL)
+    const screen = await this.screen()
+    const area = paneArea(screen)
+    const spot = area === undefined ? undefined : locate(screen, CLOSE_TAB, 1, { top: add.y, bottom: add.y, left: add.x, right: area.right })
+    if (spot === undefined) throw new NotOnScreen(`no ${CLOSE_TAB} on the offer's row in ${this.name}'s pane:\n${screen}`)
+    await this.mouse.click({ x: spot.x, y: spot.y })
+  }
+
   /** Whether the pane offers the selection, given a second (four polls) to do so. */
   async offers(): Promise<boolean> {
     await sleep(1_000)

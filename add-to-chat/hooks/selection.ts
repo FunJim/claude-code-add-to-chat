@@ -1,7 +1,7 @@
 // Deciding what a mouse selection is: an Excerpt worth offering, the pane's
 // or the draft's own words, or one already handled. Pure: register.tsx reads
 // the selection and the state and acts on the answer.
-import type { Annotation, AnnotationSource, Candidate, Handled, SelectionNote } from '../types'
+import type { Annotation, AnnotationSource, Candidate, SelectionNote } from '../types'
 import { stripMarks } from './excerpt'
 import { isClipLineHead, paneLines } from './labels'
 import { oneLine } from './text'
@@ -58,8 +58,8 @@ const flatten = oneLine
 export type Surroundings = {
   draft: string
   pending: readonly Annotation[]
-  /** The selection last added or ignored. */
-  handled: Handled | null
+  /** `selectionKey` of the selection last added or dismissed. */
+  handled: string | null
   /** Words the pane draws beyond the pending view's (its history views). */
   paneWords?: readonly string[]
 }
@@ -84,19 +84,19 @@ export function isSelectionOf(selection: Selection | undefined, a: { text: strin
 /**
  * An Excerpt to offer, with the key that marks its selection handled; or
  * why not: `nothing` to offer, `pending` as Annotation `index`, or
- * `handled` (added, or ignored).
+ * `handled` (just added, or its offer dismissed).
  */
 export type Verdict =
   | { excerpt: Selection; key: string }
   | { reason: 'nothing' }
   | { reason: 'pending'; text: string; index: number }
-  | { reason: 'handled'; text: string; isIgnored: boolean }
+  | { reason: 'handled' }
 
 /**
  * What to do with a selection: offer (and add) its Excerpt, or not —
  * `nothing` when it holds none or lies outside the transcript, `pending`
  * when its Excerpt is (same Excerpt, same row), `handled` when it was last
- * added or ignored.
+ * added or its offer dismissed.
  */
 export function judge(selection: Selection | undefined, around: Surroundings): Verdict {
   const excerpt = excerptOf(selection)
@@ -104,14 +104,11 @@ export function judge(selection: Selection | undefined, around: Surroundings): V
   const added = around.pending.find(a => a.text === excerpt.text && a.requestId === excerpt.requestId)
   if (added !== undefined) return { reason: 'pending', text: excerpt.text, index: added.index }
   const key = selectionKey(selection)
-  if (key === around.handled?.key) return { reason: 'handled', text: excerpt.text, isIgnored: around.handled.isIgnored }
+  if (key === around.handled) return { reason: 'handled' }
   return { excerpt, key }
 }
 
-/** What the pane's first row says of a selection it does not offer: added, or ignored; nothing else. */
+/** What the pane's first row says of a selection it does not offer: that it is added, as which; nothing else. */
 export function noteOf(verdict: Verdict): SelectionNote | null {
-  if ('key' in verdict) return null
-  if (verdict.reason === 'pending') return { kind: 'added', text: verdict.text, index: verdict.index }
-  if (verdict.reason === 'handled' && verdict.isIgnored) return { kind: 'ignored', text: verdict.text }
-  return null
+  return 'reason' in verdict && verdict.reason === 'pending' ? { text: verdict.text, index: verdict.index } : null
 }

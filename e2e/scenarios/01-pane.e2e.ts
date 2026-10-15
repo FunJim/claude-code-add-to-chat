@@ -3,7 +3,7 @@
 // pane itself, and the count under the prompt that shows or hides it.
 import { describe } from 'node:test'
 
-import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, IGNORED_NOTE, IGNORE_LABEL, PANE_EMPTY, SAVE_LABEL, addedNote, addedToast, hintLabel } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, PANE_EMPTY, SAVE_LABEL, addedNote, addedToast, hintLabel } from '../../add-to-chat/hooks/labels.ts'
 import { framed } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
 import { locate, paneArea } from '../harness/screen.ts'
@@ -19,7 +19,7 @@ describe(PANE, () => {
     await ctx.evidence('screen', await claude.screen())
   })
 
-  scenario(PANE, 'selecting text offers it in the first row; ✕ ignore takes the offer away and says /add-to-chat adds it after all', { drivers: ['herdr', 'tmux'] }, async ctx => {
+  scenario(PANE, "selecting text offers it in the first row; its ✕ takes the offer away, and /add-to-chat adds it after all", { drivers: ['herdr', 'tmux'] }, async ctx => {
     const claude = await ctx.launchFixture()
     const before = await claude.pane()
     await ctx.step('select a phrase in the report')
@@ -29,11 +29,11 @@ describe(PANE, () => {
     assert.ok(await claude.paneShows('“Ran the”'))
     assert.equal(after.findIndex(r => r.includes(ADD_LABEL)), before.findIndex(r => r.includes(IDLE_HINT)), 'the offer takes the hint\'s row')
     assert.equal(after.length, before.length, 'the pane keeps its size')
-    await ctx.step('✕ ignore: the offer goes, and the same selection is not offered again')
-    await claude.clickInPane(IGNORE_LABEL, { dx: 0 })
+    await ctx.step(`${CLOSE_TAB}: the offer goes, the hint is back, and the same selection is not offered again`)
+    await claude.dismissOffer()
     assert.equal(await claude.offers(), false)
     assert.deepEqual(await claude.probe.pending(), [])
-    await waitFor('the first row to say so', () => claude.paneShows(`“Ran the” ${IGNORED_NOTE}`), { timeoutMs: 3_000 })
+    assert.ok(await claude.paneShows(IDLE_HINT))
     await ctx.step('/add-to-chat adds it after all')
     await claude.command('/add-to-chat')
     await waitFor('the Annotation', async () => (await claude.probe.pending()).length === 1, { timeoutMs: 3_000 })

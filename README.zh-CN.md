@@ -6,7 +6,7 @@
 
 ```
 ⏺ The quick brown fox⁽¹⁾ jumps over the   │                                          ✕
-  lazy dog.                                │[ ✚ Add to chat ] “capital of France” ✕ ignore
+  lazy dog.                                │[ ✚ Add to chat ] “capital of France” ✕
                                            │────────────────────────────────────────────
   Paris is the capital of France.          │1: Claude ✕
                                            │
@@ -51,7 +51,7 @@
 
 transcript 旁边有一个面板，会话开始时自动打开（终端窄于 144 列时需要执行一次 `/add-to-chat` 打开；窄于 110 列时面板显示在输入框上方）。面板第一行显示 `Select text in the transcript to add it.`。
 
-1. **选中**：用鼠标在 transcript 里选中一段文字，面板第一行会变成 `[ ✚ Add to chat ] "…" ✕ ignore`。点按钮，或者执行 `/add-to-chat`。
+1. **选中**：用鼠标在 transcript 里选中一段文字，面板第一行会变成 `[ ✚ Add to chat ] "…" ✕`。点按钮，或者执行 `/add-to-chat`；点 `✕` 关掉这次的提议。
 2. 每条 annotation 会有一个 **tab**（`1: Claude ✕   2: You ✕`），按对应的数字键可以切换。当前 tab 显示完整的原文、来源和一个 **Comment** 输入框：点击后输入即可（按 Enter 保存；切换 tab 或发送时也会自动保留）。也可以留空。
 3. 可以重复多次。每段被收录的文字在 transcript 里会带上 `⁽¹⁾` 这样的标记。点 tab 上的 `✕` 会删除这条 annotation。输入框下方的 `📎 N annotations · hide pane` 会显示数量，点击可以隐藏或重新显示面板。
 4. **发送**：像平常一样发送 prompt。transcript 里你的消息显示为你输入的内容加一行 `📎 N annotations ↗`，按 ctrl+o 可以看到模型实际收到的完整内容。如果没有要输入的内容，点 `[ Send ]` 会在输入框里填上 `(see annotations)`，再按 Enter 发送即可。

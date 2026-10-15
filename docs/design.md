@@ -15,9 +15,9 @@ The model is Codex's "Add to chat": select text → a floating "Add to chat" but
 
 `session.start` starts a 250ms `$.clock.every` poll of `$.ui.selection()` (`{ text, requestId? }`, where `requestId` is the transcript row the selection lies in). A reload fires `session.start` again and the engine drops the previous load's timers, so one poll runs at a time. When `$.ui.selection()` returns `undefined` (not fullscreen) the poll does nothing.
 
-A selection outlives its highlight: Esc, a click elsewhere or typing take the highlight down, but `$.ui.selection()` keeps returning it until text is selected again, a command has run or the next prompt's turn ends. So the mod remembers the `text + requestId` it last added or ignored (`handled`), and offers a selection only when it differs. `handled` survives a submit: between submit and the end of that turn the selection still returns what was just added.
+A selection outlives its highlight: Esc, a click elsewhere or typing take the highlight down, but `$.ui.selection()` keeps returning it until text is selected again, a command has run or the next prompt's turn ends. So the mod remembers the `text + requestId` it last added or whose offer was dismissed (`handled`), and offers a selection only when it differs. `handled` survives a submit: between submit and the end of that turn the selection still returns what was just added.
 
-`handled` holds only while the engine still reports that selection: once the poll sees none or another, it is forgotten, so the same text selected after a command or a turn is offered. Selecting the very same text again while the engine still reports it is no change the poll can see (there is no selection event, and a mod cannot dismiss a selection). Two consequences: an ignored selection selected again at once (a double click on the same word) is not offered until another is made, and the first row says how to add it after all; and closing an Annotation's tab, while the engine still reports the selection it came from, forgets `handled`, so that selection is offered again at once, to be added again or ignored.
+`handled` holds only while the engine still reports that selection: once the poll sees none or another, it is forgotten, so the same text selected after a command or a turn is offered. Selecting the very same text again while the engine still reports it is no change the poll can see (there is no selection event, and a mod cannot dismiss a selection). Two consequences: a selection whose offer was dismissed, selected again at once (a double click on the same word), is not offered until another is made, though `/add-to-chat` adds it; and closing an Annotation's tab, while the engine still reports the selection it came from, forgets `handled`, so that selection is offered again at once, to be added again or dismissed.
 
 ### The pane
 
@@ -25,7 +25,7 @@ add-to-chat draws in a pane (`$.ui.open`, id `add-to-chat`), not in the band abo
 
 ```
                                                         ✕
-[ ✚ Add to chat ] “so reading it failed” ✕ ignore
+[ ✚ Add to chat ] “so reading it failed” ✕
 ────────────────────────────────────────────────────────
 1: Claude ✕   2: You ✕
 
@@ -41,8 +41,8 @@ Comment: Add an optional comment…
 Its first row is always there and always one row high:
 
 - nothing selected: a dim hint, `Select text in the transcript to add it.`;
-- a selection to offer: `[ ✚ Add to chat ] "<Excerpt preview>" ✕ ignore`, the preview cut to fit;
-- a selection not offered, and why (`selectionNote`), dim: `"<preview>" added as ①` when its Excerpt is pending (right after Add too, as the selection is still reported), `"<preview>" ignored · /add-to-chat adds it` after ✕ ignore.
+- a selection to offer: `[ ✚ Add to chat ] "<Excerpt preview>" ✕`, the preview cut to fit;
+- a selection whose Excerpt is pending (`selectionNote`), dim: `"<preview>" added as ①`, right after Add too, as the selection is still reported.
 
 A selection is readable while the mouse is still dragging, so whatever the poll sees must not move the transcript: an offer that added a row to an inline pane, or a pane that docked in the middle of a drag and narrowed the transcript, would move the text under the mouse. So the offer takes the hint's row, and the pane opens by itself when the session starts, before anything is selected ([ADR 0005](adr/0005-everything-in-a-pane.md)): the band's first fullscreen drawing calls `$.ui.open`. Claude Code places a pane opened unasked only from 144 columns (110 once the person opened it by hand); below that it waits until `/add-to-chat` opens it. If the person closes the pane (its `✕`, ctrl+x x), it stays closed until they run `/add-to-chat`. Outside fullscreen nothing can be selected, and the pane does not open.
 
@@ -54,7 +54,7 @@ Below the first row, which change only on clicks:
 
 With nothing pending, the pane says `Nothing added yet.` under the first row. While any are pending, the line under the prompt gets `📎 N annotations · hide pane` beneath Claude Code's own hint, `· show pane` while the pane is not drawn (closed, or waiting for room): a toggle. Show opens the pane as `/add-to-chat` does; hide closes it as its `✕` does, so it stays closed until asked for. The hook wraps the engine's drawing of the line (`next(e)` on `PromptHint`) as the 📎 row of a sent prompt does, so Claude Code's hint stays as it draws it. (`$.ui.status`, the pinned `⚠ add-to-chat: …` notice this replaced, takes text only: nothing in it can be pressed.)
 
-`✕ ignore` marks the selection handled. Without it a selection one doesn't want would stay offered until the next turn ends.
+The offer's `✕` dismisses it: not this time. As the engine keeps reporting the selection, the mod marks it handled, or the next poll would offer it again; that is all it means, and the first row goes back to the hint. Selected again, it is offered ([Following the selection](#following-the-selection)).
 
 ### What can be added
 
@@ -65,7 +65,7 @@ No offer is made, and `/add-to-chat` adds nothing, when:
 - the same text from the same row is already pending;
 - the selection has no `requestId` and its text comes from the prompt draft or from the pane itself.
 
-`/add-to-chat` opens the pane (again) and adds the selection if there is one to add, from the keyboard. It is the person asking: it adds a selection last added or ignored too, never one already pending. It answers with a toast and no output: command output enters the model's context.
+`/add-to-chat` opens the pane (again) and adds the selection if there is one to add, from the keyboard. It is the person asking: it adds a selection last added or dismissed too, never one already pending. It answers with a toast and no output: command output enters the model's context.
 
 Adding creates the Annotation at once, with no Comment, numbered one past the pending count, and opens its tab.
 
@@ -205,8 +205,8 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 |---|---|
 | `pending` | the Annotations to send |
 | `candidate` | the selection the pane offers, or `null` |
-| `handled` | the key of the selection last added or ignored, and whether it was ignored |
-| `selectionNote` | why the selection reported is not offered (pending as ①, or ignored), for the first row; null otherwise |
+| `handled` | the key of the selection last added or whose offer was dismissed |
+| `selectionNote` | the selection reported, not offered as its Excerpt is pending (as ①), for the first row; null otherwise |
 | `isPaneOpen` | whether the pane is open, as the poll last saw `$.ui.panes()` |
 | `isPaneDismissed` | the person closed the pane; it stays closed until `/add-to-chat` |
 | `paneTab` | the index of the Annotation whose tab the pane shows |

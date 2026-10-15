@@ -33,7 +33,6 @@ export const SOURCE_HINT: Record<AnnotationSource, string> = {
 /** The pane's title, and its tab when other panes are open beside it. */
 export const PANE_TITLE = 'Add to chat'
 export const ADD_LABEL = '✚ Add to chat'
-export const IGNORE_LABEL = '✕ ignore'
 /** What the pane's first row says while nothing is selected. */
 export const IDLE_HINT = 'Select text in the transcript to add it.'
 export const NEEDS_FULLSCREEN_HINT = 'Selections show here in fullscreen (CLAUDE_CODE_NO_FLICKER=1).'
@@ -41,8 +40,7 @@ export const NEEDS_FULLSCREEN_HINT = 'Selections show here in fullscreen (CLAUDE
 export function addedNote(index: number): string {
   return `added as ${circled(index)}`
 }
-/** The first row's word for a selection ignored, after its preview: and how to add it after all. */
-export const IGNORED_NOTE = 'ignored · /add-to-chat adds it'
+
 export const PANE_EMPTY = 'Nothing added yet.'
 export const COMMENT_LABEL = 'Comment'
 export const COMMENT_PLACEHOLDER = 'Add an optional comment…'
@@ -129,10 +127,8 @@ export function sourceLine(a: Annotation): string {
 export function paneLines(list: readonly Annotation[]): string[] {
   return [
     ADD_LABEL,
-    IGNORE_LABEL,
     IDLE_HINT,
     NEEDS_FULLSCREEN_HINT,
-    IGNORED_NOTE,
     PANE_EMPTY,
     `${COMMENT_LABEL}: ${COMMENT_PLACEHOLDER} ⏎ ${SAVE_LABEL}`,
     `[ Send ] ${SEND_HINT}`,

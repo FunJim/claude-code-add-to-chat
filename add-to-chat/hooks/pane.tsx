@@ -24,8 +24,6 @@ import {
   HISTORY_EMPTY,
   HISTORY_TITLE,
   IDLE_HINT,
-  IGNORED_NOTE,
-  IGNORE_LABEL,
   JUMP_LABEL,
   MAX_TAB_HOTKEY,
   NEEDS_FULLSCREEN_HINT,
@@ -60,7 +58,7 @@ export type PaneElements = {
 
 export type PaneValues = {
   offer: Candidate | null
-  /** Why the selection reported is not offered, when the row says so. */
+  /** The selection reported, not offered as its Excerpt is pending: the row says as which. */
   note: SelectionNote | null
   pending: readonly Annotation[]
   /** The index of the Annotation whose tab is open. */
@@ -81,7 +79,8 @@ export type PaneValues = {
 
 export type PaneActions = {
   add: () => unknown
-  ignore: () => unknown
+  /** The offer's ✕: not this time. */
+  dismiss: () => unknown
   show: (index: number) => unknown
   remove: (index: number) => unknown
   /** The Comment field's text, at each edit. */
@@ -207,12 +206,11 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
     </Text>
   )
 
-  // The offer, cut to one row: the button, the preview, and the ✕ (just
-  // the mark where room is short). With none, why the selection is not
-  // offered (added, ignored), or the hint.
-  const ignore = v.columns >= 40 ? IGNORE_LABEL : CLOSE_TAB
-  const room = v.columns - (width(ADD_LABEL) + 4) - width(ignore) - 4
-  const noteWords = v.note === null ? '' : v.note.kind === 'added' ? addedNote(v.note.index) : IGNORED_NOTE
+  // The offer, cut to one row: the button, the preview, and the ✕ that
+  // dismisses it. With none, that the selection is added (as which), or
+  // the hint.
+  const room = v.columns - (width(ADD_LABEL) + 4) - width(CLOSE_TAB) - 4
+  const noteWords = v.note === null ? '' : addedNote(v.note.index)
   const offer =
     v.offer !== null ? (
       <Box key="offer" gap={1}>
@@ -220,8 +218,8 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
         <Text italic wrap="truncate">
           “{preview(v.offer.text, room)}”
         </Text>
-        <Button key="ignore" plain onPress={act.ignore}>
-          <Text dimColor>{ignore}</Text>
+        <Button key="dismiss" plain onPress={act.dismiss}>
+          <Text dimColor>{CLOSE_TAB}</Text>
         </Button>
       </Box>
     ) : v.note !== null ? (

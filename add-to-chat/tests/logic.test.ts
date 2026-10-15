@@ -27,15 +27,14 @@ describe('judging a selection', () => {
     expect(judge(undefined, QUIET)).toEqual({ reason: 'nothing' })
     expect(judge({ text: '⁽¹⁾ ②', requestId: 'r1' }, QUIET)).toEqual({ reason: 'nothing' })
   })
-  test('one pending in the same row (as which Annotation), or the last handled selection (added or ignored)', () => {
+  test('one pending in the same row (as which Annotation), or the last handled selection (added, or its offer dismissed)', () => {
     expect(judge({ text: 'one', requestId: 'r1' }, { ...QUIET, pending: A })).toEqual({ reason: 'pending', text: 'one', index: 1 })
-    expect(judge({ text: 'x', requestId: 'r1' }, { ...QUIET, handled: { key: 'r1\u0000x', isIgnored: true } })).toEqual({ reason: 'handled', text: 'x', isIgnored: true })
+    expect(judge({ text: 'x', requestId: 'r1' }, { ...QUIET, handled: 'r1\u0000x' })).toEqual({ reason: 'handled' })
     expect(judge({ text: 'one', requestId: 'r2' }, { ...QUIET, pending: A })).toHaveProperty('key')
   })
-  test('what the first row says of a selection not offered: added as ①, ignored; nothing else', () => {
-    expect(noteOf({ reason: 'pending', text: 'one', index: 1 })).toEqual({ kind: 'added', text: 'one', index: 1 })
-    expect(noteOf({ reason: 'handled', text: 'x', isIgnored: true })).toEqual({ kind: 'ignored', text: 'x' })
-    expect(noteOf({ reason: 'handled', text: 'x', isIgnored: false })).toBeNull()
+  test('what the first row says of a selection not offered: added as ①; nothing else', () => {
+    expect(noteOf({ reason: 'pending', text: 'one', index: 1 })).toEqual({ text: 'one', index: 1 })
+    expect(noteOf({ reason: 'handled' })).toBeNull()
     expect(noteOf({ reason: 'nothing' })).toBeNull()
     expect(noteOf({ excerpt: { text: 'x' }, key: 'x' })).toBeNull()
   })
@@ -46,7 +45,6 @@ describe('judging a selection', () => {
     expect(judge({ text: '│ one │\n╰───╯' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'Comment: hm' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'added as ②' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: 'ignored · /add-to-chat' }, QUIET)).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toHaveProperty('excerpt')
   })
   test('rowSource: replies, typed prompts, tool rows, and Claude Code\'s own', () => {

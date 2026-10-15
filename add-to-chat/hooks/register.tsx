@@ -189,11 +189,11 @@ async function poll($: EngineInterface, watch: PollWatch) {
   // `handled` holds only while the engine still reports that selection.
   // Once it reports none or another (a new drag, a command run, the turn's
   // end), the same text selected again is a new selection. Cleared only if
-  // unchanged since read: an ignore landing meanwhile stays.
+  // unchanged since read: a dismissal landing meanwhile stays.
   let decide = around
   const was = around.handled
-  if (was !== null && (selection === undefined || selectionKey(selection) !== was.key)) {
-    await update($, handled, now => (now?.key === was.key ? null : now))
+  if (was !== null && (selection === undefined || selectionKey(selection) !== was)) {
+    await update($, handled, now => (now === was ? null : now))
     decide = { ...around, handled: null }
   }
 
@@ -211,17 +211,17 @@ async function poll($: EngineInterface, watch: PollWatch) {
 }
 
 /** Done with a selection: it is not offered again until another is made. */
-async function markHandled($: EngineInterface, key: string | undefined, isIgnored: boolean) {
+async function markHandled($: EngineInterface, key: string | undefined) {
   // `handled` before the offer goes: a poll that reads the offer gone then
   // reads the selection handled, and does not offer it again.
-  if (key !== undefined) await update($, handled, () => ({ key, isIgnored }))
+  if (key !== undefined) await update($, handled, () => key)
   await update($, candidate, () => null)
 }
 
 /**
  * Adds the selection as an Annotation, if it can be. `isAsked` (from
- * /add-to-chat) adds a selection last added or ignored too: the command is
- * the person asking for it; one pending is still not added twice.
+ * /add-to-chat) adds a selection last added or dismissed too: the command
+ * is the person asking for it; one pending is still not added twice.
  */
 async function addSelection($: EngineInterface, isAsked = false): Promise<{ annotation: Annotation } | Exclude<Verdict, { key: string }>> {
   const around = await surroundings($)
@@ -235,13 +235,18 @@ async function addSelection($: EngineInterface, isAsked = false): Promise<{ anno
   const list = await update($, pending, now => appended(now, excerpt, source))
   const annotation = list.at(-1)!
   // The new tab shows, whatever the pane was showing.
-  await Promise.all([markHandled($, verdict.key, false), update($, paneTab, () => annotation.index), update($, paneMode, () => ({ kind: 'pending' }) as const)])
+  await Promise.all([markHandled($, verdict.key), update($, paneTab, () => annotation.index), update($, paneMode, () => ({ kind: 'pending' }) as const)])
   return { annotation }
 }
 
-async function ignoreSelection($: EngineInterface) {
+/**
+ * The offer's ✕: not this time. The engine still reports the selection,
+ * so it is marked handled, or the next poll would offer it again; selected
+ * again, it is offered (see the poll).
+ */
+async function dismissOffer($: EngineInterface) {
   const selection = await $.ui.selection()
-  await markHandled($, selection === undefined ? undefined : selectionKey(selection), true)
+  await markHandled($, selection === undefined ? undefined : selectionKey(selection))
 }
 
 /** Whether the pane is drawn now: open, and placed by the surface. */
@@ -256,8 +261,8 @@ async function removeAnnotation($: EngineInterface, index: number) {
   await Promise.all([update($, pending, now => without(now, index)), update($, paneTab, at => tabAfterRemoving(at, index))])
   // The selection it came from, still reported, can be added again: offered
   // once more, as the engine reports it until another is made.
-  if (removed !== undefined && key !== null && selection !== undefined && selectionKey(selection) === key.key && isSelectionOf(selection, removed)) {
-    await update($, handled, now => (now?.key === key.key ? null : now))
+  if (removed !== undefined && key !== null && selection !== undefined && selectionKey(selection) === key && isSelectionOf(selection, removed)) {
+    await update($, handled, now => (now === key ? null : now))
   }
 }
 
@@ -600,7 +605,7 @@ export const register: Register = (on, options) => {
             await $.ui.focus({ requestId: PANE_ID, key: commentKey(added.annotation.index, await read($, commentSaves)) }).catch(() => undefined)
           }
         },
-        ignore: () => ignoreSelection($),
+        dismiss: () => dismissOffer($),
         show: async index => {
           await keepDrafts($)
           await update($, paneTab, () => index)

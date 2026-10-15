@@ -113,7 +113,6 @@ describe('the pane', () => {
     const offer = (await pane.find({ key: 'offer' }))?.text ?? ''
     expect(offer).toContain('…”')
     expect(offer).toContain('✕')
-    expect(offer).not.toContain('ignore')
   })
 
   test('one tab per Annotation, the last added open; closing a tab removes it and renumbers the rest', async ($, on) => {
@@ -265,12 +264,12 @@ describe('the pane', () => {
     })
   }
 
-  test('ignoring a selection takes the offer away until another selection', async ($, on) => {
+  test("the offer's ✕ takes it away until another selection", async ($, on) => {
     const w = await start($, on)
     const pane = await mountPane($)
     w.selection = { text: 'not this', requestId: 'r1' }
     await tick(w)
-    await pane.press({ key: 'ignore' })
+    await pane.press({ key: 'dismiss' })
     await tick(w)
     expect(await pane.find({ key: 'add' })).toBeUndefined()
     w.selection = { text: 'this one', requestId: 'r1' }
@@ -293,7 +292,7 @@ describe('the pane', () => {
     expect(await tabsOf(pane)).toBe(1)
   })
 
-  test('the first row says why a selection is not offered: added as ①, or ignored and how to add it after all', async ($, on) => {
+  test('the first row says a selection is added, as ①; dismissed, it goes back to the hint', async ($, on) => {
     const w = await start($, on)
     const pane = await mountPane($)
     // With nothing offered, the first row is a lone Text, the pane's first.
@@ -305,20 +304,20 @@ describe('the pane', () => {
     expect(await firstRow()).toBe('“npm test” added as ①')
     w.selection = { text: 'not this', requestId: 'r1' }
     await tick(w)
-    await pane.press({ key: 'ignore' })
+    await pane.press({ key: 'dismiss' })
     await tick(w)
-    expect(await firstRow()).toBe('“not this” ignored · /add-to-chat adds it')
+    expect(await firstRow()).toContain('Select text in the transcript')
     w.selection = undefined
     await tick(w)
     expect(await firstRow()).toContain('Select text in the transcript')
   })
 
-  test('/add-to-chat adds an ignored selection after all; one pending it still does not add twice', async ($, on) => {
+  test('/add-to-chat adds a selection whose offer was dismissed; one pending it still does not add twice', async ($, on) => {
     const w = await start($, on)
     const pane = await mountPane($)
     w.selection = { text: 'not this', requestId: 'r1' }
     await tick(w)
-    await pane.press({ key: 'ignore' })
+    await pane.press({ key: 'dismiss' })
     await runCommand($, w)
     expect(w.toasts.at(-1)).toBe('Added ①: a Comment can go with it in the pane')
     expect(await tabsOf(pane)).toBe(1)
@@ -327,13 +326,13 @@ describe('the pane', () => {
     expect(await tabsOf(pane)).toBe(1)
   })
 
-  test('closing a tab leaves an ignored selection ignored', async ($, on) => {
+  test('closing a tab leaves a dismissed offer dismissed', async ($, on) => {
     const w = await start($, on)
     await addText($, w, 'one', 'r1')
     const pane = await mountPane($)
     w.selection = { text: 'not this', requestId: 'r1' }
     await tick(w)
-    await pane.press({ key: 'ignore' })
+    await pane.press({ key: 'dismiss' })
     await pane.press({ key: 'close-1' })
     await tick(w)
     expect(await pane.find({ key: 'add' })).toBeUndefined()
