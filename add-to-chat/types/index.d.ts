@@ -69,9 +69,9 @@ declare module 'claude-code' {
       commentSaves: number
       isDraftEmpty: boolean
       /**
-       * The Annotations a recall from the prompt history put back in
-       * pending: the next step through the history takes them out again.
-       * Null once none is pending.
+       * The Annotations a prompt put back in the box (a rewind, a step
+       * through the history) brought back to pending: the next prompt put
+       * there takes them out again. Null once none is pending.
        */
       recalled: { annotations: Pick<Annotation, 'text' | 'requestId'>[] } | null
       /** Keyed by `hashText` of the rewritten prompt; mirrored in `$.store`. */

@@ -638,6 +638,22 @@ describe('sent prompts', () => {
     expect(await tabCount($)).toBe(2)
   })
 
+  test("a rewind's Annotations are the prompt's too: another prompt in the box takes them out, back to it brings them again; a clear leaves them", async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w, 'explain this')
+    await submit($, 'a later prompt')
+    await changeBox($, w, sent, 'engine')
+    expect(await tabCount($)).toBe(1)
+    await changeBox($, w, 'a later prompt', 'history')
+    expect(await tabCount($)).toBe(0)
+    await changeBox($, w, 'explain this', 'history')
+    expect(await tabCount($)).toBe(1)
+    const clear = $.prompt as unknown as { change: (e: object) => Promise<unknown> }
+    w.draft = ''
+    await clear.change({ text: '', cursor: 0, origin: { kind: 'clear' } })
+    expect(await tabCount($)).toBe(1)
+  })
+
   test('↑ to a prompt sent with Annotations brings them back; the next step through the history takes them out, a step back to it brings them again', async ($, on) => {
     const w = await start($, on)
     const sent = await sendOne($, w, 'explain this')

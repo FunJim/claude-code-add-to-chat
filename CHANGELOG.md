@@ -22,7 +22,7 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 - A comment typed and not saved with Enter was not sent; it now goes with the prompt, and is kept when you switch tabs.
 - Pressing Enter twice in the comment field emptied it, and a third Enter deleted the comment.
 - After you removed an annotation, or once its prompt was sent, the same text could not be added again: selecting it showed no offer. Closing a tab now offers its selection again, and text selected after a command or a turn is offered whether it was added before or not.
-- Rewinding (Esc Esc) or recalling with ↑ a prompt sent with annotations put the whole rendered template back in the prompt box, so excerpts in it could not be selected again. You now get back what you typed, and its annotations are pending again; stepping on through the history takes them out again. A prompt recalled from another conversation comes back as typed, without its annotations.
+- Rewinding (Esc Esc) or recalling with ↑ a prompt sent with annotations put the whole rendered template back in the prompt box, so excerpts in it could not be selected again. You now get back what you typed, and its annotations are pending while the box shows that prompt: stepping on through the history takes them out, stepping back brings them again. A prompt recalled from another conversation comes back as typed, without its annotations.
 
 ## [0.2.1] - 2026-10-14
 

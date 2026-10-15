@@ -291,18 +291,21 @@ async function saveComment($: EngineInterface, index: number, value: string) {
 }
 
 /**
- * The prompt box changed by no edit: a rewind put a prompt back, or a step
- * through the prompt history (`isHistory`).
+ * The prompt box changed by no edit (`by`: a rewind is `engine`, a step
+ * through the prompt history `history`).
  *
- * A step through the history first takes out the Annotations the last
- * recall put back: they were that entry's. Then, a sent prompt with
- * Annotations back in the box gets what was typed in its place, and its
- * Annotations are pending again, to be edited and sent anew. From the
- * history only a prompt of this conversation brings its Annotations back:
- * another's point at rows this transcript does not hold.
+ * Annotations that came back with a prompt are that prompt's: they are
+ * pending while the box shows it. So a rewind or a step through the
+ * history first takes out those the last prompt brought back (a clear or
+ * an undo puts no other prompt there, and leaves them). Then, a sent
+ * prompt with Annotations back in the box gets what was typed in its
+ * place, and its Annotations are pending again, to be edited and sent
+ * anew. From the history only a prompt of this conversation brings its
+ * Annotations back: another's point at rows this transcript does not hold.
  */
-async function boxChanged($: EngineInterface, text: string, isHistory: boolean) {
-  if (isHistory) await dropRecalled($)
+async function boxChanged($: EngineInterface, text: string, by: string) {
+  const isHistory = by === 'history'
+  if (isHistory || by === 'engine') await dropRecalled($)
   const [map, inSession] = await Promise.all([read($, originals), read($, sessionPrompts)])
   const sent = sentInBox(text, map, inSession)
   if (sent === undefined) return
@@ -317,14 +320,14 @@ async function boxChanged($: EngineInterface, text: string, isHistory: boolean) 
       await Promise.all([
         update($, paneMode, () => ({ kind: 'pending' }) as const),
         update($, paneTab, () => added[0]!.index),
-        isHistory ? update($, recalled, () => ({ annotations: added.map(a => ({ text: a.text, requestId: a.requestId })) })) : null,
+        update($, recalled, () => ({ annotations: added.map(a => ({ text: a.text, requestId: a.requestId })) })),
       ])
     }
   }
   if (text !== sent.original.text) await $.prompt.fill({ text: sent.original.text, mode: 'replace' })
 }
 
-/** Takes out of pending the Annotations the last recall from the prompt history put back. */
+/** Takes out of pending the Annotations the last prompt put back in the box brought with it. */
 async function dropRecalled($: EngineInterface) {
   const last = await read($, recalled)
   if (last === null) return
@@ -562,7 +565,7 @@ export const register: Register = (on, options) => {
   // plugin's own fill): see boxChanged.
   on('prompt.change', async ($, e, next) => {
     const changed = await next(e)
-    if (e.origin.kind !== 'plugin') await boxChanged($, e.text, e.origin.kind === 'history')
+    if (e.origin.kind !== 'plugin') await boxChanged($, e.text, e.origin.kind)
     return changed
   })
 

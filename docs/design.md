@@ -187,7 +187,7 @@ A rewind (Esc Esc) or a step through the prompt history (↑ ↓, its search or 
 - A sent prompt with Annotations back in the box (its `hashText` a key of `originals`) gets what was typed in its place (`$.prompt.fill`, replace), and its Annotations, Comments and all, are pending again after any there (one already pending is not added twice); the first of them shows.
 - The history keeps an entry as the mod filled it, so stepping back to it brings what was typed: that is recognised too, as the typed text of one of this conversation's sent prompts.
 - From the history, only a prompt of this conversation (in `sessionPrompts`) brings its Annotations back. The history holds the project's prompts from every session; another conversation's Annotations point at rows this transcript does not hold, so such a prompt comes back as typed and nothing more. A rewind is this conversation's.
-- Annotations a recall brought back are the entry's: `recalled` notes them, and the next step through the history takes them out of `pending` again before it brings the next entry's. Those added meanwhile stay. A submit or a `/clear` forgets `recalled`.
+- Annotations that came back with a prompt are that prompt's, whether a rewind or the history put it there: they are pending while the box shows it. `recalled` notes them, and the next rewind or step through the history, which puts another prompt there, takes them out of `pending` before it brings that prompt's; stepping back brings them again. Those added meanwhile stay, and so do they when the box is only cleared. A submit or a `/clear` forgets `recalled`.
 
 ## Lifecycle
 
