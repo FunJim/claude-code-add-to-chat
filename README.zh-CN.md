@@ -4,6 +4,8 @@
 
 把 Codex 的 "Add to chat" 搬到 Claude Code。在 fullscreen 终端里，用鼠标选中 transcript 里的任意文字（Claude 回复里的一句话、你之前发过的 prompt、工具的输出），可以附上一句评论，它会作为带编号的 annotation 随下一条 prompt 一起发出。Claude 会逐条回应，并在回复里用 ①② 标出引用的是哪一条。
 
+https://github.com/user-attachments/assets/ee4c18ac-a04b-49d0-989e-e27b3fb5bcc1
+
 ```
 ⏺ The quick brown fox⁽¹⁾ jumps over the   │                                          ✕
   lazy dog.                                │[ ✚ Add to chat ] “capital of France” ✕

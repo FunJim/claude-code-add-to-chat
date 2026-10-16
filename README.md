@@ -7,6 +7,8 @@
 
 Codex's "Add to chat", for Claude Code. In the fullscreen terminal, select any text in the transcript (a line of Claude's reply, one of your own earlier prompts, a tool's output), add an optional comment, and it goes with your next prompt as a numbered annotation. Claude answers each one and cites it as ①②… in its reply.
 
+https://github.com/user-attachments/assets/ee4c18ac-a04b-49d0-989e-e27b3fb5bcc1
+
 ```
 ⏺ The quick brown fox⁽¹⁾ jumps over the   │                                          ✕
   lazy dog.                                │[ ✚ Add to chat ] “capital of France” ✕
