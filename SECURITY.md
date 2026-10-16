@@ -9,11 +9,10 @@ Please report it privately through [GitHub's security advisories](https://github
 add-to-chat runs inside Claude Code's mod engine, with no Node or network access of its own. It:
 
 - reads the transcript selection and the prompt draft while Claude Code is in fullscreen;
-- reads the template file named by its `templatePath` option, if set;
 - keeps, in Claude Code's per-plugin store, a map from each rewritten prompt's hash to the text that was typed (the latest 200), so prompt rows draw compactly after `--resume`.
 
 It sends nothing anywhere: what you add goes to the model only as part of the prompt you send.
 
 ## Prompt injection through Excerpts
 
-An Excerpt is text from the conversation, which can include text Claude read from files or the web. The default template puts Excerpts in XML (`{{annotations_xml}}`) with `&`, `<`, `>` and `"` escaped, so an Excerpt cannot close the `<annotations>` block and pass itself off as your request; `{{annotations_json}}` escapes them too. A custom template that inserts `{{text}}` between tags of its own has no such protection; see the README.
+An Excerpt is text from the conversation, which can include text Claude read from files or the web. The Annotation Template puts Excerpts and Comments in XML with `&`, `<`, `>` and `"` escaped, so an Excerpt cannot close the `<annotations>` block and pass itself off as your request. The model still reads what an Excerpt says: an Excerpt holding instructions is as safe to send as the text it came from.

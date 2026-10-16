@@ -59,11 +59,6 @@ test('Annotations in the turn: one sentence per Annotation, each ending with its
   assert.ok(!text.includes('fox'), 'no Excerpt repeated on screen')
 })
 
-test('Annotations in the context (a template without {{request}}) are cited too', () => {
-  const reply = replyTo({ tools: TOOLS, messages: [{ role: 'user', content: 'MODEL-REQ-3: answer my annotation.' }, { role: 'system', content: ANNOTATED }] })
-  assert.match((reply[0] as { text: string }).text, /:annotation\{index="1"\}/)
-})
-
 test('a prompt queued mid-turn, folded in beside a tool result: its Annotations are cited', () => {
   const reply = replyTo({
     tools: TOOLS,

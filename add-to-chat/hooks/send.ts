@@ -1,22 +1,16 @@
 // What the person's prompt carries once the Annotations go with it.
 import type { Annotation, Original } from '../types'
-import { renderTemplate, usesRequest } from './template'
+import { renderTemplate } from './template'
 
 export type Annotated = {
   text: string
-  context?: readonly string[]
-  /** For a rewritten prompt: what its row draws instead. */
-  original?: Original
+  /** What the prompt's row draws instead: the text as typed. */
+  original: Original
 }
 
-/**
- * A template with `{{request}}` becomes the prompt's text; one without rides
- * beside it as one more `context` entry.
- */
-export function annotated(template: string, text: string, context: readonly string[] | undefined, list: readonly Annotation[]): Annotated {
-  const rendered = renderTemplate(template, text, list)
-  if (!usesRequest(template)) return { text, context: [...(context ?? []), rendered] }
-  return { text: rendered, context, original: { text, count: list.length, annotations: [...list] } }
+/** The prompt rewritten by the Annotation Template, and what was typed. */
+export function annotated(text: string, list: readonly Annotation[]): Annotated {
+  return { text: renderTemplate(text, list), original: { text, count: list.length, annotations: [...list] } }
 }
 
 /** The originals map with one more, the oldest dropped past `max`. */

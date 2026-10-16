@@ -1,14 +1,13 @@
 // With the model: what it is sent, and what the mod makes of the reply. With
 // `--model haiku`, also whether the model understands the template; the mock
 // model cites every Annotation it is sent, and knows nothing else.
-import { copyFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe } from 'node:test'
 
 import { SEND_PLACEHOLDER, clipButtonLabel, clipLine, historyLabel } from '../../add-to-chat/hooks/labels.ts'
 import type { ClaudeSession } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
-import { FIXTURES_DIR } from '../harness/fixtures.ts'
 import { AUTO_COMPACT_WINDOW, FILL_CONTEXT } from '../harness/mock-model.ts'
 import { assert, scenario } from '../harness/scenario.ts'
 import type { Context } from '../harness/scenario.ts'
@@ -70,7 +69,7 @@ async function keptAcrossCompaction(ctx: Context, claude: ClaudeSession, prompt:
 }
 
 describe(MODEL, () => {
-  scenario(MODEL, 'the default template: the model reads the Annotations and cites them; the row shows what was typed', { drivers: ['herdr', 'tmux'], usesModel: true }, async ctx => {
+  scenario(MODEL, 'the template: the model reads the Annotations and cites them; the row shows what was typed', { drivers: ['herdr', 'tmux'], usesModel: true }, async ctx => {
     const claude = await primed(ctx)
     await ctx.step('add two Excerpts of the reply, one with a Comment')
     await claude.add('quick brown fox')
@@ -136,22 +135,6 @@ describe(MODEL, () => {
     assert.match(x.reply, /:annotation\{index="1"\}/)
     if (ctx.isRealModel) assert.match(x.reply, /cat/i, 'the model acted on the Comment')
     await ctx.evidence('reply as written', x.reply)
-  })
-
-  scenario(MODEL, 'a template without {{request}} rides in context (XML style)', { drivers: ['herdr'], usesModel: true }, async ctx => {
-    const cwd = await ctx.sandbox()
-    await copyFile(join(FIXTURES_DIR, 'templates', 'xml.tmpl'), join(cwd, 'xml.tmpl'))
-    const claude = await primed(ctx, { name: 'xml', slot: 'side', cwd, templatePath: join(cwd, 'xml.tmpl') })
-    await claude.add('quick brown fox')
-    await claude.comment(1, 'name the animal')
-    await claude.submit('MODEL-REQ-3: answer my annotation in one short sentence.')
-    const x = await exchange(claude, 'MODEL-REQ-3')
-    await ctx.evidence('context the model read', x.context.join('\n---\n'))
-    assert.equal(x.prompt, 'MODEL-REQ-3: answer my annotation in one short sentence.', 'the prompt goes as typed')
-    assert.match(x.context.join('\n'), /<annotation index="1" source="assistant" requestId="[^"]+">\n<excerpt>quick brown fox<\/excerpt>\n<comment>name the animal<\/comment>/)
-    if (ctx.isRealModel) assert.match(x.reply, /fox/i, 'the model read the Excerpt')
-    else assert.match(x.reply, /:annotation\{index="1"\}/, 'the Annotation reached the model from the context')
-    assert.equal(await claude.isShowing(`${clipLine(1)}\n`), false)
   })
 
   scenario(MODEL, 'a prompt queued mid-turn carries what was added meanwhile', { drivers: ['herdr'], usesModel: true }, async ctx => {

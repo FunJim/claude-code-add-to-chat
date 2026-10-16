@@ -18,7 +18,7 @@ No `npm install` is needed to run (Node ≥ 23.6 runs the TypeScript as is). Ins
 
 ## What you see
 
-- **Run from inside Herdr:** a pane opens beside yours showing the run live (read-only). Its left pane is the Claude Code under test. On the right, the top pane narrates each scenario and step, and the bottom pane holds a second session (main-screen, XML template, small terminal). Herdr's sidebar names each agent.
+- **Run from inside Herdr:** a pane opens beside yours showing the run live (read-only). Its left pane is the Claude Code under test. On the right, the top pane narrates each scenario and step, and the bottom pane holds a second session (main-screen, small terminal). Herdr's sidebar names each agent.
 - **Run from anywhere else:** the runner prints `tmux attach -r -t atc-e2e-herdr` (or `atc-e2e-main` for tmux); attach to watch.
 - **Results:** a spec-style list in the terminal, and in `e2e/results/<time>/` (also `e2e/results/latest`):
   - `report.md`: pass or fail per scenario, the environment, and on failure the screens;
@@ -60,7 +60,7 @@ harness/
   scenario.ts          scenario(): a node:test test with narration, evidence, cleanup
   report.ts            report.md and results.json
 scenarios/*.e2e.ts     pane, rows, filters, layout, lifecycle, model, history
-fixtures/              the sandbox project, the XML template, the transcript and its rows
+fixtures/              the sandbox project, the transcript and its rows
 probe/                 the test-only plugin
 ```
 

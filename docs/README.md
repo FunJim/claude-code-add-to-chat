@@ -11,5 +11,8 @@
   - [0005](adr/0005-everything-in-a-pane.md) everything in a pane, open from the start
   - [0006](adr/0006-wrap-the-prompt-row.md) a sent prompt's 📎 row wraps Claude Code's own row, never redraws it
   - [0007](adr/0007-xml-default-template.md) the default template: XML data first, indexed, and no "Annotation N"
+  - [0008](adr/0008-mock-model-for-e2e.md) the end-to-end suite talks to a mock model
+  - [0009](adr/0009-require-claude-code-2-1-300.md) require Claude Code 2.1.300
+  - [0010](adr/0010-no-custom-templates.md) no custom templates: one built-in Annotation Template
 - [../e2e/README.md](../e2e/README.md) — the end-to-end suite and showcase.
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — setting up, testing, the engine's rules.

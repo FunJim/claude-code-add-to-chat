@@ -11,7 +11,6 @@ export type World = {
   toasts: string[]
   fills: string[]
   submitted: { text: string; context?: readonly string[] }[]
-  files: Record<string, string>
   store: Record<string, unknown>
   /** The props each row last reached the engine with, by requestId. */
   drawnProps: Record<string, unknown>
@@ -24,13 +23,6 @@ export type World = {
   dropWhen?: (text: string) => boolean
   clock: ReturnType<typeof mock.clock>
 }
-
-/** The README's example of a template without `{{request}}`. */
-export const XML_TEMPLATE = `The user selected these excerpts from earlier in the conversation; their prompt refers to them by number.
-<annotations>
-{{annotations_xml}}
-</annotations>
-`
 
 export const BAND = {
   component: 'AbovePrompt',
@@ -51,7 +43,6 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     toasts: [],
     fills: [],
     submitted: [],
-    files: {},
     store: { ...store },
     drawnProps: {},
     panes: new Set(),
@@ -90,11 +81,6 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     w.draft = e.text
     return { isFilled: true }
   })
-  on('fs.read', ($, e) => {
-    const text = w.files[e.path]
-    return text === undefined ? { deny: `ENOENT: ${e.path}` } : { value: text }
-  })
-  on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('session.id', () => ({ value: w.sessionId }))
   on('turn.complete', ($, e) => e as never)
   on('session.messages', () => ({ value: w.messages }) as never)

@@ -4,6 +4,10 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Removed
+
+- Custom Annotation Templates. The `templatePath` option is gone, and ignored if still set: every prompt goes with the built-in template, which is unchanged. A template of your own could drop your request or the annotations without a word, and one without `{{request}}` left the prompt out of the 📎 row, the history and ↑.
+
 ## [0.3.0] - 2026-10-15
 
 ### Added

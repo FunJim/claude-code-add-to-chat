@@ -91,7 +91,7 @@ export class Transcript {
 /** One `<annotation>` of `{{annotations_xml}}`, its values unescaped. */
 export type SentAnnotation = { index: number; source: string; requestId?: string; text: string; comment?: string }
 
-/** The `<annotation>` elements of a prompt rendered with `{{annotations_xml}}` (the default template), in order. */
+/** The `<annotation>` elements of a prompt rendered by the template, in order. */
 export function annotationsXml(prompt: string): SentAnnotation[] {
   const unescape = (t: string) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
   const item = /<annotation index="(\d+)" source="(\w+)"(?: requestId="([^"]*)")?>\n<excerpt>([\s\S]*?)<\/excerpt>(?:\n<comment>([\s\S]*?)<\/comment>)?\n<\/annotation>/g

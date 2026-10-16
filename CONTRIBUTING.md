@@ -38,7 +38,7 @@ CI runs everything above but `--model haiku`, the end-to-end suite on Herdr (Lin
 
 ```
 add-to-chat/                  the mod (what gets installed)
-  .claude-plugin/plugin.json  manifest, userConfig, types
+  .claude-plugin/plugin.json  manifest, types
   hooks/register.tsx          engine glue: every hook and every `$` call
   hooks/*.ts(x)               pure modules: selection, annotations, rows, send,
                               pane (the view), prompt-row (a sent prompt's 📎 row),

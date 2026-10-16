@@ -63,19 +63,27 @@ Claude 回复里的 `:annotation{index="1"}` 会显示为 ①。
 
 ## Annotation Template（注释模板）
 
-默认会把 prompt 改写成：先是 XML 格式的 annotation（`<annotations>` 里每条一个 `<annotation index="N" source="…">`，包含 `<excerpt>` 和 `<comment>`），然后几行告诉 Claude 怎么引用它们，最后是放在 `<request>` 里的你输入的内容。想换成自己的措辞，可以把 `templatePath` 选项指向一个模板文件。在 `/plugin` → add-to-chat → configure 里设置，或者写进 settings：
+发送时，prompt 会被改写成：先是 XML 格式的 annotation，然后几行告诉 Claude 怎么引用它们，最后是放在 `<request>` 里的你输入的内容：
 
-```json
-{ "pluginConfigs": { "add-to-chat": { "options": { "templatePath": "~/.claude/add-to-chat.tmpl" } } } }
+```
+<annotations>
+<annotation index="1" source="assistant" requestId="…">
+<excerpt>Paris is the capital of France.</excerpt>
+<comment>is this still true?</comment>
+</annotation>
+</annotations>
+
+These are passages the user selected from earlier in this conversation (…)
+When a sentence of your reply addresses an annotation, end it with :annotation{index="N"} (…)
+
+<request>
+answer my comment
+</request>
 ```
 
-每条 annotation 的来源（XML 里的 `source`、模板里的 `{{source}}`）取值为：`assistant`（Claude 的回复）、`user`（你的 prompt）、`tool`（工具调用或结果）、`system`（Claude Code 自己的行：通知、命令输出、轮次耗时）、`transcript`（不在某一行上）。
+每条 annotation 的 `source` 取值为：`assistant`（Claude 的回复）、`user`（你的 prompt）、`tool`（工具调用或结果）、`system`（Claude Code 自己的行：通知、命令输出、轮次耗时）、`transcript`（不在某一行上）。excerpt 和 comment 都会转义，所以 excerpt 无法闭合 `<annotations>` 块（见 [SECURITY.md](SECURITY.md)）。在已发送的 prompt 上按 ctrl+o 可以看到实际发出的内容。
 
-模板语法是 Mustache 的一个子集，标签说明和示例见[英文 README](README.md#the-annotation-template)。要点：
-
-- 模板里**有** `{{request}}` 时，渲染结果替换你的 prompt。
-- 模板里**没有** `{{request}}` 时，你的 prompt 原样发出，渲染结果作为隐藏的上下文附在旁边。
-- ①② 只有在模板要求 Claude 写 `:annotation{index="N"}` 时才会出现，默认模板会这样要求。
+模板的措辞是固定的，是在 haiku 和 sonnet 上做评测后选定的（[ADR 0007](docs/adr/0007-xml-default-template.md)）。不再支持自定义模板（`templatePath` 选项），原因见 [ADR 0010](docs/adr/0010-no-custom-templates.md)。
 
 ## 限制
 

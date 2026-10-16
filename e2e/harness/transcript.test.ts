@@ -43,7 +43,7 @@ test("an auto-compaction: its summary, written between the prompt and the reply,
   assert.deepEqual(await t.compactions(), ['auto'])
 })
 
-test('annotationsXml reads the default template block, unescaped', () => {
+test('annotationsXml reads the template block, unescaped', () => {
   const prompt = '<annotations>\n<annotation index="1" source="assistant" requestId="r1">\n<excerpt>a &lt;b&gt; &amp; c</excerpt>\n<comment>why?</comment>\n</annotation>\n<annotation index="2" source="tool">\n<excerpt>x</excerpt>\n</annotation>\n</annotations>'
   assert.deepEqual(annotationsXml(prompt), [
     { index: 1, source: 'assistant', requestId: 'r1', text: 'a <b> & c', comment: 'why?' },

@@ -1,14 +1,14 @@
 // The engine glue: every call on `$` lives here (the engine follows `$`
 // only within this file); the decisions are the pure modules beside it.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, PluginOptions, Register, SessionMessage, UiPane } from 'claude-code'
+import type { EngineInterface, Register, SessionMessage, UiPane } from 'claude-code'
 
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode, SelectionNote } from '../types'
 import { appended, restored, withComment, withComments, without, withoutAll } from './annotations'
 import { hashText } from './hash'
 import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies, withReplies } from './history'
 import type { NotedReply } from './history'
-import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast, unreadableTemplate } from './labels'
+import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
 import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView, tabAfterRemoving } from './pane'
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
@@ -16,7 +16,6 @@ import { originalText, promptText, replyText } from './rows'
 import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, noteOf, rowSource, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
 import { annotated, withOriginal } from './send'
-import { DEFAULT_TEMPLATE } from './template'
 
 const pending = atom({ plugin: 'add-to-chat', key: 'pending' } as const, [])
 const candidate = atom({ plugin: 'add-to-chat', key: 'candidate' } as const, null)
@@ -352,18 +351,6 @@ async function hidePane($: EngineInterface) {
   await $.ui.close({ id: PANE_ID })
 }
 
-async function loadTemplate($: EngineInterface, options: PluginOptions): Promise<string> {
-  const path = typeof options.templatePath === 'string' ? options.templatePath.trim() : ''
-  if (path === '') return DEFAULT_TEMPLATE
-  const full = path.startsWith('~/') ? `${(await $.env.get('HOME')) ?? '~'}${path.slice(1)}` : path
-  try {
-    return await $.fs.read(full)
-  } catch {
-    $.ui.toast(unreadableTemplate(path))
-    return DEFAULT_TEMPLATE
-  }
-}
-
 /**
  * Reads which sent prompts are in this conversation's transcript (or in
  * `transcript`, when the caller has just read it), for the pane's history;
@@ -404,7 +391,7 @@ async function jumpToSent($: EngineInterface) {
   if ('deny' in moved) $.ui.toast(NOT_DRAWN)
 }
 
-export const register: Register = (on, options) => {
+export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'add-to-chat',
@@ -453,24 +440,22 @@ export const register: Register = (on, options) => {
       answering = null
       return next(e)
     }
-    const sent = annotated(await loadTemplate($, options), e.text, e.context, list)
-    if (sent.original !== undefined) await rememberOriginal($, sent.text, sent.original)
-    const entered = await next({ ...e, text: sent.text, context: sent.context })
+    const sent = annotated(e.text, list)
+    await rememberOriginal($, sent.text, sent.original)
+    const entered = await next({ ...e, text: sent.text })
     if (!('drop' in entered)) {
       await clearPending($)
-      if (sent.original !== undefined) {
-        const hash = hashText(sent.text)
-        answering = {
-          hash,
-          count: sent.original.count,
-          noted: [],
-          kept: [],
-          rejected: [],
-          hasEnded: false,
-          isDirty: false,
-        }
-        await update($, sessionPrompts, now => (now.includes(hash) ? now : [...now, hash]))
+      const hash = hashText(sent.text)
+      answering = {
+        hash,
+        count: sent.original.count,
+        noted: [],
+        kept: [],
+        rejected: [],
+        hasEnded: false,
+        isDirty: false,
       }
+      await update($, sessionPrompts, now => (now.includes(hash) ? now : [...now, hash]))
     }
     return entered
   }).catch(($, e, next) => next(e))

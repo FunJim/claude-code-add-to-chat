@@ -66,37 +66,27 @@ The pane opens before you select anything and its first row never grows, so noth
 
 ## The Annotation Template
 
-By default your prompt is rewritten as the annotations in XML (`<annotations>`, one `<annotation index="N" source="…">` each with its `<excerpt>` and `<comment>`), a few lines telling Claude how to cite them, then what you typed in `<request>`. To word it your own way, point the `templatePath` option at a file: `/plugin` → add-to-chat → configure, or in settings:
-
-```json
-{ "pluginConfigs": { "add-to-chat": { "options": { "templatePath": "~/.claude/add-to-chat.tmpl" } } } }
-```
-
-Each annotation's source (`role`, `{{source}}`) is `assistant` (Claude's reply), `user` (your prompt), `tool` (a tool call or result), `system` (Claude Code's own rows: notices, command output, turn duration) or `transcript` (no single row).
-
-Templates use a small Mustache subset:
-
-| Tag | Value |
-|---|---|
-| `{{request}}` | What you typed. A template **with** it replaces your prompt; a template **without** it is attached as hidden context beside your prompt |
-| `{{count}}` | Number of annotations |
-| `{{annotations_xml}}` | The default's `<annotation>` elements, values escaped |
-| `{{annotations_json}}` | Compact JSON in Codex's shape: `[{"text","source":{"role","requestId"},"annotation"}]`, where `annotation` is your comment |
-| `{{#annotations}}…{{/annotations}}` | One block per annotation, with `{{index}}`, `{{text}}`, `{{source}}`, `{{requestId}}` (the row's id), `{{comment}}` |
-| `{{#comment}}…{{/comment}}` | Only when the annotation has a comment (`{{^comment}}` for the opposite) |
-
-An XML-style template that leaves your prompt untouched and goes in as context:
+Your prompt is rewritten as the annotations in XML, a few lines telling Claude how to cite them, then what you typed in `<request>`:
 
 ```
-The user selected these excerpts from earlier in the conversation; their prompt refers to them by number.
 <annotations>
-{{annotations_xml}}
+<annotation index="1" source="assistant" requestId="…">
+<excerpt>Paris is the capital of France.</excerpt>
+<comment>is this still true?</comment>
+</annotation>
 </annotations>
+
+These are passages the user selected from earlier in this conversation (…)
+When a sentence of your reply addresses an annotation, end it with :annotation{index="N"} (…)
+
+<request>
+answer my comment
+</request>
 ```
 
-Values are inserted as they are, except `{{annotations_xml}}` and `{{annotations_json}}`, which escape what could close the tags around them. In tags of your own around `{{text}}` (inside `{{#annotations}}`), an excerpt containing `</excerpt>` could break out ([SECURITY.md](SECURITY.md)).
+Each annotation's `source` is `assistant` (Claude's reply), `user` (your prompt), `tool` (a tool call or result), `system` (Claude Code's own rows: notices, command output, turn duration) or `transcript` (no single row). Excerpts and comments are escaped, so an excerpt cannot close the `<annotations>` block ([SECURITY.md](SECURITY.md)). ctrl+o on a sent prompt shows what was sent.
 
-Citations (①②…) appear only if your template asks Claude to write `:annotation{index="N"}`, as the default does.
+The wording is fixed: it was chosen by an eval over haiku and sonnet ([ADR 0007](docs/adr/0007-xml-default-template.md)). Custom templates (the `templatePath` option) are no longer supported ([ADR 0010](docs/adr/0010-no-custom-templates.md)).
 
 ## Limitations
 

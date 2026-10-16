@@ -22,4 +22,4 @@ Claude's reference, in its reply, to one Annotation of the prompt it is answerin
 _Avoid_: backlink, footnote
 
 **Annotation Template**
-The person's choice of wording that turns their prompt and its Annotations into what the model reads.
+The fixed wording that turns the person's prompt and its Annotations into what the model reads.

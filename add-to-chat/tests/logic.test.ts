@@ -8,6 +8,7 @@ import { promptText, replyText } from '../hooks/rows'
 import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { annotated, withOriginal } from '../hooks/send'
+import { renderTemplate } from '../hooks/template'
 import { promptsIn, replyCountsOf, sameRecord, sentPrompts, turnReplies, withReplies } from '../hooks/history'
 import { hashText } from '../hooks/hash'
 import { isClipLineHead } from '../hooks/labels'
@@ -89,9 +90,8 @@ describe('rows and sending', () => {
   test('promptText draws the original with its 📎 line', () => {
     expect(promptText('# Response…', 'u9', A, { text: 'why?', count: 2 })).toBe('why?\n📎 2 annotations')
   })
-  test('annotated rewrites with {{request}}, adds context without', () => {
-    expect(annotated('[{{request}}] {{count}}', 'q', undefined, A)).toEqual({ text: '[q] 3', context: undefined, original: { text: 'q', count: 3, annotations: A } })
-    expect(annotated('{{count}} notes', 'q', ['c0'], A)).toEqual({ text: 'q', context: ['c0', '3 notes'] })
+  test('annotated rewrites the prompt by the template and keeps what was typed', () => {
+    expect(annotated('q', A)).toEqual({ text: renderTemplate('q', A), original: { text: 'q', count: 3, annotations: A } })
   })
   test('withOriginal keeps the newest', () => {
     const map = withOriginal({ a: { text: '1', count: 1 }, b: { text: '2', count: 1 } }, 'c', { text: '3', count: 1 }, 2)

@@ -36,8 +36,6 @@ export type LaunchOptions = {
   resume?: string
   /** False runs on the main screen, where no selection can be read. */
   fullscreen?: boolean
-  /** add-to-chat's `templatePath` option. */
-  templatePath?: string
   /** Where add-to-chat loads from: a copy a scenario may edit; the repository's own when left out. */
   pluginDir?: string
   /** Variables for Claude Code, through its settings. */
@@ -83,10 +81,6 @@ export class ClaudeSession {
     // in at times: the footer grows and the transcript moves under a drag.
     // One that prints nothing keeps the layout as it starts.
     settings.statusLine = { type: 'command', command: 'true' }
-    if (o.templatePath !== undefined) {
-      const options = { templatePath: o.templatePath }
-      settings.pluginConfigs = { 'add-to-chat': { options }, 'add-to-chat@inline': { options } }
-    }
     const argv = [
       'claude',
       '--model',

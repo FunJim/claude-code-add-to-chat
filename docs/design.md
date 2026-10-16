@@ -114,32 +114,26 @@ The accent colour (Claude orange) marks the open tab, whose label is bold and un
 
 ## Sending: the Annotation Template
 
-On `prompt.submit` with Annotations pending, from a prompt the person typed (`origin.kind === 'composer'`), the Annotation Template is rendered and the list cleared.
+On `prompt.submit` with Annotations pending, from a prompt the person typed (`origin.kind === 'composer'`), the Annotation Template is rendered in the prompt's place (`next({ ...e, text })`) and the list cleared.
 
-- A template **with** `{{request}}` replaces the prompt: `next({ ...e, text })`. In the transcript the row would show the whole rendered template, so the `UserMessage` render hook draws the typed text plus a `📎 N annotations` line instead; with ctrl+o (`isExpanded`) the full text shows.
-  - The row's `props.text` is byte-identical to the rewritten text, so the typed text is found by content: a map from the rewritten text's hash to `{ text, count }`. It lives in `$.store` so it survives `--resume`, is loaded into state on `session.start`, and keeps the latest 200 ([ADR 0004](adr/0004-originals-in-store.md)).
-- A template **without** `{{request}}` leaves the prompt alone and goes beside it as context: `next({ ...e, context: [...(e.context ?? []), rendered] })`. The model reads it as hook additional context.
+- In the transcript the row would show the whole rendered template, so the `UserMessage` render hook draws the typed text plus a `📎 N annotations` line instead; with ctrl+o (`isExpanded`) the full text shows.
+- The row's `props.text` is byte-identical to the rewritten text, so the typed text is found by content: a map from the rewritten text's hash to `{ text, count }`. It lives in `$.store` so it survives `--resume`, is loaded into state on `session.start`, and keeps the latest 200 ([ADR 0004](adr/0004-originals-in-store.md)).
+- Each `<annotation index="N" source="…" requestId="…">` holds its `<excerpt>` and, with a Comment, its `<comment>`; their text and attributes escape `&`, `<`, `>` and `"` as entities, so an Excerpt cannot close the tags around it.
 
-`userConfig.templatePath` names a template file, read with `$.fs.read` (`~/` expands to `$HOME`). Unset, or unreadable (with a toast), the built-in template is used. The syntax is a Mustache subset:
+The wording is fixed: a template of the person's own, which earlier versions read from `templatePath`, could drop the request or the Annotations without a word, leave the prompt out of the 📎 row, the history and a recall, and let an Excerpt close tags of its own ([ADR 0010](adr/0010-no-custom-templates.md)).
 
-- top level: `{{request}}`, `{{count}}`, `{{annotations_xml}}` (one `<annotation index="N" source="…" requestId="…">` per Annotation, holding `<excerpt>` and, with a Comment, `<comment>`), `{{annotations_json}}` (compact JSON: an array of `{ text, source: { role, requestId }, annotation? }`, Codex's shape with the Comment as `annotation`);
-- `{{#annotations}}…{{/annotations}}`, inside which `{{index}}` (one-based), `{{text}}`, `{{source}}`, `{{requestId}}`, `{{comment}}`;
-- `{{#name}}…{{/name}}` renders when the value is truthy, `{{^name}}…{{/name}}` when it is not;
-- a section tag alone on its line leaves no blank line;
-- values are inserted as-is, apart from `{{annotations_xml}}`, which escapes `&`, `<`, `>` and `"` as entities, and `{{annotations_json}}`, which escapes `<`, `>` and `&` as `\u003c`, `\u003e`, `\u0026` (still valid JSON): an Excerpt cannot close the tags around either.
-
-The default template puts the data first and the request last, as Anthropic's long-context guidance has it; each Annotation carries its own `index`, so the model never counts from zero; and it says what the directive is for and to use it instead of writing "Annotation N", the labels the earlier wording ("Treat items as Annotation 1, Annotation 2…") drew out. How the wording and the format were chosen (an eval of formats and markers over haiku and sonnet) is in [ADR 0007](adr/0007-xml-default-template.md).
+The template puts the data first and the request last, as Anthropic's long-context guidance has it; each Annotation carries its own `index`, so the model never counts from zero; and it says what the directive is for and to use it instead of writing "Annotation N", the labels the earlier wording ("Treat items as Annotation 1, Annotation 2…") drew out. How the wording and the format were chosen (an eval of formats and markers over haiku and sonnet) is in [ADR 0007](adr/0007-xml-default-template.md).
 
 ```
 <annotations>
-{{annotations_xml}}
+<annotation index="1" source="…" requestId="…">…</annotation>  (one per Annotation)
 </annotations>
 
 These are passages the user selected from earlier in this conversation (source: assistant = your reply, user = their own prompt, tool = a tool call or result, system = a Claude Code notice), each with the user's comment when they wrote one; their request below refers to them. Take every annotation into account and answer every comment.
 When a sentence of your reply addresses an annotation, end it with :annotation{index="N"}, N being that annotation's index; the user's screen shows it as that annotation's number (①). Write it instead of naming "Annotation N" in prose, and keep it out of code blocks.
 
 <request>
-{{request}}
+(the prompt as typed)
 </request>
 ```
 
@@ -242,6 +236,5 @@ The API (`claude-code.d.ts`, laid by the engine in `add-to-chat/.claude-plugin/t
 | `/add-to-chat` | `$.command.register`, `command.run` |
 | redrawing after a turn | `turn.complete`, `$.ui.invalidate('ui.render')` |
 | `/clear` | `session.end` |
-| the template file | `$.fs.read`, `$.env.get('HOME')` |
 | prompt originals across sessions | `$.store` |
 | messages | `$.ui.toast` |

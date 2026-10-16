@@ -72,10 +72,6 @@ export function addedToast(index: number): string {
   return `Added ${circled(index)}: a Comment can go with it in the pane`
 }
 
-export function unreadableTemplate(path: string): string {
-  return `add-to-chat: cannot read ${path}; using the built-in template`
-}
-
 /** `📎 N annotations`: a rewritten prompt row's second line, and the status line. */
 export function clipLine(count: number): string {
   return `📎 ${count} annotation${count === 1 ? '' : 's'}`

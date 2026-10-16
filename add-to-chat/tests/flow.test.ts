@@ -3,8 +3,8 @@ import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
 import { NOT_DRAWN } from '../hooks/labels'
-import { DEFAULT_TEMPLATE, renderTemplate } from '../hooks/template'
-import { XML_TEMPLATE, addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
+import { renderTemplate } from '../hooks/template'
+import { addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
@@ -12,7 +12,7 @@ type Mounted = Awaited<ReturnType<typeof mountPane<'terminal'>>>
 
 type Sent = { index: number; text: string; source: { role: string; requestId?: string }; annotation?: string }
 
-/** The Annotations a prompt rendered by the default template gives the model, read back from its XML. */
+/** The Annotations a prompt rendered by the template gives the model, read back from its XML. */
 function sentAnnotations(prompt: string): Sent[] {
   const unescape = (t: string) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
   const item = /<annotation index="(\d+)" source="(\w+)"(?: requestId="([^"]*)")?>\n<excerpt>([\s\S]*?)<\/excerpt>(?:\n<comment>([\s\S]*?)<\/comment>)?\n<\/annotation>/g
@@ -502,7 +502,7 @@ describe('marks in the transcript', () => {
 })
 
 describe('sending', () => {
-  test('the default template rewrites the prompt; the row draws the original, its 📎 line drawn by the mod', async ($, on) => {
+  test('the template rewrites the prompt; the row draws the original, its 📎 line drawn by the mod', async ($, on) => {
     const w = await start($, on)
     await drawRow($, w, 'AssistantMessage', 'r1', REPLY)
     await addText($, w, 'npm test', 'r1')
@@ -542,30 +542,11 @@ describe('sending', () => {
     expect((await row.find({ key: `clip-${hashText(rewritten)}` }))?.text).toBe('📎 2 annotations ↗')
   })
 
-  test('a template without {{request}} goes into context', { options: { templatePath: '~/xml.tmpl' } }, async ($, on) => {
-    const w = await start($, on)
-    w.files['/home/me/xml.tmpl'] = XML_TEMPLATE
-    await addText($, w, 'npm test', 'r1')
-    await submit($, 'why?')
-    expect(w.submitted[0]!.text).toBe('why?')
-    expect(w.submitted[0]!.context).toEqual([
-      'The user selected these excerpts from earlier in the conversation; their prompt refers to them by number.\n<annotations>\n<annotation index="1" source="transcript" requestId="r1">\n<excerpt>npm test</excerpt>\n</annotation>\n</annotations>\n',
-    ])
-  })
-
   test('prompts not typed by the person are left alone', async ($, on) => {
     const w = await start($, on)
     await addText($, w, 'npm test', 'r1')
     await $.prompt.submit({ text: 'done', origin: { kind: 'task-notification' }, wait: false })
     expect(w.submitted[0]!.text).toBe('done')
-  })
-
-  test('a missing template file says so and falls back to the default', { options: { templatePath: '/nope/missing.tmpl' } }, async ($, on) => {
-    const w = await start($, on)
-    await addText($, w, 'npm test', 'r1')
-    await submit($, 'why?')
-    expect(w.toasts.at(-1)).toMatch(/cannot read \/nope\/missing.tmpl/)
-    expect(w.submitted[0]!.text).toStartWith('<annotations>')
   })
 
   for (const kind of ['bridge', 'sdk', 'task-notification', 'peer', 'channel', 'scheduled-trigger'] as const) {
@@ -821,7 +802,7 @@ describe('sent prompts', () => {
   })
 
   test('opened from the history before its row is drawn, there is nothing to jump to', async ($, on) => {
-    const sent = renderTemplate(DEFAULT_TEMPLATE, 'q', [{ index: 1, text: 'npm test', source: 'assistant' }])
+    const sent = renderTemplate('q', [{ index: 1, text: 'npm test', source: 'assistant' }])
     const w = await start($, on, { originals: { [hashText(sent)]: { text: 'q', count: 1, annotations: [{ index: 1, text: 'npm test', source: 'assistant' }] } } }, [sent])
     const pane = await mountPane($)
     await pane.press({ key: 'history' })
@@ -840,7 +821,7 @@ describe('sent prompts', () => {
   })
 
   test("the history lists this conversation's prompts, not those the store keeps from other sessions", async ($, on) => {
-    const other = renderTemplate(DEFAULT_TEMPLATE, 'from another session', [{ index: 1, text: 'old', source: 'assistant' }])
+    const other = renderTemplate('from another session', [{ index: 1, text: 'old', source: 'assistant' }])
     const w = await start($, on, { originals: { [hashText(other)]: { text: 'from another session', count: 1, annotations: [{ index: 1, text: 'old', source: 'assistant' }] } } })
     expect(await paneText($)).not.toContain('History (')
     await sendOne($, w)
