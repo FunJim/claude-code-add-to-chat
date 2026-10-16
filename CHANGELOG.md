@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-16
+
 ### Removed
 
 - Custom Annotation Templates. The `templatePath` option is gone, and ignored if still set: every prompt goes with the built-in template, which is unchanged. A template of your own could drop your request or the annotations without a word, and one without `{{request}}` left the prompt out of the 📎 row, the history and ↑.
@@ -62,7 +64,8 @@ First release, for Claude Code 2.1.296.
 - The Annotation Template: a Codex-style default, or a Mustache-subset file (`templatePath`) that replaces the prompt or rides beside it as context.
 - Prompt rows drawn as what was typed plus `📎 N annotations`, kept across `--resume`.
 
-[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.1.0...v0.2.0
