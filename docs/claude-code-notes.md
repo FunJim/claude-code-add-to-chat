@@ -74,6 +74,7 @@ Rows by type (adding from each, with Source and mark):
 - A reload follows the module's text. From 2.1.300 a change of a file's time alone (a `touch`) reloads nothing; 2.1.296 reloaded on it.
 - `/clear` raises `session.end` with reason `clear`, and no `session.start` follows.
 - A new process starts with empty `$.state`; `$.store` persists.
+- `$.store` is the plugin's across every session, those running at once included; it has `get`, `set`, `delete` and `keys` (in insertion order) and no compare-and-set. A session that loads a value and later sets it whole writes over what another session set meanwhile: measured 2026-10-17 by two e2e sessions sending in turn, the first then resumed.
 - A resumed session draws its rows before `session.start`.
 - In the ctrl+o view there is no band; a selection made there is offered after leaving it.
 - `/branch`, `/resume` (in a session) and `/clear` go on under another session id (`$.session.id()`), clear `$.state`, and fire no `session.start`; `classic.SessionStart` fires with `source` `fork`, `resume` or `clear`, while `$.session.id()` still answers the old id. `$.store` is untouched. Measured 2026-10-14 by toasting from each hook in an e2e session.

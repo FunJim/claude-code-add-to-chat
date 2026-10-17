@@ -4,6 +4,8 @@ import { mock } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, PromptChangeInput, PromptSubmitInput, RenderElement } from 'claude-code'
 
+import type { Original } from '../types'
+
 export type World = {
   selection?: { text: string; requestId?: string }
   draft: string
@@ -22,6 +24,11 @@ export type World = {
   /** Prompts the engine's end refuses, as another plugin would. */
   dropWhen?: (text: string) => boolean
   clock: ReturnType<typeof mock.clock>
+}
+
+/** The Originals the store holds, by hash, each under its own key. */
+export function storedOriginals(w: World): Record<string, Original> {
+  return Object.fromEntries(Object.entries(w.store).flatMap(([k, v]) => (k.startsWith('original:') ? [[k.slice('original:'.length), v as Original]] : [])))
 }
 
 export const BAND = {
@@ -55,6 +62,11 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     w.store[e.key] = JSON.parse(JSON.stringify(e.value))
     return { value: undefined }
   })
+  on('store.delete', ($, e) => {
+    delete w.store[e.key]
+    return { value: undefined }
+  })
+  on('store.keys', () => ({ value: Object.keys(w.store) }))
   on('ui.render', ($, e) => {
     if (e.requestId !== undefined) w.drawnProps[e.requestId] = e.props
     const { Box } = $.ui.resolve(e)

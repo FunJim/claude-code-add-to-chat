@@ -117,7 +117,7 @@ The accent colour (Claude orange) marks the open tab, whose label is bold and un
 On `prompt.submit` with Annotations pending, from a prompt the person typed (`origin.kind === 'composer'`), the Annotation Template is rendered in the prompt's place (`next({ ...e, text })`) and the list cleared.
 
 - In the transcript the row would show the whole rendered template, so the `UserMessage` render hook draws the typed text plus a `📎 N annotations` line instead; with ctrl+o (`isExpanded`) the full text shows.
-- The row's `props.text` is byte-identical to the rewritten text, so the typed text is found by content: a map from the rewritten text's hash to `{ text, count }`. It lives in `$.store` so it survives `--resume`, is loaded into state on `session.start`, and keeps the latest 200 ([ADR 0004](adr/0004-originals-in-store.md)).
+- The row's `props.text` is byte-identical to the rewritten text, so the typed text is found by content: a map from the rewritten text's hash to `{ text, count }`. It lives in `$.store`, one record per prompt (`original:<hash>`), so it survives `--resume` and sessions running at once never write over each other's; it is loaded into state on `session.start` and keeps the latest 200 ([ADR 0004](adr/0004-originals-in-store.md)).
 - Each `<annotation index="N" source="…" requestId="…">` holds its `<excerpt>` and, with a Comment, its `<comment>`; their text and attributes escape `&`, `<`, `>` and `"` as entities, so an Excerpt cannot close the tags around it.
 
 The wording is fixed: a template of the person's own, which earlier versions read from `templatePath`, could drop the request or the Annotations without a word, leave the prompt out of the 📎 row, the history and a recall, and let an Excerpt close tags of its own ([ADR 0010](adr/0010-no-custom-templates.md)).
@@ -147,7 +147,7 @@ The `AssistantMessage` render hook replaces `:annotation{index="N"}` in a reply 
 
 ## Sent prompts
 
-A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations, replies }` by the hash of the rewritten text, mirrored in `$.store` ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. A prompt kept without them (sent before 0.3.0) draws the text-only row, with no `📎` button.
+A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations, replies }` by the hash of the rewritten text, mirrored in `$.store` a record each ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. A reply kept with a prompt is added to its record as the store holds it, which another session may have written since. A prompt kept without them (sent before 0.3.0) draws the text-only row, with no `📎` button.
 
 ### The 📎 row
 
@@ -209,7 +209,7 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | `commentSaves` | Comments saved with Enter so far: in the Comment field's key |
 | `recalled` | the Annotations the last recall from the prompt history put back; null once none is pending |
 | `isDraftEmpty` | whether the prompt draft is empty |
-| `originals` | rewritten prompt hash → `{ text, count, annotations?, replies? }`, mirrored in `$.store` |
+| `originals` | rewritten prompt hash → `{ text, count, annotations?, replies? }`, mirrored in `$.store` under `original:<hash>` |
 | `sessionPrompts` | hashes of the rewritten prompts in this conversation's transcript, oldest first |
 | `replyCounts` | each reply row known to answer one of them → its Annotation count; what reply rows read to bound their Citations |
 | `paneMode` | what the pane shows below its first row: `pending`, `history`, or one `sent` prompt (its hash, open tab and row) |

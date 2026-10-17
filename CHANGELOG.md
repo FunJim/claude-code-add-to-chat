@@ -4,6 +4,10 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Two sessions running at once no longer lose each other's sent prompts. Each kept the whole list in one place and wrote its own copy over it, so a prompt sent in one session lost its `📎` row, its place in the history and its annotations on ↑ once the other sent one. Each prompt is now kept on its own; the list kept by 0.4.0 is converted on first start.
+
 ## [0.4.0] - 2026-10-16
 
 ### Removed

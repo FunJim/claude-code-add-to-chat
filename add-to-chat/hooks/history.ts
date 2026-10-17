@@ -1,8 +1,42 @@
-// Sent prompts' Annotations: which prompts are this conversation's, and
-// which sent prompt a reply answers.
+// Sent prompts' Annotations: how they are kept in the store, which prompts
+// are this conversation's, and which sent prompt a reply answers.
 import type { Annotation, Original } from '../types'
 import { hashText } from './hash'
 import { oneLine } from './text'
+
+const KEY_PREFIX = 'original:'
+
+/**
+ * The store key of one sent prompt's Original, by the hash of its rewritten
+ * text: one record each, so sessions writing at once never drop each
+ * other's.
+ */
+export function originalKey(hash: string): string {
+  return `${KEY_PREFIX}${hash}`
+}
+
+/** The hash a store key holds an Original under; undefined for any other key. */
+export function hashOfKey(key: string): string | undefined {
+  return key.startsWith(KEY_PREFIX) ? key.slice(KEY_PREFIX.length) : undefined
+}
+
+/** The keys of the Originals past the newest `max`, oldest first, of the store's keys in insertion order. */
+export function overflowKeys(keys: readonly string[], max: number): string[] {
+  const kept = keys.filter(k => hashOfKey(k) !== undefined)
+  return kept.slice(0, Math.max(0, kept.length - max))
+}
+
+/** Whether a stored value is an Original. */
+export function isOriginal(value: unknown): value is Original {
+  const o = value as Partial<Original> | null
+  return typeof o === 'object' && o !== null && typeof o.text === 'string' && typeof o.count === 'number'
+}
+
+/** The Originals of the one map 0.4.0 and earlier kept them all in, oldest first. */
+export function legacyOriginals(value: unknown): [string, Original][] {
+  if (typeof value !== 'object' || value === null) return []
+  return Object.entries(value).filter((entry): entry is [string, Original] => isOriginal(entry[1]))
+}
 
 /**
  * The rewritten prompts in a transcript (its user messages, as

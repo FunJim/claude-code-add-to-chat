@@ -16,6 +16,8 @@ const HISTORY = 'history'
 const REQUEST = 'HISTORY-1: reply with the single word OK.'
 const REWIND = 'HISTORY-2: reply with the single word OK.'
 const RECALL = 'HISTORY-3: reply with the single word OK.'
+const FROM_A = 'HISTORY-4A: reply with the single word OK.'
+const FROM_B = 'HISTORY-4B: reply with the single word OK.'
 
 /** The transcript's rows, the pane's left out. */
 async function transcript(claude: ClaudeSession): Promise<string> {
@@ -180,4 +182,30 @@ describe(HISTORY, () => {
     await claude.add('Ran the')
     assert.equal((await claude.probe.pending()).length, 2)
   })
+
+  scenario(HISTORY, "two sessions at once: one sending after the other keeps the other's prompt; resumed, it still has its 📎 row", { drivers: ['herdr'], usesModel: true }, async ctx => {
+    // Both load the store first: the second used to write its whole copy over the first's.
+    const a = await ctx.launchFixture({ name: 'session-a' })
+    const b = await ctx.launchFixture({ name: 'session-b', slot: 'side' })
+    const sendFrom = async (session: ClaudeSession, excerpt: string, prompt: string) => {
+      await session.add(excerpt)
+      const before = await session.probe.turnsCompleted()
+      await session.submit(prompt)
+      await waitFor('the reply', async () => (await session.probe.turnsCompleted()) > before, { timeoutMs: 120_000, intervalMs: 1_000 })
+    }
+    await ctx.step('session A sends a prompt with an Annotation, then session B one')
+    await sendFrom(a, 'so reading it failed', FROM_A)
+    await sendFrom(b, 'Ran the', FROM_B)
+
+    await ctx.step("A resumed: its prompt row draws what was typed, its 📎 row under it")
+    await a.close()
+    const again = await ctx.launch({ name: 'session-a-again', cwd: a.cwd, resume: FIXTURE_SESSION })
+    await waitFor("A's prompt as typed, its 📎 row under it", async () => {
+      const rows = (await transcript(again)).split('\n')
+      const at = rows.findIndex(r => r.startsWith(`❯ ${FROM_A}`))
+      return at >= 0 && rows[at + 1]?.trim() === clipButtonLabel(1)
+    }, { timeoutMs: 30_000 })
+    await ctx.evidence('screen of A resumed', await again.screen())
+  })
+
 })

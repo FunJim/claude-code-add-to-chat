@@ -6,7 +6,7 @@ import type { EngineInterface, Register, SessionMessage, UiPane } from 'claude-c
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode, SelectionNote } from '../types'
 import { appended, restored, withComment, withComments, without, withoutAll } from './annotations'
 import { hashText } from './hash'
-import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies, withReplies } from './history'
+import { hashOfKey, isOriginal, legacyOriginals, originalKey, overflowKeys, promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies, withReplies } from './history'
 import type { NotedReply } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
 import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView, tabAfterRemoving } from './pane'
@@ -37,7 +37,8 @@ const paneMode = atom({ plugin: 'add-to-chat', key: 'paneMode' } as const, { kin
 const POLL_MS = 250
 /** How long after the prompt box empties a submit has surely read what is pending. */
 const CLEAR_GRACE_MS = 1_000
-const STORE_ORIGINALS = 'originals'
+/** The one map of Originals that 0.4.0 and earlier kept; one record each now (`originalKey`). */
+const STORE_LEGACY_ORIGINALS = 'originals'
 const MAX_ORIGINALS = 200
 
 /**
@@ -130,8 +131,13 @@ async function keepReplies($: EngineInterface) {
   a.kept = kept
   a.rejected = a.noted.map(r => r.id).filter(id => !kept.includes(id))
   if (fresh.length > 0) {
-    const map = await update($, originals, now => (now[a.hash] === undefined ? now : { ...now, [a.hash]: withReplies(now[a.hash]!, fresh) }))
-    await $.store.set(STORE_ORIGINALS, map)
+    const [map, stored] = await Promise.all([
+      update($, originals, now => (now[a.hash] === undefined ? now : { ...now, [a.hash]: withReplies(now[a.hash]!, fresh) })),
+      $.store.get(originalKey(a.hash)),
+    ])
+    // The record as stored, which another session may have written since.
+    const base = isOriginal(stored) ? stored : map[a.hash]
+    if (base !== undefined) await $.store.set(originalKey(a.hash), withReplies(base, fresh))
   }
   await refreshSession($, false, transcript)
 }
@@ -357,10 +363,8 @@ async function hidePane($: EngineInterface) {
  * with `reload`, takes the originals from the store first.
  */
 async function refreshSession($: EngineInterface, reload: boolean, transcript?: readonly SessionMessage[]) {
-  const [messages, stored] = await Promise.all([transcript ?? $.session.messages(), reload ? $.store.get(STORE_ORIGINALS) : undefined])
-  const map = reload
-    ? await update($, originals, now => (stored !== undefined && typeof stored === 'object' && stored !== null ? (stored as Record<string, Original>) : now))
-    : await read($, originals)
+  const [messages, stored] = await Promise.all([transcript ?? $.session.messages(), reload ? loadOriginals($) : undefined])
+  const map = stored !== undefined ? await update($, originals, now => ({ ...now, ...stored })) : await read($, originals)
   const hashes = Array.isArray(messages) ? promptsIn(messages, map) : []
   const counts = replyCountsOf(map, hashes)
   // Written only on a change: reply rows read replyCounts, and a write, even
@@ -370,9 +374,37 @@ async function refreshSession($: EngineInterface, reload: boolean, transcript?: 
   if (!sameRecord(bounds, counts)) await update($, replyCounts, () => counts)
 }
 
+/**
+ * Every Original in the store, each under its own key; the one map of 0.4.0
+ * and earlier split into records first, those another session wrote kept.
+ */
+async function loadOriginals($: EngineInterface): Promise<Record<string, Original>> {
+  const legacy = await $.store.get(STORE_LEGACY_ORIGINALS)
+  if (legacy !== undefined) {
+    const have = new Set(await $.store.keys())
+    // One at a time, oldest first: the store keeps insertion order, the age the cap goes by.
+    for (const [hash, original] of legacyOriginals(legacy)) {
+      if (!have.has(originalKey(hash))) await $.store.set(originalKey(hash), original)
+    }
+    await $.store.delete(STORE_LEGACY_ORIGINALS)
+  }
+  const hashes = (await $.store.keys()).flatMap(k => hashOfKey(k) ?? [])
+  const values = await Promise.all(hashes.map(h => $.store.get(originalKey(h))))
+  return Object.fromEntries(hashes.flatMap((h, i) => (isOriginal(values[i]) ? [[h, values[i]]] : [])))
+}
+
+/**
+ * Keeps a sent prompt's Original: in state, and in the store under its own
+ * key, so another session's records stay as written; past the newest 200,
+ * the oldest go.
+ */
 async function rememberOriginal($: EngineInterface, rewritten: string, original: Original) {
-  const map = await update($, originals, now => withOriginal(now, hashText(rewritten), original, MAX_ORIGINALS))
-  await $.store.set(STORE_ORIGINALS, map)
+  const hash = hashText(rewritten)
+  await update($, originals, now => withOriginal(now, hash, original, MAX_ORIGINALS))
+  // Deleted first, so a prompt sent again counts as the newest.
+  await $.store.delete(originalKey(hash))
+  await $.store.set(originalKey(hash), original)
+  await Promise.all(overflowKeys(await $.store.keys(), MAX_ORIGINALS).map(k => $.store.delete(k)))
 }
 
 /** Shows a sent prompt's Annotations in the pane, from its row's 📎. */

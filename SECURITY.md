@@ -9,7 +9,7 @@ Please report it privately through [GitHub's security advisories](https://github
 add-to-chat runs inside Claude Code's mod engine, with no Node or network access of its own. It:
 
 - reads the transcript selection and the prompt draft while Claude Code is in fullscreen;
-- keeps, in Claude Code's per-plugin store, a map from each rewritten prompt's hash to the text that was typed (the latest 200), so prompt rows draw compactly after `--resume`.
+- keeps, in Claude Code's per-plugin store, a record for each rewritten prompt, by its hash, holding the text that was typed and its annotations (the latest 200), so prompt rows draw compactly after `--resume`.
 
 It sends nothing anywhere: what you add goes to the model only as part of the prompt you send.
 
