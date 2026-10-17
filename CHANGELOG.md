@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-17
+
 ### Fixed
 
 - Two sessions answering the same prompt (a `/branch` sending it again) no longer lose each other's replies to it, which kept a reply's numbers to the prompt's annotations. Each reply is now kept on its own.
@@ -75,7 +77,8 @@ First release, for Claude Code 2.1.296.
 - The Annotation Template: a Codex-style default, or a Mustache-subset file (`templatePath`) that replaces the prompt or rides beside it as context.
 - Prompt rows drawn as what was typed plus `📎 N annotations`, kept across `--resume`.
 
-[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.2.1...v0.3.0
