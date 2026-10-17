@@ -4,6 +4,11 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Two sessions answering the same prompt (a `/branch` sending it again) no longer lose each other's replies to it, which kept a reply's numbers to the prompt's annotations. Each reply is now kept on its own.
+- Upgrading from 0.4.0 can no longer write the old list over a prompt another session has just kept: the old list is now only read.
+
 ## [0.4.1] - 2026-10-17
 
 ### Fixed

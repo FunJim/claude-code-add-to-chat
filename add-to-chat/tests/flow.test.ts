@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
-import { originalKey } from '../hooks/history'
+import { originalKey, replyKey } from '../hooks/history'
 import { NOT_DRAWN } from '../hooks/labels'
 import { renderTemplate } from '../hooks/template'
 import { addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, storedOriginals, submit, tick } from './world'
@@ -898,34 +898,55 @@ describe('the store, shared by every session', () => {
     expect(await drawRow($, w, 'UserMessage', 'u9', another)).toBe('from session B')
   })
 
-  test('replies are added to the record as stored, with what another session wrote to it since', async ($, on) => {
+  test('two sessions keeping replies to the same prompt keep both, whichever writes last; reloaded, each reply keeps the bound of its prompt', async ($, on) => {
     const w = await start($, on)
     const sent = await sendOne($, w)
+    const hash = hashText(sent)
     await drawRow($, w, 'AssistantMessage', 'a1', 'one :annotation{index="1"}')
-    // Another session (a /branch of this one) keeps a reply to the same prompt meanwhile.
-    w.store[originalKey(hashText(sent))] = { ...storedOriginals(w)[hashText(sent)]!, replies: ['theirs'] }
-    w.store[originalKey(hashText(another))] = bRecord
+    // A /branch of this conversation sent the same prompt; its session keeps its replies before this turn ends, and after.
+    w.store[replyKey(hash, 'b1')] = true
     w.messages.push({ role: 'assistant', text: 'one :annotation{index="1"}', toolUses: [] })
     await endTurn($)
-    expect(storedOriginals(w)[hashText(sent)]?.replies).toEqual(['theirs', 'a1'])
-    expect(storedOriginals(w)[hashText(another)]).toEqual(bRecord)
+    w.store[replyKey(hash, 'b2')] = true
+    expect(storedOriginals(w)[hash]?.replies).toEqual(['b1', 'a1', 'b2'])
+    expect(w.store[originalKey(hash)]).toEqual({ text: 'q', count: 1, annotations: [{ index: 1, text: 'npm test', source: 'transcript', requestId: 'r1', comment: 'why?' }] })
+    // /resume of the branch: a reply of its own still cites no Annotation past the prompt's one.
+    await tick(w)
+    w.sessionId = 's2'
+    w.messages = [{ role: 'user', text: sent, toolUses: [] }]
+    await tick(w)
+    expect(await drawRow($, w, 'AssistantMessage', 'b1', 'two :annotation{index="2"}')).toBe('two :annotation{index="2"}')
   })
-
-  test("0.4.0's one map is split into records, oldest first, and goes; a record already split stays as it is", async ($, on) => {
-    const one = { text: 'one', count: 1 }
-    const two = { text: 'two', count: 1 }
-    const w = await start($, on, { originals: { h1: one, h2: two, bad: 'not an original' }, [originalKey('h2')]: { text: 'two', count: 1, replies: ['newer'] } })
-    expect(w.store.originals).toBeUndefined()
-    expect(storedOriginals(w)).toEqual({ h2: { text: 'two', count: 1, replies: ['newer'] }, h1: one })
+  test("0.4.0's one map is read, never written: under the records of their own keys, the replies of both; a record another session writes during a load stays as written", async ($, on) => {
+    const one = { text: 'one', count: 1, replies: ['r1'] }
+    const two = { text: 'two, as 0.4.0 kept it', count: 1, replies: ['old'] }
+    const legacy = { h1: one, h2: two, bad: 'not an original' }
+    const w = await start($, on, { originals: legacy, [originalKey('h2')]: { text: 'two', count: 1 }, [replyKey('h2', 'new')]: true })
+    expect(storedOriginals(w)).toEqual({ h1: one, h2: { text: 'two', count: 1, replies: ['old', 'new'] } })
+    // Loaded again (another session id) while another session keeps a newer record of h1 just after the keys are read.
+    const keys = Object.keys(w.store)
+    const newer = { text: 'one, sent again', count: 1 }
+    w.afterKeys = () => {
+      w.afterKeys = undefined
+      w.store[originalKey('h1')] = newer
+    }
+    await tick(w)
+    w.sessionId = 's2'
+    await tick(w)
+    expect(w.store[originalKey('h1')]).toEqual(newer)
+    expect(w.store.originals).toEqual(legacy)
+    expect(Object.keys(w.store)).toEqual([...keys, originalKey('h1')])
   })
-
-  test('past 200 Originals the oldest goes; one sent again counts as the newest', async ($, on) => {
+  test('past 200 Originals the oldest goes, with its replies; one sent again counts as the newest', async ($, on) => {
     const seeded = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [originalKey(`h${i}`), { text: `t${i}`, count: 1 }]))
-    const w = await start($, on, seeded)
+    const w = await start($, on, { ...seeded, [replyKey('h0', 'x')]: true, [replyKey('h1', 'y')]: true })
     const sent = await sendOne($, w)
     const kept = Object.keys(storedOriginals(w))
     expect(kept).toHaveLength(200)
     expect(kept[0]).toBe('h1')
+    // The oldest goes with its replies; the next keeps its own.
+    expect(w.store[replyKey('h0', 'x')]).toBeUndefined()
+    expect(w.store[replyKey('h1', 'y')]).toBe(true)
     expect(kept.at(-1)).toBe(hashText(sent))
     await sendOne($, w, 'other')
     await addText($, w, 'npm test', 'r1')

@@ -6,7 +6,7 @@ import type { EngineInterface, Register, SessionMessage, UiPane } from 'claude-c
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode, SelectionNote } from '../types'
 import { appended, restored, withComment, withComments, without, withoutAll } from './annotations'
 import { hashText } from './hash'
-import { hashOfKey, isOriginal, legacyOriginals, originalKey, overflowKeys, promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies, withReplies } from './history'
+import { assembleOriginals, evictedKeys, hashOfKey, originalKey, promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, replyKey, turnReplies, withReplies } from './history'
 import type { NotedReply } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
 import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView, tabAfterRemoving } from './pane'
@@ -37,7 +37,7 @@ const paneMode = atom({ plugin: 'add-to-chat', key: 'paneMode' } as const, { kin
 const POLL_MS = 250
 /** How long after the prompt box empties a submit has surely read what is pending. */
 const CLEAR_GRACE_MS = 1_000
-/** The one map of Originals that 0.4.0 and earlier kept; one record each now (`originalKey`). */
+/** The one map of Originals that 0.4.0 and earlier kept: read, never written; one record each now (`originalKey`). */
 const STORE_LEGACY_ORIGINALS = 'originals'
 const MAX_ORIGINALS = 200
 
@@ -131,13 +131,9 @@ async function keepReplies($: EngineInterface) {
   a.kept = kept
   a.rejected = a.noted.map(r => r.id).filter(id => !kept.includes(id))
   if (fresh.length > 0) {
-    const [map, stored] = await Promise.all([
-      update($, originals, now => (now[a.hash] === undefined ? now : { ...now, [a.hash]: withReplies(now[a.hash]!, fresh) })),
-      $.store.get(originalKey(a.hash)),
-    ])
-    // The record as stored, which another session may have written since.
-    const base = isOriginal(stored) ? stored : map[a.hash]
-    if (base !== undefined) await $.store.set(originalKey(a.hash), withReplies(base, fresh))
+    await update($, originals, now => (now[a.hash] === undefined ? now : { ...now, [a.hash]: withReplies(now[a.hash]!, fresh) }))
+    // Each reply under a key of its own: nothing read and written back.
+    await Promise.all(fresh.map(id => $.store.set(replyKey(a.hash, id), true)))
   }
   await refreshSession($, false, transcript)
 }
@@ -375,22 +371,15 @@ async function refreshSession($: EngineInterface, reload: boolean, transcript?: 
 }
 
 /**
- * Every Original in the store, each under its own key; the one map of 0.4.0
- * and earlier split into records first, those another session wrote kept.
+ * Every Original in the store: 0.4.0's one map and the records of their own
+ * keys, with their replies. Writes nothing, so it cannot drop what another
+ * session writes meanwhile.
  */
 async function loadOriginals($: EngineInterface): Promise<Record<string, Original>> {
-  const legacy = await $.store.get(STORE_LEGACY_ORIGINALS)
-  if (legacy !== undefined) {
-    const have = new Set(await $.store.keys())
-    // One at a time, oldest first: the store keeps insertion order, the age the cap goes by.
-    for (const [hash, original] of legacyOriginals(legacy)) {
-      if (!have.has(originalKey(hash))) await $.store.set(originalKey(hash), original)
-    }
-    await $.store.delete(STORE_LEGACY_ORIGINALS)
-  }
-  const hashes = (await $.store.keys()).flatMap(k => hashOfKey(k) ?? [])
+  const [legacy, keys] = await Promise.all([$.store.get(STORE_LEGACY_ORIGINALS), $.store.keys()])
+  const hashes = keys.flatMap(k => hashOfKey(k) ?? [])
   const values = await Promise.all(hashes.map(h => $.store.get(originalKey(h))))
-  return Object.fromEntries(hashes.flatMap((h, i) => (isOriginal(values[i]) ? [[h, values[i]]] : [])))
+  return assembleOriginals(legacy, hashes.map((h, i) => [h, values[i]] as const), keys)
 }
 
 /**
@@ -404,7 +393,7 @@ async function rememberOriginal($: EngineInterface, rewritten: string, original:
   // Deleted first, so a prompt sent again counts as the newest.
   await $.store.delete(originalKey(hash))
   await $.store.set(originalKey(hash), original)
-  await Promise.all(overflowKeys(await $.store.keys(), MAX_ORIGINALS).map(k => $.store.delete(k)))
+  await Promise.all(evictedKeys(await $.store.keys(), MAX_ORIGINALS).map(k => $.store.delete(k)))
 }
 
 /** Shows a sent prompt's Annotations in the pane, from its row's 📎. */

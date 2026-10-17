@@ -147,7 +147,7 @@ The `AssistantMessage` render hook replaces `:annotation{index="N"}` in a reply 
 
 ## Sent prompts
 
-A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations, replies }` by the hash of the rewritten text, mirrored in `$.store` a record each ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. A reply kept with a prompt is added to its record as the store holds it, which another session may have written since. A prompt kept without them (sent before 0.3.0) draws the text-only row, with no `📎` button.
+A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations, replies }` by the hash of the rewritten text, mirrored in `$.store` a record each, with a key of its own for each reply kept with it ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. Nothing is read to be set again, so sessions running at once never drop each other's records or replies; 0.4.0's single map is read under them and never written. A prompt kept without them (sent before 0.3.0) draws the text-only row, with no `📎` button.
 
 ### The 📎 row
 
@@ -209,7 +209,7 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | `commentSaves` | Comments saved with Enter so far: in the Comment field's key |
 | `recalled` | the Annotations the last recall from the prompt history put back; null once none is pending |
 | `isDraftEmpty` | whether the prompt draft is empty |
-| `originals` | rewritten prompt hash → `{ text, count, annotations?, replies? }`, mirrored in `$.store` under `original:<hash>` |
+| `originals` | rewritten prompt hash → `{ text, count, annotations?, replies? }`, mirrored in `$.store` under `original:<hash>`, each reply under `reply:<hash>:<id>` |
 | `sessionPrompts` | hashes of the rewritten prompts in this conversation's transcript, oldest first |
 | `replyCounts` | each reply row known to answer one of them → its Annotation count; what reply rows read to bound their Citations |
 | `paneMode` | what the pane shows below its first row: `pending`, `history`, or one `sent` prompt (its hash, open tab and row) |

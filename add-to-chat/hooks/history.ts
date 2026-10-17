@@ -5,6 +5,7 @@ import { hashText } from './hash'
 import { oneLine } from './text'
 
 const KEY_PREFIX = 'original:'
+const REPLY_PREFIX = 'reply:'
 
 /**
  * The store key of one sent prompt's Original, by the hash of its rewritten
@@ -20,10 +21,32 @@ export function hashOfKey(key: string): string | undefined {
   return key.startsWith(KEY_PREFIX) ? key.slice(KEY_PREFIX.length) : undefined
 }
 
-/** The keys of the Originals past the newest `max`, oldest first, of the store's keys in insertion order. */
-export function overflowKeys(keys: readonly string[], max: number): string[] {
-  const kept = keys.filter(k => hashOfKey(k) !== undefined)
-  return kept.slice(0, Math.max(0, kept.length - max))
+/**
+ * The store key of one reply kept with a sent prompt: a key of its own, set
+ * and never read back to be set again, so two sessions keeping replies to
+ * the same prompt keep both. (A hash holds no colon.)
+ */
+export function replyKey(hash: string, id: string): string {
+  return `${REPLY_PREFIX}${hash}:${id}`
+}
+
+/** The prompt's hash and the reply's id a store key holds; undefined for any other key. */
+export function replyOfKey(key: string): { hash: string; id: string } | undefined {
+  if (!key.startsWith(REPLY_PREFIX)) return undefined
+  const rest = key.slice(REPLY_PREFIX.length)
+  const at = rest.indexOf(':')
+  return at <= 0 ? undefined : { hash: rest.slice(0, at), id: rest.slice(at + 1) }
+}
+
+/**
+ * The keys to delete once the store holds more than `max` Originals: the
+ * oldest, by the store's insertion order, and their replies' keys.
+ */
+export function evictedKeys(keys: readonly string[], max: number): string[] {
+  const records = keys.filter(k => hashOfKey(k) !== undefined)
+  const old = records.slice(0, Math.max(0, records.length - max))
+  const hashes = new Set(old.map(k => hashOfKey(k)!))
+  return [...old, ...keys.filter(k => hashes.has(replyOfKey(k)?.hash ?? ''))]
 }
 
 /** Whether a stored value is an Original. */
@@ -32,10 +55,28 @@ export function isOriginal(value: unknown): value is Original {
   return typeof o === 'object' && o !== null && typeof o.text === 'string' && typeof o.count === 'number'
 }
 
-/** The Originals of the one map 0.4.0 and earlier kept them all in, oldest first. */
-export function legacyOriginals(value: unknown): [string, Original][] {
-  if (typeof value !== 'object' || value === null) return []
-  return Object.entries(value).filter((entry): entry is [string, Original] => isOriginal(entry[1]))
+/**
+ * The Originals the store holds: those of the one map 0.4.0 and earlier
+ * kept (read, never written: a session writing it back could drop what
+ * another wrote meanwhile), each under the record of its own key where
+ * there is one, the replies of all three (that map, a record of 0.4.1, the
+ * reply keys) together.
+ */
+export function assembleOriginals(legacy: unknown, records: readonly (readonly [string, unknown])[], keys: readonly string[]): Record<string, Original> {
+  const map: Record<string, Original> = {}
+  if (typeof legacy === 'object' && legacy !== null) {
+    for (const [hash, o] of Object.entries(legacy)) if (isOriginal(o)) map[hash] = o
+  }
+  for (const [hash, o] of records) {
+    if (!isOriginal(o)) continue
+    const older = map[hash]?.replies ?? []
+    map[hash] = older.length > 0 ? withReplies(o, older) : o
+  }
+  for (const key of keys) {
+    const r = replyOfKey(key)
+    if (r !== undefined && map[r.hash] !== undefined) map[r.hash] = withReplies(map[r.hash]!, [r.id])
+  }
+  return map
 }
 
 /**

@@ -5,6 +5,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On, PromptChangeInput, PromptSubmitInput, RenderElement } from 'claude-code'
 
 import type { Original } from '../types'
+import { assembleOriginals } from '../hooks/history'
 
 export type World = {
   selection?: { text: string; requestId?: string }
@@ -14,6 +15,8 @@ export type World = {
   fills: string[]
   submitted: { text: string; context?: readonly string[] }[]
   store: Record<string, unknown>
+  /** Another session's writes, made just after a `store.keys()` has answered. */
+  afterKeys?: () => void
   /** The props each row last reached the engine with, by requestId. */
   drawnProps: Record<string, unknown>
   /** The ids of the panes open. */
@@ -26,9 +29,10 @@ export type World = {
   clock: ReturnType<typeof mock.clock>
 }
 
-/** The Originals the store holds, by hash, each under its own key. */
+/** The Originals the store holds, by hash, as a session loads them. */
 export function storedOriginals(w: World): Record<string, Original> {
-  return Object.fromEntries(Object.entries(w.store).flatMap(([k, v]) => (k.startsWith('original:') ? [[k.slice('original:'.length), v as Original]] : [])))
+  const records = Object.entries(w.store).flatMap(([k, v]) => (k.startsWith('original:') ? [[k.slice('original:'.length), v] as const] : []))
+  return assembleOriginals(w.store.originals, records, Object.keys(w.store))
 }
 
 export const BAND = {
@@ -66,7 +70,11 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
     delete w.store[e.key]
     return { value: undefined }
   })
-  on('store.keys', () => ({ value: Object.keys(w.store) }))
+  on('store.keys', () => {
+    const value = Object.keys(w.store)
+    w.afterKeys?.()
+    return { value }
+  })
   on('ui.render', ($, e) => {
     if (e.requestId !== undefined) w.drawnProps[e.requestId] = e.props
     const { Box } = $.ui.resolve(e)
