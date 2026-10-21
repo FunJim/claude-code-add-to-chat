@@ -17,6 +17,10 @@ Where an Excerpt came from: a Claude reply (`assistant`), a prompt the person se
 Optional words the person attaches to one Annotation, about that Excerpt only.
 _Avoid_: note, remark
 
+**Original**
+What the person typed for a prompt sent with Annotations, kept with those Annotations and the replies that answer it, under the hash of the prompt as the Annotation Template rewrote it. A sent prompt's row draws it in place of the rewritten text.
+_Avoid_: draft, raw prompt
+
 **Citation**
 Claude's reference, in its reply, to one Annotation of the prompt it is answering, by that Annotation's number.
 _Avoid_: backlink, footnote

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
-import { originalKey, replyKey } from '../hooks/history'
+import { originalKey, replyKey } from '../hooks/originals'
 import { NOT_DRAWN } from '../hooks/labels'
 import { renderTemplate } from '../hooks/template'
 import { addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, storedOriginals, submit, tick } from './world'
@@ -570,6 +570,17 @@ describe('sending', () => {
     expect(await tabCount($)).toBe(1)
   })
 
+  test('a prompt another plugin drops keeps no Original, and lets none go', async ($, on) => {
+    const seeded = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [originalKey(`h${i}`), { text: `t${i}`, count: 1 }]))
+    const w = await start($, on, seeded)
+    w.dropWhen = text => text.includes('DROP')
+    await addText($, w, 'npm test', 'r1')
+    await submit($, 'DROP me')
+    expect(Object.keys(w.store)).toEqual(Object.keys(seeded))
+    const rewritten = renderTemplate('DROP me', [{ index: 1, text: 'npm test', source: 'transcript', requestId: 'r1' }])
+    expect(await drawRow($, w, 'UserMessage', 'u1', rewritten)).toBe(rewritten)
+  })
+
   test('text that looks like template tags is sent as written', async ($, on) => {
     const w = await start($, on)
     await addText($, w, 'use {{request}} and {{#annotations}}x{{/annotations}}', 'r1')
@@ -953,6 +964,15 @@ describe('the store, shared by every session', () => {
     expect(w.store.originals).toEqual(legacy)
     expect(Object.keys(w.store)).toEqual([...keys, originalKey('h1')])
   })
+  test("past 200 Originals, a prompt only 0.4.0's map holds still draws what was typed: state lets go what the store lets go", async ($, on) => {
+    const legacy = '<request>\nold\n</request>'
+    const seeded = Object.fromEntries(Array.from({ length: 199 }, (_, i) => [originalKey(`h${i}`), { text: `t${i}`, count: 1 }]))
+    const w = await start($, on, { originals: { [hashText(legacy)]: { text: 'old', count: 1 } }, ...seeded })
+    await sendOne($, w)
+    expect(await drawRow($, w, 'UserMessage', 'u1', legacy)).not.toContain('<request>')
+    expect(Object.keys(storedOriginals(w))).toHaveLength(201)
+  })
+
   test('past 200 Originals the oldest goes, with its replies; one sent again counts as the newest', async ($, on) => {
     const seeded = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [originalKey(`h${i}`), { text: `t${i}`, count: 1 }]))
     const w = await start($, on, { ...seeded, [replyKey('h0', 'x')]: true, [replyKey('h1', 'y')]: true })

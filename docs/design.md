@@ -147,7 +147,7 @@ The `AssistantMessage` render hook replaces `:annotation{index="N"}` in a reply 
 
 ## Sent prompts
 
-A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations, replies }` by the hash of the rewritten text, mirrored in `$.store` a record each, with a key of its own for each reply kept with it ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. Nothing is read to be set again, so sessions running at once never drop each other's records or replies; 0.4.0's single map is read under them and never written. A prompt kept without them (sent before 0.3.0) draws the text-only row, with no `📎` button.
+A prompt sent with Annotations keeps them: `originals` holds `{ text, count, annotations, replies }` by the hash of the rewritten text, mirrored in `$.store` a record each, with a key of its own for each reply kept with it ([ADR 0004](adr/0004-originals-in-store.md)), the latest 200. Nothing is read to be set again, so sessions running at once never drop each other's records or replies; 0.4.0's single map is read under them and never written. The Original goes into state before the prompt reaches the engine, so its row finds it when it first draws the rewritten text, and into the store once the engine has taken the prompt: one another plugin drops is taken out of state again and lets no record go. State lets go of exactly the prompts the store lets go past the 200; one only 0.4.0's map holds stays. A prompt sent again keeps the replies kept with it. `originals.ts` holds these rules and hands register.tsx the store's writes in their order. A prompt kept without them (sent before 0.3.0) draws the text-only row, with no `📎` button.
 
 ### The 📎 row
 

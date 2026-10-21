@@ -7,9 +7,9 @@ import { shownTab } from '../hooks/pane'
 import { promptText, replyText } from '../hooks/rows'
 import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
-import { annotated, withOriginal } from '../hooks/send'
+import { annotated } from '../hooks/send'
 import { renderTemplate } from '../hooks/template'
-import { promptsIn, replyCountsOf, sameRecord, sentPrompts, turnReplies, withReplies } from '../hooks/history'
+import { promptsIn, replyCountsOf, sameRecord, sentPrompts, turnReplies } from '../hooks/history'
 import { hashText } from '../hooks/hash'
 import { isClipLineHead } from '../hooks/labels'
 
@@ -83,17 +83,12 @@ describe('rows and sending', () => {
   test('annotated rewrites the prompt by the template and keeps what was typed', () => {
     expect(annotated('q', A)).toEqual({ text: renderTemplate('q', A), original: { text: 'q', count: 3, annotations: A } })
   })
-  test('withOriginal keeps the newest', () => {
-    const map = withOriginal({ a: { text: '1', count: 1 }, b: { text: '2', count: 1 } }, 'c', { text: '3', count: 1 }, 2)
-    expect(Object.keys(map)).toEqual(['b', 'c'])
-  })
 })
 
 describe('sent prompts', () => {
   test("replyCountsOf: this conversation's reply rows → their prompt's count", () => {
     const originals = { a: { text: 'one', count: 2, replies: ['r1', 'r2'] }, b: { text: 'two', count: 1 }, c: { text: 'elsewhere', count: 5, replies: ['r9'] } }
     expect(replyCountsOf(originals, ['a', 'b'])).toEqual({ r1: 2, r2: 2 })
-    expect(withReplies(originals.a, ['r2', 'r3']).replies).toEqual(['r1', 'r2', 'r3'])
     expect([sameRecord({ r1: 2 }, { r1: 2 }), sameRecord({ r1: 2 }, { r1: 3 }), sameRecord({}, { r1: 2 })]).toEqual([true, false, false])
   })
   test('sentPrompts: the conversation\'s, newest first, only those with Annotations kept', () => {

@@ -6,6 +6,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ### Fixed
 
+- A prompt that another plugin stops from being sent no longer pushes the oldest kept prompt out. That prompt's 📎 row and annotations are no longer lost.
+- Past 200 kept prompts, a prompt kept by 0.4.0 or earlier keeps showing what was typed for the rest of the session, instead of the full template until the next restart.
 - A comment typed and not yet saved stays with its annotation when a rewind or a step through the prompt history takes out the annotations an earlier prompt brought back. It used to be lost.
 
 ## [0.4.2] - 2026-10-17

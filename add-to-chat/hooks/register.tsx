@@ -6,8 +6,7 @@ import type { EngineInterface, Register, SessionMessage, UiPane } from 'claude-c
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode, SelectionNote } from '../types'
 import { added, cleared, drafted, flushed, recalledBack, removed, saved, shown, withoutRecalled } from './annotations'
 import type { Pending, Recalled } from './annotations'
-import { hashText } from './hash'
-import { assembleOriginals, evictedKeys, hashOfKey, originalKey, promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, replyKey, turnReplies, withReplies } from './history'
+import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies } from './history'
 import type { NotedReply } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
 import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView } from './pane'
@@ -16,7 +15,9 @@ import { promptRow } from './prompt-row'
 import { originalText, promptText, replyText } from './rows'
 import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, noteOf, rowSource, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
-import { annotated, withOriginal } from './send'
+import { forgotten, hasAnnotations, keysToLoad, loaded, originalOf, promptHash, remembered, stored, withReplies } from './originals'
+import type { Originals, StoreWrite } from './originals'
+import { annotated } from './send'
 
 const pending = atom({ plugin: 'add-to-chat', key: 'pending' } as const, [])
 const candidate = atom({ plugin: 'add-to-chat', key: 'candidate' } as const, null)
@@ -38,9 +39,6 @@ const paneMode = atom({ plugin: 'add-to-chat', key: 'paneMode' } as const, { kin
 const POLL_MS = 250
 /** How long after the prompt box empties a submit has surely read what is pending. */
 const CLEAR_GRACE_MS = 1_000
-/** The one map of Originals that 0.4.0 and earlier kept: read, never written; one record each now (`originalKey`). */
-const STORE_LEGACY_ORIGINALS = 'originals'
-const MAX_ORIGINALS = 200
 
 /**
  * Each transcript row's Source, by requestId.
@@ -131,11 +129,7 @@ async function keepReplies($: EngineInterface) {
   const fresh = kept.filter(id => !a.kept.includes(id))
   a.kept = kept
   a.rejected = a.noted.map(r => r.id).filter(id => !kept.includes(id))
-  if (fresh.length > 0) {
-    await update($, originals, now => (now[a.hash] === undefined ? now : { ...now, [a.hash]: withReplies(now[a.hash]!, fresh) }))
-    // Each reply under a key of its own: nothing read and written back.
-    await Promise.all(fresh.map(id => $.store.set(replyKey(a.hash, id), true)))
-  }
+  if (fresh.length > 0) await editOriginals($, now => withReplies(now, a.hash, fresh))
   await refreshSession($, false, transcript)
 }
 
@@ -368,25 +362,22 @@ async function refreshSession($: EngineInterface, reload: boolean, transcript?: 
  * keys, with their replies. Writes nothing, so it cannot drop what another
  * session writes meanwhile.
  */
-async function loadOriginals($: EngineInterface): Promise<Record<string, Original>> {
-  const [legacy, keys] = await Promise.all([$.store.get(STORE_LEGACY_ORIGINALS), $.store.keys()])
-  const hashes = keys.flatMap(k => hashOfKey(k) ?? [])
-  const values = await Promise.all(hashes.map(h => $.store.get(originalKey(h))))
-  return assembleOriginals(legacy, hashes.map((h, i) => [h, values[i]] as const), keys)
+async function loadOriginals($: EngineInterface): Promise<Originals> {
+  const keys = await $.store.keys()
+  const wanted = keysToLoad(keys)
+  const values = await Promise.all(wanted.map(k => $.store.get(k)))
+  return loaded(Object.fromEntries(wanted.map((k, i) => [k, values[i]])), keys)
 }
 
-/**
- * Keeps a sent prompt's Original: in state, and in the store under its own
- * key, so another session's records stay as written; past the newest 200,
- * the oldest go.
- */
-async function rememberOriginal($: EngineInterface, rewritten: string, original: Original) {
-  const hash = hashText(rewritten)
-  await update($, originals, now => withOriginal(now, hash, original, MAX_ORIGINALS))
-  // Deleted first, so a prompt sent again counts as the newest.
-  await $.store.delete(originalKey(hash))
-  await $.store.set(originalKey(hash), original)
-  await Promise.all(evictedKeys(await $.store.keys(), MAX_ORIGINALS).map(k => $.store.delete(k)))
+/** Edits the Originals (see originals.ts): state, then the store's writes, in their order. */
+async function editOriginals($: EngineInterface, edit: (map: Originals) => { originals: Originals; writes: StoreWrite[] }) {
+  let writes: StoreWrite[] = []
+  await update($, originals, now => {
+    const edited = edit(now)
+    writes = edited.writes
+    return edited.originals
+  })
+  for (const w of writes) await ('set' in w ? $.store.set(w.set, w.value) : $.store.delete(w.delete))
 }
 
 /** Shows a sent prompt's Annotations in the pane, from its row's 📎. */
@@ -454,11 +445,21 @@ export const register: Register = on => {
       return next(e)
     }
     const sent = annotated(e.text, list)
-    await rememberOriginal($, sent.text, sent.original)
+    const hash = promptHash(sent.text)
+    // In state before the engine has it: its row draws the rewritten text
+    // soon after. In the store only once sent.
+    let was: Original | undefined
+    await update($, originals, now => {
+      was = now[hash]
+      return remembered(now, hash, sent.original)
+    })
     const entered = await next({ ...e, text: sent.text })
-    if (!('drop' in entered)) {
+    if ('drop' in entered) {
+      await update($, originals, now => forgotten(now, hash, was))
+    } else {
+      const keys = await $.store.keys()
+      await editOriginals($, now => stored(now, hash, keys))
       await clearPending($)
-      const hash = hashText(sent.text)
       answering = {
         hash,
         count: sent.original.count,
@@ -509,14 +510,15 @@ export const register: Register = on => {
     rememberRole(e.requestId, e.component, e.props)
     if (e.props.origin.kind !== 'composer') return next(e)
     const [list, map] = await Promise.all([read($, pending), read($, originals)])
-    const hash = hashText(e.props.text)
-    const original = e.props.isExpanded ? undefined : map[hash]
-    if (original === undefined || original.annotations === undefined || e.surface !== 'terminal') {
+    const found = e.props.isExpanded ? undefined : originalOf(map, e.props.text)
+    const original = found?.original
+    if (!hasAnnotations(original) || e.surface !== 'terminal') {
       const text = promptText(e.props.text, e.requestId, list, original)
       return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
     }
     // In the terminal Claude Code draws the prompt as typed, and the mod its
     // 📎 row beneath: a button to the pane, and a card on hover.
+    const hash = found!.hash
     if (e.requestId !== undefined) promptRows.set(hash, e.requestId)
     const engine = await next({ ...e, props: { ...e.props, text: originalText(original, e.requestId, list) } })
     const requestId = e.requestId

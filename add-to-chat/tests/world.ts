@@ -5,7 +5,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On, PromptChangeInput, PromptSubmitInput, RenderElement } from 'claude-code'
 
 import type { Original } from '../types'
-import { assembleOriginals } from '../hooks/history'
+import { loaded } from '../hooks/originals'
 
 export type World = {
   selection?: { text: string; requestId?: string }
@@ -31,8 +31,7 @@ export type World = {
 
 /** The Originals the store holds, by hash, as a session loads them. */
 export function storedOriginals(w: World): Record<string, Original> {
-  const records = Object.entries(w.store).flatMap(([k, v]) => (k.startsWith('original:') ? [[k.slice('original:'.length), v] as const] : []))
-  return assembleOriginals(w.store.originals, records, Object.keys(w.store))
+  return loaded(w.store, Object.keys(w.store))
 }
 
 export const BAND = {

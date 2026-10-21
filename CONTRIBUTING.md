@@ -43,7 +43,8 @@ add-to-chat/                  the mod (what gets installed)
   hooks/*.ts(x)               pure modules: selection, annotations (what is pending), rows, send,
                               pane (the view), prompt-row (a sent prompt's 📎 row),
                               prompt-hint (the count under the prompt),
-                              history (sent prompts' Annotations), excerpt (markdown
+                              originals (sent prompts' Originals, in state and the
+                              store), history (which are this conversation's), excerpt (markdown
                               matching, marks, Citations), template, text (terminal
                               cells), labels, hash
   types/index.d.ts            the PluginState contract
