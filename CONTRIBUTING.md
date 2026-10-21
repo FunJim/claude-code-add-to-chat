@@ -40,7 +40,7 @@ CI runs everything above but `--model haiku`, the end-to-end suite on Herdr (Lin
 add-to-chat/                  the mod (what gets installed)
   .claude-plugin/plugin.json  manifest, types
   hooks/register.tsx          engine glue: every hook and every `$` call
-  hooks/*.ts(x)               pure modules: selection, annotations, rows, send,
+  hooks/*.ts(x)               pure modules: selection, annotations (what is pending), rows, send,
                               pane (the view), prompt-row (a sent prompt's 📎 row),
                               prompt-hint (the count under the prompt),
                               history (sent prompts' Annotations), excerpt (markdown

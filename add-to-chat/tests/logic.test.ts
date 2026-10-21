@@ -2,8 +2,8 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { Annotation } from '../types'
-import { appended, marksFor, withComment, without } from '../hooks/annotations'
-import { shownTab, tabAfterRemoving } from '../hooks/pane'
+import { marksFor } from '../hooks/annotations'
+import { shownTab } from '../hooks/pane'
 import { promptText, replyText } from '../hooks/rows'
 import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
@@ -63,19 +63,9 @@ describe('judging a selection', () => {
   })
 })
 
-describe('editing the list', () => {
-  test('appended numbers from the list', () => {
-    expect(appended(A, { text: 'four', requestId: 'r9' }, 'assistant').at(-1)).toEqual({ index: 4, text: 'four', source: 'assistant', requestId: 'r9' })
-  })
-  test('withComment trims, and an empty one removes it', () => {
-    expect(withComment(A, 1, '  why? ')[0]!.comment).toBe('why?')
-    expect(withComment(A, 2, '   ')[1]!.comment).toBeUndefined()
-  })
-  test('without renumbers', () => {
-    expect(without(A, 1).map(a => [a.index, a.text])).toEqual([[1, 'two'], [2, 'three']])
-  })
-  test('the open tab follows a removal', () => {
-    expect([tabAfterRemoving(3, 1), tabAfterRemoving(1, 1), tabAfterRemoving(1, 2), shownTab(3, 2), shownTab(0, 2)]).toEqual([2, 1, 1, 2, 1])
+describe('the list in rows and the pane', () => {
+  test('the open tab is clamped to the list', () => {
+    expect([shownTab(3, 2), shownTab(0, 2)]).toEqual([2, 1])
   })
   test('marksFor picks the row', () => {
     expect(marksFor(A, 'u1').map(a => a.index)).toEqual([2])

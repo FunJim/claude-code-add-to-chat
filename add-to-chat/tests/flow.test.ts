@@ -668,6 +668,22 @@ describe('sent prompts', () => {
     expect(await tabCount($)).toBe(1)
   })
 
+  test('a Comment typed and not saved stays with its Annotation when a step through the history takes those of a recall out before it', async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w, 'explain this')
+    await submit($, 'a later prompt')
+    await changeBox($, w, sent, 'history')
+    await addText($, w, 'added after', 'r2')
+    await commentInPane($, 2, 'typed, never saved', 'change')
+    await changeBox($, w, 'a later prompt', 'history')
+    const pane = await mountPane($)
+    expect(await tabsOf(pane)).toBe(1)
+    expect(await shown(pane)).toContain('added after')
+    expect((await commentField(pane)).value).toBe('typed, never saved')
+    await pane.unmount()
+    expect((await submitted($, w)).map(a => [a.text, a.annotation])).toEqual([['added after', 'typed, never saved']])
+  })
+
   test("↑ to another conversation's prompt gives back what was typed, and not its Annotations, whose rows this transcript does not hold", async ($, on) => {
     const w = await start($, on)
     const sent = await sendOne($, w, 'explain this')

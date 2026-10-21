@@ -4,6 +4,10 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- A comment typed and not yet saved stays with its annotation when a rewind or a step through the prompt history takes out the annotations an earlier prompt brought back. It used to be lost.
+
 ## [0.4.2] - 2026-10-17
 
 ### Fixed

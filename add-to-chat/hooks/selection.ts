@@ -2,6 +2,7 @@
 // or the draft's own words, or one already handled. Pure: register.tsx reads
 // the selection and the state and acts on the answer.
 import type { Annotation, AnnotationSource, Candidate, SelectionNote } from '../types'
+import { isSameExcerpt } from './annotations'
 import { stripMarks } from './excerpt'
 import { isClipLineHead, paneLines } from './labels'
 import { oneLine } from './text'
@@ -78,7 +79,7 @@ function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean 
 /** Whether `selection` is where Annotation `a` was added from: its Excerpt, in its row. */
 export function isSelectionOf(selection: Selection | undefined, a: { text: string; requestId?: string }): boolean {
   const excerpt = excerptOf(selection)
-  return excerpt !== null && excerpt.text === a.text && excerpt.requestId === a.requestId
+  return excerpt !== null && isSameExcerpt(excerpt, a)
 }
 
 /**
@@ -101,7 +102,7 @@ export type Verdict =
 export function judge(selection: Selection | undefined, around: Surroundings): Verdict {
   const excerpt = excerptOf(selection)
   if (selection === undefined || excerpt === null || isOutsideTranscript(excerpt, around)) return { reason: 'nothing' }
-  const added = around.pending.find(a => a.text === excerpt.text && a.requestId === excerpt.requestId)
+  const added = around.pending.find(a => isSameExcerpt(a, excerpt))
   if (added !== undefined) return { reason: 'pending', text: excerpt.text, index: added.index }
   const key = selectionKey(selection)
   if (key === around.handled) return { reason: 'handled' }

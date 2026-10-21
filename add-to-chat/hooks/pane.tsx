@@ -110,14 +110,6 @@ export function shownTab(tab: number, count: number): number {
   return Math.min(Math.max(1, tab), count)
 }
 
-/**
- * The tab open once Annotation `index` is removed: the same Annotation,
- * renumbered, or where the removed one stood the one that took its place.
- */
-export function tabAfterRemoving(tab: number, index: number): number {
-  return index < tab ? tab - 1 : tab
-}
-
 /** The sent prompt the mode shows, if it is one the history knows. */
 export function shownSent(mode: PaneMode, sent: readonly SentPrompt[]): SentPrompt | undefined {
   return mode.kind === 'sent' ? sent.find(p => p.hash === mode.hash) : undefined

@@ -4,12 +4,13 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionMessage, UiPane } from 'claude-code'
 
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode, SelectionNote } from '../types'
-import { appended, restored, withComment, withComments, without, withoutAll } from './annotations'
+import { added, cleared, drafted, flushed, recalledBack, removed, saved, shown, withoutRecalled } from './annotations'
+import type { Pending, Recalled } from './annotations'
 import { hashText } from './hash'
 import { assembleOriginals, evictedKeys, hashOfKey, originalKey, promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, replyKey, turnReplies, withReplies } from './history'
 import type { NotedReply } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
-import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView, tabAfterRemoving } from './pane'
+import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView } from './pane'
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
 import { originalText, promptText, replyText } from './rows'
@@ -233,12 +234,10 @@ async function addSelection($: EngineInterface, isAsked = false): Promise<{ anno
 
   const { excerpt } = verdict
   const source = (excerpt.requestId !== undefined && roles.get(excerpt.requestId)) || 'transcript'
-  // The open tab's field goes for the new one's.
-  await keepDrafts($)
-  const list = await update($, pending, now => appended(now, excerpt, source))
-  const annotation = list.at(-1)!
+  const { now } = await editPending($, p => added(p, excerpt, source))
+  const annotation = now.list.at(-1)!
   // The new tab shows, whatever the pane was showing.
-  await Promise.all([markHandled($, verdict.key), update($, paneTab, () => annotation.index), update($, paneMode, () => ({ kind: 'pending' }) as const)])
+  await Promise.all([markHandled($, verdict.key), update($, paneMode, () => ({ kind: 'pending' }) as const)])
   return { annotation }
 }
 
@@ -258,37 +257,45 @@ function isPanePlaced(panes: readonly UiPane[]): boolean {
 }
 
 async function removeAnnotation($: EngineInterface, index: number) {
-  await keepDrafts($)
-  const [list, selection, key] = await Promise.all([read($, pending), $.ui.selection(), read($, handled)])
-  const removed = list.find(a => a.index === index)
-  await Promise.all([update($, pending, now => without(now, index)), update($, paneTab, at => tabAfterRemoving(at, index))])
+  const [{ was }, selection, key] = await Promise.all([editPending($, p => removed(p, index)), $.ui.selection(), read($, handled)])
+  const gone = was.list.find(a => a.index === index)
   // The selection it came from, still reported, can be added again: offered
   // once more, as the engine reports it until another is made.
-  if (removed !== undefined && key !== null && selection !== undefined && selectionKey(selection) === key && isSelectionOf(selection, removed)) {
+  if (gone !== undefined && key !== null && selection !== undefined && selectionKey(selection) === key && isSelectionOf(selection, gone)) {
     await update($, handled, now => (now === key ? null : now))
   }
 }
 
-async function clearPending($: EngineInterface) {
-  await Promise.all([update($, pending, () => []), update($, commentDrafts, () => ({})), update($, recalled, () => null)])
+/**
+ * Edits what is pending (see annotations.ts), writing only the atoms that
+ * changed: every transcript row reads `pending`, so a write of it, even of
+ * the same list, may redraw them all.
+ */
+async function editPending($: EngineInterface, edit: (p: Pending) => Pending): Promise<{ was: Pending; now: Pending }> {
+  const [list, drafts, tab, back] = await Promise.all([read($, pending), read($, commentDrafts), read($, paneTab), read($, recalled)])
+  const was: Pending = { list, drafts, tab, recalled: back }
+  const now = edit(was)
+  await Promise.all([
+    now.list !== was.list && update($, pending, () => now.list),
+    now.drafts !== was.drafts && update($, commentDrafts, () => now.drafts),
+    now.tab !== was.tab && update($, paneTab, () => now.tab),
+    now.recalled !== was.recalled && update($, recalled, () => now.recalled),
+  ])
+  return { was, now }
 }
 
-/**
- * Keeps what the Comment fields hold as their Comments: a field is left (a
- * tab shown, added or closed, the history opened) or the prompt goes, saved
- * with Enter or not.
- */
+async function clearPending($: EngineInterface) {
+  await editPending($, cleared)
+}
+
+/** Keeps what the Comment fields hold as their Comments, saved with Enter or not (see `flushed`). */
 async function keepDrafts($: EngineInterface) {
-  const drafts = await read($, commentDrafts)
-  if (Object.keys(drafts).length === 0) return
-  await update($, pending, now => withComments(now, drafts))
-  await update($, commentDrafts, () => ({}))
+  await editPending($, flushed)
 }
 
 /** A Comment saved with Enter: kept, and its field drawn anew holding it, the keyboard still in it. */
 async function saveComment($: EngineInterface, index: number, value: string) {
-  await update($, pending, now => withComment(now, index, value))
-  await update($, commentDrafts, now => Object.fromEntries(Object.entries(now).filter(([at]) => Number(at) !== index)))
+  await editPending($, p => saved(p, index, value))
   const saves = await update($, commentSaves, n => n + 1)
   await $.ui.focus({ requestId: PANE_ID, key: commentKey(index, saves) }).catch(() => undefined)
 }
@@ -313,19 +320,8 @@ async function boxChanged($: EngineInterface, text: string, by: string) {
   const sent = sentInBox(text, map, inSession)
   if (sent === undefined) return
   if (!isHistory || sent.isHere) {
-    let added: Annotation[] = []
-    await update($, pending, now => {
-      const back = restored(now, sent.original.annotations)
-      added = back.slice(now.length)
-      return back
-    })
-    if (added.length > 0) {
-      await Promise.all([
-        update($, paneMode, () => ({ kind: 'pending' }) as const),
-        update($, paneTab, () => added[0]!.index),
-        update($, recalled, () => ({ annotations: added.map(a => ({ text: a.text, requestId: a.requestId })) })),
-      ])
-    }
+    const { was, now } = await editPending($, p => recalledBack(p, sent.original.annotations))
+    if (now.list.length > was.list.length) await update($, paneMode, () => ({ kind: 'pending' }) as const)
   }
   if (text !== sent.original.text) await $.prompt.fill({ text: sent.original.text, mode: 'replace' })
 }
@@ -334,11 +330,8 @@ async function boxChanged($: EngineInterface, text: string, by: string) {
  * Takes out of pending the Annotations the last prompt put back in the box
  * brought with it; with `only`, only if they are still those.
  */
-async function dropRecalled($: EngineInterface, only?: string) {
-  const last = await read($, recalled)
-  if (last === null || (only !== undefined && JSON.stringify(last) !== only)) return
-  await update($, pending, now => withoutAll(now, last.annotations))
-  await update($, recalled, () => null)
+async function dropRecalled($: EngineInterface, only?: Recalled) {
+  await editPending($, p => withoutRecalled(p, only))
 }
 
 /** Opens the pane at the person's asking: placed at any width, and no longer dismissed. */
@@ -455,8 +448,7 @@ export const register: Register = on => {
 
   on('prompt.submit', async ($, e, next) => {
     if (e.origin.kind !== 'composer') return next(e)
-    await keepDrafts($)
-    const list = await read($, pending)
+    const { list } = (await editPending($, flushed)).now
     if (list.length === 0) {
       answering = null
       return next(e)
@@ -582,7 +574,7 @@ export const register: Register = on => {
       // has read pending: so a moment later, and only if they are still
       // pending as that prompt's (a submit has taken them, and forgotten).
       const last = await read($, recalled)
-      if (last !== null) $.clock.after(CLEAR_GRACE_MS, () => void dropRecalled($, JSON.stringify(last)))
+      if (last !== null) $.clock.after(CLEAR_GRACE_MS, () => void dropRecalled($, last))
     } else if (e.origin.kind !== 'plugin') {
       await boxChanged($, e.text, e.origin.kind)
     }
@@ -629,12 +621,9 @@ export const register: Register = on => {
           }
         },
         dismiss: () => dismissOffer($),
-        show: async index => {
-          await keepDrafts($)
-          await update($, paneTab, () => index)
-        },
+        show: index => editPending($, p => shown(p, index)),
         remove: index => removeAnnotation($, index),
-        draft: (index, value) => update($, commentDrafts, now => ({ ...now, [index]: value })),
+        draft: (index, value) => update($, commentDrafts, now => drafted(now, index, value)),
         comment: (index, value) => saveComment($, index, value),
         send: () => $.prompt.fill({ text: SEND_PLACEHOLDER }),
         openHistory: async () => {
