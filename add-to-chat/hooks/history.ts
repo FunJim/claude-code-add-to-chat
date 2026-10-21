@@ -1,10 +1,9 @@
-// Sent prompts in this conversation: which are in its transcript, which one
-// the prompt box holds, and which sent prompt a reply answers. How their
-// Originals are kept is originals.ts.
+// Sent prompts in this conversation: which are in its transcript and which
+// one the prompt box holds. How their Originals are kept is originals.ts;
+// which one a reply answers, answering.ts.
 import type { Annotation, Original } from '../types'
 import { hasAnnotations, promptHash } from './originals'
 import type { Annotated } from './originals'
-import { oneLine } from './text'
 
 /**
  * The rewritten prompts in a transcript (its user messages, as
@@ -68,29 +67,4 @@ export function replyCountsOf(originals: Record<string, Original>, inSession: re
 export function sameRecord(a: Record<string, number>, b: Record<string, number>): boolean {
   const keys = Object.keys(a)
   return keys.length === Object.keys(b).length && keys.every(k => a[k] === b[k])
-}
-
-/** A reply row noted during a turn: its requestId, and its text as it drew. */
-export type NotedReply = { id: string; text: string }
-
-/**
- * The noted rows that are the turn's own replies: those whose text is in an
- * assistant message after the prompt (`hash`) in the transcript, before the
- * next prompt. An older
- * reply first drawn during the turn (scrolled to) is not. Without the
- * prompt in the transcript, every noted row is kept.
- */
-export function turnReplies(messages: readonly { role: string; text: string }[], hash: string, noted: readonly NotedReply[]): string[] {
-  const at = messages.findLastIndex(m => m.role === 'user' && promptHash(m.text) === hash)
-  if (at === -1) return noted.map(r => r.id)
-  // Up to the next prompt (a user message with text; tool results have none).
-  const next = messages.findIndex((m, i) => i > at && m.role === 'user' && m.text !== '')
-  const said = oneLine(
-    messages
-      .slice(at + 1, next === -1 ? undefined : next)
-      .filter(m => m.role === 'assistant')
-      .map(m => m.text)
-      .join('\n'),
-  )
-  return noted.filter(r => said.includes(oneLine(r.text))).map(r => r.id)
 }

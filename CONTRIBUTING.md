@@ -44,7 +44,8 @@ add-to-chat/                  the mod (what gets installed)
                               pane (the view), prompt-row (a sent prompt's 📎 row),
                               prompt-hint (the count under the prompt),
                               originals (sent prompts' Originals, in state and the
-                              store), history (which are this conversation's), excerpt (markdown
+                              store), history (which are this conversation's),
+                              answering (which prompt a reply answers), excerpt (markdown
                               matching, marks, Citations), template, text (terminal
                               cells), labels, hash
   types/index.d.ts            the PluginState contract
@@ -60,7 +61,7 @@ Start with [docs/design.md](docs/design.md). Use the [glossary](docs/glossary.md
 
 - **Every `$` call lives in `hooks/register.tsx`.** The engine follows `$` only into functions of the same file, never across an import, and `on()` takes a function literal or a function name. Logic goes in the pure modules, which take values and return values.
 - No DOM, no Node inside `add-to-chat/`. Everything outside goes through `$`; elements come from `$.ui.resolve(e)`.
-- State goes in `$.state` (`atom`/`read`/`update` from `'claude-code'`), never module variables: a reload starts the module over. Every key is declared in `types/index.d.ts`. Render hooks only read state. The deliberate module variables in `register.tsx` are what render hooks note and may not write to state: the caches `roles` ([design](docs/design.md#source)) and `promptRows` ([design](docs/design.md#the-panes-history)), and `drawnReplies` and `answering`, which reply rows are noted in until the poll keeps them with the prompt they answer ([design](docs/design.md#citations)).
+- State goes in `$.state` (`atom`/`read`/`update` from `'claude-code'`), never module variables: a reload starts the module over. Every key is declared in `types/index.d.ts`. Render hooks only read state. The deliberate module variables in `register.tsx` are what render hooks note and may not write to state: the caches `roles` ([design](docs/design.md#source)) and `promptRows` ([design](docs/design.md#the-panes-history)), and `replies`, a value of `answering.ts` that reply rows are noted in until the poll keeps them with the prompt they answer ([design](docs/design.md#citations)).
 - `session.start` fires again on every reload; the engine drops the previous load's timers.
 - Node's type stripping runs the TypeScript: no enums, no parameter properties.
 - The API (`claude-code.d.ts`) is early access and is the authority over the docs; grep it by symbol name.

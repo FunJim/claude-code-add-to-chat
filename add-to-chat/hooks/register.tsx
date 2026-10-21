@@ -6,8 +6,9 @@ import type { EngineInterface, Register, SessionMessage, UiPane } from 'claude-c
 import type { Annotation, AnnotationSource, Candidate, Original, PaneMode, SelectionNote } from '../types'
 import { added, cleared, drafted, flushed, recalledBack, removed, saved, shown, withoutRecalled } from './annotations'
 import type { Pending, Recalled } from './annotations'
-import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts, turnReplies } from './history'
-import type { NotedReply } from './history'
+import { NO_REPLIES, bound, checked, drawn, ended, promptSent, settled, toCheck } from './answering'
+import type { Replies } from './answering'
+import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
 import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView } from './pane'
 import { promptHint } from './prompt-hint'
@@ -59,77 +60,27 @@ function rememberRole(requestId: string | undefined, component: string, props: u
  */
 const promptRows = new Map<string, string>()
 
-/** Reply rows (requestIds) drawn since the load: a row new to it during a turn is that turn's. */
-const drawnReplies = new Set<string>()
-
 /**
- * The last prompt sent with Annotations, and the reply rows first drawn
- * since: the rows noted with their latest text, and which of them the
- * transcript showed to answer it (`kept`) or not (`rejected`). It stays
- * open past the turn's end, since a
- * short reply can first draw after `turn.complete`, until the next typed
- * prompt or another session. The poll checks noted rows once the turn has
- * ended (`dirty`) and keeps them with the prompt; a render hook may not
- * write state.
+ * The reply rows drawn since the load and the prompt they may answer (see
+ * answering.ts). Render hooks note rows here and may not write state; the
+ * poll checks them once the turn has ended and keeps them with the prompt.
  */
-type Answering = {
-  hash: string
-  count: number
-  noted: NotedReply[]
-  kept: string[]
-  rejected: string[]
-  hasEnded: boolean
-  isDirty: boolean
-}
-let answering: Answering | null = null
-
-function noteReply(requestId: string | undefined, text: string) {
-  if (requestId === undefined || requestId === 'placeholder') return
-  const noted = answering?.noted.find(r => r.id === requestId)
-  if (noted !== undefined) {
-    if (noted.text !== text) {
-      noted.text = text
-      answering!.isDirty = true
-    }
-    return
-  }
-  if (drawnReplies.has(requestId)) return
-  drawnReplies.add(requestId)
-  if (answering !== null) {
-    answering.noted.push({ id: requestId, text })
-    answering.isDirty = true
-  }
-}
-
-/**
- * The Citations a reply row may draw: to the count of the prompt it is
- * known to answer; else, noted since the last prompt and not let go by the
- * check, to that prompt's. An older reply first drawn since (scrolled to) is
- * known to answer its own prompt, if it answered one sent with Annotations.
- */
-function citationBound(requestId: string | undefined, counts: Record<string, number>): number | undefined {
-  if (requestId === undefined) return undefined
-  const known = counts[requestId]
-  if (known !== undefined) return known
-  const a = answering
-  return a !== null && !a.rejected.includes(requestId) && a.noted.some(r => r.id === requestId) ? a.count : undefined
-}
+let replies: Replies = NO_REPLIES
 
 /**
  * Once the turn has ended, checks the rows noted since against the
- * transcript and keeps those that answer the prompt with its original.
+ * transcript and keeps those that answer the prompt with its Original.
  */
 async function keepReplies($: EngineInterface) {
-  const a = answering
-  if (a === null || !a.hasEnded || !a.isDirty) return
-  a.isDirty = false
+  const check = toCheck(replies)
+  if (check === undefined) return
+  replies = check.replies
   const messages = await $.session.messages()
   const transcript = Array.isArray(messages) ? messages : []
-  const kept = turnReplies(transcript, a.hash, a.noted)
-  const fresh = kept.filter(id => !a.kept.includes(id))
-  a.kept = kept
-  a.rejected = a.noted.map(r => r.id).filter(id => !kept.includes(id))
-  if (fresh.length > 0) await editOriginals($, now => withReplies(now, a.hash, fresh))
+  // Against the value now: rows noted while the transcript was read count.
+  const done = checked(replies, check.hash, transcript)
+  replies = done.replies
+  if (done.fresh.length > 0) await editOriginals($, now => withReplies(now, check.hash, done.fresh))
   await refreshSession($, false, transcript)
 }
 
@@ -162,7 +113,7 @@ async function poll($: EngineInterface, watch: PollWatch) {
   // $.state cleared and no session.start: the originals come back from the
   // store, and the history follows the new transcript.
   if (watch.sessionId !== undefined && watch.sessionId !== sessionId) {
-    answering = null
+    replies = settled(replies)
     await refreshSession($, true)
   }
   watch.sessionId = sessionId
@@ -441,7 +392,7 @@ export const register: Register = on => {
     if (e.origin.kind !== 'composer') return next(e)
     const { list } = (await editPending($, flushed)).now
     if (list.length === 0) {
-      answering = null
+      replies = settled(replies)
       return next(e)
     }
     const sent = annotated(e.text, list)
@@ -460,15 +411,7 @@ export const register: Register = on => {
       const keys = await $.store.keys()
       await editOriginals($, now => stored(now, hash, keys))
       await clearPending($)
-      answering = {
-        hash,
-        count: sent.original.count,
-        noted: [],
-        kept: [],
-        rejected: [],
-        hasEnded: false,
-        isDirty: false,
-      }
+      replies = promptSent(replies, hash, sent.original.count)
       await update($, sessionPrompts, now => (now.includes(hash) ? now : [...now, hash]))
     }
     return entered
@@ -483,9 +426,8 @@ export const register: Register = on => {
     // The main loop's turn ends (a subagent's carries its agentId): the
     // replies noted for it are checked and kept, and the poll keeps doing so
     // for rows drawn after.
-    if (e.agentId === undefined && answering !== null) {
-      answering.hasEnded = true
-      answering.isDirty = true
+    if (e.agentId === undefined && replies.answering !== null) {
+      replies = ended(replies)
       await keepReplies($)
     } else {
       await refreshSession($, false)
@@ -495,14 +437,14 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     rememberRole(e.requestId, e.component, e.props)
-    noteReply(e.requestId, e.props.text)
+    replies = drawn(replies, e.requestId, e.props.text)
     // Only a row with a directive reads the counts (not the originals,
     // written at every start): every reply redrawing, or drawing slower,
     // just after a launch moves the transcript under a drag about to start.
     const hasDirective = e.props.text.includes(':annotation{')
     const [list, counts] = await Promise.all([read($, pending), hasDirective ? read($, replyCounts) : {}])
     const id = e.requestId
-    const text = replyText(e.props.text, id, list, citationBound(id, counts))
+    const text = replyText(e.props.text, id, list, bound(replies, id, counts))
     return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
   })
 
