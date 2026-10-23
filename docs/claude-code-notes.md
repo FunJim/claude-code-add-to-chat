@@ -67,6 +67,11 @@ Rows by type (adding from each, with Source and mark):
 - The first click after a layout change is sometimes swallowed.
 - Terminal cells: CJK and characters with `Emoji_Presentation` (🚀 📎) take two; `⏺ ✚ ✕ ⎿ ① ▎` take one. `Extended_Pictographic` is the wrong test.
 
+## Panes
+
+- Where a pane sits is the surface's, not the plugin's: docked beside a fullscreen transcript from 110 columns, else inline above the prompt; the `Pane` render props' `placement` says which. `$.ui.open` takes no placement (its `rows` and `columns` are requests, one per seating), a `ui.open` hook may rewrite only `title` and `focus`, and the person can drag or key a dock's width but not reposition it. Asked for as [anthropics/claude-code#99404](https://github.com/anthropics/claude-code/issues/99404) ([ADR 0011](adr/0011-band-form-waits-for-the-engine.md)).
+- A pane opened unasked (a timer, `session.start`) is placed from 144 terminal columns — 110 for an id the person opened from this plugin before, this session or an earlier one, and has not closed by hand since — and waits undrawn below that until the person opens it or the terminal widens; asked (a command the person typed, a prompt, a press), it is placed at any width.
+
 ## Lifecycle
 
 - A reload fires `session.start` again and drops the previous load's timers; `$.state` stays, but the band does not redraw until state changes.

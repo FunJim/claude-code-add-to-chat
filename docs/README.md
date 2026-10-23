@@ -14,5 +14,6 @@
   - [0008](adr/0008-mock-model-for-e2e.md) the end-to-end suite talks to a mock model
   - [0009](adr/0009-require-claude-code-2-1-300.md) require Claude Code 2.1.300
   - [0010](adr/0010-no-custom-templates.md) no custom templates: one built-in Annotation Template
+  - [0011](adr/0011-band-form-waits-for-the-engine.md) a band-shaped pane waits for the engine's placement choice
 - [../e2e/README.md](../e2e/README.md) — the end-to-end suite and showcase.
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — setting up, testing, the engine's rules.
