@@ -13,10 +13,10 @@ import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDE
 import { PANE_COLUMNS, PANE_ID, commentKey, ownWords, paneView } from './pane'
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
-import { originalText, promptText, replyText } from './rows'
+import { promptRowView, replyText } from './rows'
 import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, noteOf, rowSource, selectionKey } from './selection'
 import type { Surroundings, Verdict } from './selection'
-import { forgotten, hasAnnotations, keysToLoad, loaded, originalOf, promptHash, remembered, stored, withReplies } from './originals'
+import { forgotten, keysToLoad, loaded, originalOf, promptHash, remembered, stored, withReplies } from './originals'
 import type { Originals, StoreWrite } from './originals'
 import { annotated } from './send'
 
@@ -452,23 +452,17 @@ export const register: Register = on => {
     rememberRole(e.requestId, e.component, e.props)
     if (e.props.origin.kind !== 'composer') return next(e)
     const [list, map] = await Promise.all([read($, pending), read($, originals)])
-    const found = e.props.isExpanded ? undefined : originalOf(map, e.props.text)
-    const original = found?.original
-    if (!hasAnnotations(original) || e.surface !== 'terminal') {
-      const text = promptText(e.props.text, e.requestId, list, original)
-      return text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text } })
-    }
+    const view = promptRowView({ text: e.props.text, requestId: e.requestId, isExpanded: e.props.isExpanded, surface: e.surface }, originalOf(map, e.props.text), list)
+    if (view.kind === 'text') return view.text === e.props.text ? next(e) : next({ ...e, props: { ...e.props, text: view.text } })
     // In the terminal Claude Code draws the prompt as typed, and the mod its
     // 📎 row beneath: a button to the pane, and a card on hover.
-    const hash = found!.hash
-    if (e.requestId !== undefined) promptRows.set(hash, e.requestId)
-    const engine = await next({ ...e, props: { ...e.props, text: originalText(original, e.requestId, list) } })
-    const requestId = e.requestId
+    if (e.requestId !== undefined) promptRows.set(view.hash, e.requestId)
+    const engine = await next({ ...e, props: { ...e.props, text: view.text } })
     return promptRow(
       $.ui.resolve(e),
       engine,
-      { hash, count: original.count, annotations: original.annotations, columns: e.viewport?.columns ?? 80 },
-      () => showSentPrompt($, hash, requestId),
+      { hash: view.hash, count: view.count, annotations: view.annotations, columns: e.viewport?.columns ?? 80 },
+      () => showSentPrompt($, view.hash, e.requestId),
     )
   })
 

@@ -4,7 +4,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Annotation } from '../types'
 import { marksFor } from '../hooks/annotations'
 import { shownTab } from '../hooks/pane'
-import { promptText, replyText } from '../hooks/rows'
+import { promptRowView, replyText } from '../hooks/rows'
 import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { ownWords } from '../hooks/pane'
@@ -114,8 +114,16 @@ describe('rows and sending', () => {
   test('replyText draws Citations and marks', () => {
     expect(replyText('one :annotation{index="1"}', 'r1', A)).toBe('one`⁽¹⁾` `①`')
   })
-  test('promptText draws the original with its 📎 line', () => {
-    expect(promptText('# Response…', 'u9', A, { text: 'why?', count: 2 })).toBe('why?\n📎 2 annotations')
+  test("a sent prompt's row: text, or (in the terminal, Annotations kept) the 📎 row", () => {
+    const found = { hash: 'h', original: { text: 'why?', count: 1, annotations: [A[1]!] } }
+    const row = { text: '# Response…', requestId: 'u9', isExpanded: false, surface: 'terminal' }
+    // No Original for it: the engine's text. ctrl+o expanded: the same.
+    expect(promptRowView({ ...row, isExpanded: true }, found, A)).toEqual({ kind: 'text', text: '# Response…' })
+    expect(promptRowView(row, undefined, A)).toEqual({ kind: 'text', text: '# Response…' })
+    // Another surface, or kept without its Annotations: the Original, a `📎` line, no button.
+    expect(promptRowView({ ...row, surface: 'desktop' }, found, A)).toEqual({ kind: 'text', text: 'why?\n📎 1 annotation' })
+    expect(promptRowView(row, { hash: 'h', original: { text: 'why?', count: 1 } }, A)).toEqual({ kind: 'text', text: 'why?\n📎 1 annotation' })
+    expect(promptRowView(row, found, [])).toEqual({ kind: 'wrapped', text: 'why?', hash: 'h', count: 1, annotations: [A[1]!] })
   })
   test('annotated rewrites the prompt by the template and keeps what was typed', () => {
     expect(annotated('q', A)).toEqual({ text: renderTemplate('q', A), original: { text: 'q', count: 3, annotations: A } })
