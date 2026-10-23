@@ -903,6 +903,21 @@ describe('sent prompts', () => {
     await pane.press({ key: 'back' })
     expect(await tabsOf(pane)).toBe(0)
   })
+
+  test("the pane's own words with their arrows: the history row's ›, the jump's ↑", async ($, on) => {
+    const w = await start($, on)
+    const sent = await sendOne($, w)
+    // The row drawn, so the sent view offers its jump.
+    await drawRow($, w, 'UserMessage', 'u1', sent)
+    const pane = await mountPane($)
+    await addText($, w, 'History (1) ›')
+    await pane.press({ key: 'history' })
+    await pane.press({ key: `sent-${hashText(sent)}` })
+    await addText($, w, '↑ jump to prompt')
+    await pane.press({ key: 'back' })
+    await pane.press({ key: 'back' })
+    expect(await tabsOf(pane)).toBe(0)
+  })
 })
 
 

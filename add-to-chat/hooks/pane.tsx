@@ -24,12 +24,13 @@ import {
   HISTORY_EMPTY,
   HISTORY_TITLE,
   IDLE_HINT,
-  JUMP_LABEL,
+  JUMP_ROW_LABEL,
   MAX_TAB_HOTKEY,
   NEEDS_FULLSCREEN_HINT,
   NO_COMMENT,
   PANE_EMPTY,
   SAVE_LABEL,
+  SEND_BUTTON,
   SEND_HINT,
   SENT_HINT,
   SENT_TITLE,
@@ -37,7 +38,9 @@ import {
   addedNote,
   circled,
   clipLine,
-  historyLabel,
+  historyRowLabel,
+  drawnTab,
+  sourceLine,
   tabLabel,
 } from './labels'
 import { preview, width } from './text'
@@ -116,21 +119,43 @@ export function shownSent(mode: PaneMode, sent: readonly SentPrompt[]): SentProm
 }
 
 /**
- * The words the history and sent views draw beside the pending view's: a
- * selection of them is the pane's own, never an Excerpt.
+ * Every line of words the pane can draw in this state, but the offer: a
+ * selection that matches the offer's preview is the offer's own, of the
+ * transcript. The view draws these words and the selection rule ignores
+ * them, from this one list: adding words to `paneView` means adding them
+ * here, where they sit beside it. (The pending view's words count whatever
+ * the mode: the pane switches modes in a click, and they are its own.)
  */
-export function historyLines(mode: PaneMode, sent: readonly SentPrompt[]): string[] {
-  if (mode.kind === 'pending') return [historyLabel(sent.length)]
-  const words = [BACK_LABEL, HISTORY_TITLE, HISTORY_EMPTY, SENT_TITLE, NO_COMMENT, JUMP_LABEL]
-  if (mode.kind === 'history') return [...words, ...sent.flatMap(p => [p.text, clipLine(p.annotations.length)])]
-  const shown = shownSent(mode, sent)
-  if (shown === undefined) return words
+export function ownWords(v: PaneWords): string[] {
+  const pending = [
+    ADD_LABEL,
+    IDLE_HINT,
+    NEEDS_FULLSCREEN_HINT,
+    PANE_EMPTY,
+    `${COMMENT_LABEL}: ${COMMENT_PLACEHOLDER} ⏎ ${SAVE_LABEL}`,
+    `[ ${SEND_BUTTON} ] ${SEND_HINT}`,
+    SENT_HINT,
+    historyRowLabel(v.sent.length),
+    ...v.pending.map(a => `${drawnTab(a)} ${CLOSE_TAB}`),
+    ...v.pending.map(a => addedNote(a.index)),
+    ...v.pending.map(sourceLine),
+    ...v.pending.map(a => a.text),
+    ...v.pending.flatMap(a => (a.comment === undefined ? [] : [`${COMMENT_LABEL}: ${a.comment}`])),
+  ]
+  const beside = [BACK_LABEL, HISTORY_TITLE, HISTORY_EMPTY, SENT_TITLE, NO_COMMENT, JUMP_ROW_LABEL]
+  if (v.mode.kind === 'history') return [...pending, ...beside, ...v.sent.flatMap(p => [p.text, clipLine(p.annotations.length)])]
+  const shown = shownSent(v.mode, v.sent)
+  if (shown === undefined) return [...pending, ...beside]
   return [
-    ...words,
+    ...pending,
+    ...beside,
     shown.text,
     ...shown.annotations.flatMap(a => [tabLabel(a), `${circled(a.index)} ${SOURCE_HINT[a.source]}`, a.text, ...(a.comment === undefined ? [] : [`${COMMENT_LABEL}: ${a.comment}`])]),
   ]
 }
+
+/** What the pane is showing, for its own words (see `ownWords`). */
+export type PaneWords = { mode: PaneMode; pending: readonly Annotation[]; sent: readonly SentPrompt[] }
 
 /**
  * A row of tabs, one per Annotation: its label, which shows it, and (when
@@ -291,14 +316,14 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
           </Text>
         )}
         {rule('rule-foot')}
-        {v.canJump ? <Button key="jump" plain label={`↑ ${JUMP_LABEL}`} onPress={act.jump} /> : null}
+        {v.canJump ? <Button key="jump" plain label={JUMP_ROW_LABEL} onPress={act.jump} /> : null}
       </Box>
     ) as RenderElement
   }
 
   // The way into the history, under the pending view, once there is one.
   const historyRow =
-    v.sent.length === 0 ? null : <Button key="history" plain dimColor label={`${historyLabel(v.sent.length)} ›`} onPress={act.openHistory} />
+    v.sent.length === 0 ? null : <Button key="history" plain dimColor label={historyRowLabel(v.sent.length)} onPress={act.openHistory} />
 
   if (v.pending.length === 0) {
     return (
@@ -332,7 +357,7 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
       {rule('rule-foot')}
       {v.isDraftEmpty ? (
         <Box key="footer" gap={1}>
-          <Button key="send" variant="primary" label="Send" onPress={act.send} />
+          <Button key="send" variant="primary" label={SEND_BUTTON} onPress={act.send} />
           <Text dimColor>{SEND_HINT}</Text>
         </Box>
       ) : (

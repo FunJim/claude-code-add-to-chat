@@ -10,7 +10,7 @@ import { NO_REPLIES, bound, checked, drawn, ended, promptSent, settled, toCheck 
 import type { Replies } from './answering'
 import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
-import { PANE_COLUMNS, PANE_ID, commentKey, historyLines, paneView } from './pane'
+import { PANE_COLUMNS, PANE_ID, commentKey, ownWords, paneView } from './pane'
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
 import { originalText, promptText, replyText } from './rows'
@@ -93,7 +93,7 @@ async function surroundings($: EngineInterface): Promise<Surroundings> {
     read($, originals),
     read($, sessionPrompts),
   ])
-  return { draft: prompt.text, pending: list, handled: key, paneWords: historyLines(mode, sentPrompts(map, inSession)) }
+  return { draft: prompt.text, pending: list, handled: key, paneWords: ownWords({ mode, pending: list, sent: sentPrompts(map, inSession) }) }
 }
 
 /** What the poll last wrote, so it writes state only on a change. */

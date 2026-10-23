@@ -7,6 +7,7 @@ import { shownTab } from '../hooks/pane'
 import { promptText, replyText } from '../hooks/rows'
 import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
+import { ownWords } from '../hooks/pane'
 import { annotated } from '../hooks/send'
 import { renderTemplate } from '../hooks/template'
 import { promptsIn, replyCountsOf, sameRecord, sentPrompts } from '../hooks/history'
@@ -19,7 +20,42 @@ const A: Annotation[] = [
   { index: 2, text: 'two', source: 'user', requestId: 'u1', comment: 'hm' },
   { index: 3, text: 'three', source: 'transcript' },
 ]
-const QUIET: Surroundings = { draft: '', pending: [], handled: null }
+const QUIET: Surroundings = { draft: '', pending: [], handled: null, paneWords: [] }
+/** The pane showing the list above, as its own words say it. */
+const SHOWN: Surroundings = { ...QUIET, pending: A, paneWords: ownWords({ mode: { kind: 'pending' }, pending: A, sent: [] }) }
+
+describe("the pane's own words", () => {
+  const mode = { kind: 'pending' } as const
+  test('the pending view: its tabs, sources, the Comment field, Send, the history row with its arrow', () => {
+    const words = ownWords({ mode, pending: A, sent: [] })
+    expect(words).toContain('2: You ✕')
+    expect(words).toContain('added as ②')
+    expect(words).toContain('② from your prompt')
+    expect(words).toContain('two')
+    expect(words).toContain('Comment: hm')
+    expect(words).toContain('Comment: Add an optional comment… ⏎ save')
+    expect(words).toContain('[ Send ] now, or type a prompt and press ↵')
+    expect(words).toContain('History (0) ›')
+  })
+  test('the history view: its rows, beside the pending view own words', () => {
+    const sent = [{ hash: 'h', text: 'q', annotations: A }]
+    const words = ownWords({ mode: { kind: 'history' }, pending: A, sent })
+    expect(words).toContain('← back')
+    expect(words).toContain('Sent with annotations')
+    expect(words).toContain('q')
+    expect(words).toContain('📎 3 annotations')
+    expect(words).toContain('2: You ✕')
+  })
+  test('the sent view: the prompt, its Annotations, the jump with its arrow', () => {
+    const sent = [{ hash: 'h', text: 'q', annotations: A }]
+    const words = ownWords({ mode: { kind: 'sent', hash: 'h', tab: 1 }, pending: A, sent })
+    expect(words).toContain('↑ jump to prompt')
+    expect(words).toContain('You')
+    expect(words).toContain('① from Claude\'s reply')
+    expect(words).toContain('one')
+    expect(words).toContain('Comment: hm')
+  })
+})
 
 describe('judging a selection', () => {
   test('an Excerpt in a row is offered', () => {
@@ -30,9 +66,9 @@ describe('judging a selection', () => {
     expect(judge({ text: '⁽¹⁾ ②', requestId: 'r1' }, QUIET)).toEqual({ reason: 'nothing' })
   })
   test('one pending in the same row (as which Annotation), or the last handled selection (added, or its offer dismissed)', () => {
-    expect(judge({ text: 'one', requestId: 'r1' }, { ...QUIET, pending: A })).toEqual({ reason: 'pending', text: 'one', index: 1 })
+    expect(judge({ text: 'one', requestId: 'r1' }, SHOWN)).toEqual({ reason: 'pending', text: 'one', index: 1 })
     expect(judge({ text: 'x', requestId: 'r1' }, { ...QUIET, handled: 'r1\u0000x' })).toEqual({ reason: 'handled' })
-    expect(judge({ text: 'one', requestId: 'r2' }, { ...QUIET, pending: A })).toHaveProperty('key')
+    expect(judge({ text: 'one', requestId: 'r2' }, SHOWN)).toHaveProperty('key')
   })
   test('what the first row says of a selection not offered: added as ①; nothing else', () => {
     expect(noteOf({ reason: 'pending', text: 'one', index: 1 })).toEqual({ text: 'one', index: 1 })
@@ -42,11 +78,11 @@ describe('judging a selection', () => {
   })
   test("the draft's and the pane's own words", () => {
     expect(judge({ text: 'my draft' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '2: You ✕' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '② from your' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '│ one │\n╰───╯' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: 'Comment: hm' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: 'added as ②' }, { ...QUIET, pending: A })).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '2: You ✕' }, SHOWN)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '② from your' }, SHOWN)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '│ one │\n╰───╯' }, SHOWN)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: 'Comment: hm' }, SHOWN)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: 'added as ②' }, SHOWN)).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toHaveProperty('excerpt')
   })
   test('rowSource: replies, typed prompts, tool rows, and Claude Code\'s own', () => {

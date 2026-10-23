@@ -4,7 +4,7 @@
 import type { Annotation, AnnotationSource, Candidate, SelectionNote } from '../types'
 import { isSameExcerpt } from './annotations'
 import { stripMarks } from './excerpt'
-import { isClipLineHead, paneLines } from './labels'
+import { isClipLineHead } from './labels'
 import { oneLine } from './text'
 
 /** What `$.ui.selection()` gives; a Candidate is one kept to offer. */
@@ -61,8 +61,8 @@ export type Surroundings = {
   pending: readonly Annotation[]
   /** `selectionKey` of the selection last added or dismissed. */
   handled: string | null
-  /** Words the pane draws beyond the pending view's (its history views). */
-  paneWords?: readonly string[]
+  /** Every word the pane draws, beyond the offer's preview: a selection of them is the pane's own. */
+  paneWords: readonly string[]
 }
 
 /**
@@ -73,7 +73,7 @@ function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean 
   if (excerpt.requestId !== undefined) return false
   // A selection across the Excerpt's frame in the pane picks up its border.
   const text = flatten(excerpt.text.replace(/[│╭╮╰╯─]/g, ' '))
-  return flatten(around.draft).includes(text) || [...paneLines(around.pending), ...(around.paneWords ?? [])].some(line => flatten(line).includes(text))
+  return flatten(around.draft).includes(text) || around.paneWords.some(line => flatten(line).includes(text))
 }
 
 /** Whether `selection` is where Annotation `a` was added from: its Excerpt, in its row. */

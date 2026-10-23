@@ -47,6 +47,7 @@ export const COMMENT_PLACEHOLDER = 'Add an optional comment…'
 /** The Comment field's submit label; the engine draws it as `⏎ save`. */
 export const SAVE_LABEL = 'save'
 export const CLOSE_TAB = '✕'
+export const SEND_BUTTON = 'Send'
 /** Beside `[ Send ]`, while the prompt box is empty. */
 export const SEND_HINT = 'now, or type a prompt and press ↵'
 export const SENT_HINT = 'They go with your next prompt ↵'
@@ -58,11 +59,17 @@ export function historyLabel(count: number): string {
   return `History (${count})`
 }
 export const BACK_LABEL = '← back'
+/** The way into the history, as its row draws it. */
+export function historyRowLabel(count: number): string {
+  return `${historyLabel(count)} ›`
+}
 export const HISTORY_TITLE = 'Sent with annotations'
 export const HISTORY_EMPTY = 'No prompt sent with annotations yet.'
 export const SENT_TITLE = 'You sent'
 export const NO_COMMENT = 'No comment'
 export const JUMP_LABEL = 'jump to prompt'
+/** The sent view's way to the prompt's row, as it draws it. */
+export const JUMP_ROW_LABEL = `↑ ${JUMP_LABEL}`
 export const NOT_DRAWN = 'That prompt is not drawn yet: scroll to it once, then jump'
 
 export const ALREADY_ADDED = 'That selection is already added'
@@ -114,25 +121,4 @@ export function drawnTab(a: Annotation): string {
 /** The open tab's first line: the number its marks carry in the transcript, and where it was selected. */
 export function sourceLine(a: Annotation): string {
   return `${circled(a.index)} ${SOURCE_HINT[a.source]}`
-}
-
-/**
- * Every line of words the pane can draw for this list, but the offer: a
- * selection that matches the offer's preview is the offer's own.
- */
-export function paneLines(list: readonly Annotation[]): string[] {
-  return [
-    ADD_LABEL,
-    IDLE_HINT,
-    NEEDS_FULLSCREEN_HINT,
-    PANE_EMPTY,
-    `${COMMENT_LABEL}: ${COMMENT_PLACEHOLDER} ⏎ ${SAVE_LABEL}`,
-    `[ Send ] ${SEND_HINT}`,
-    SENT_HINT,
-    ...list.map(a => `${drawnTab(a)} ${CLOSE_TAB}`),
-    ...list.map(a => addedNote(a.index)),
-    ...list.map(sourceLine),
-    ...list.map(a => a.text),
-    ...list.flatMap(a => (a.comment === undefined ? [] : [`${COMMENT_LABEL}: ${a.comment}`])),
-  ]
 }

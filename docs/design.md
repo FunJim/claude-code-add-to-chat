@@ -172,7 +172,7 @@ Below its first row (the offer, always one row) the pane shows one of three view
 
 The store keeps prompts from every session; the history lists those in this conversation's transcript. `sessionPrompts` holds their hashes: the user messages of `$.session.messages()` whose `hashText` is a key of `originals` (the text is the rewritten prompt byte for byte). It is read at `session.start`, after each `turn.complete` and when the history opens, and a prompt is added to it once sent. A `/branch` copies the transcript, so the fork's history still lists the prompts sent before it; `/clear` empties it.
 
-`← back` goes from sent to the history, and from the history to pending. Adding a selection shows the pending view with the new tab, whatever the pane showed. The history views' words are the pane's own: selecting them offers nothing.
+`← back` goes from sent to the history, and from the history to pending. Adding a selection shows the pending view with the new tab, whatever the pane showed. The pane's own words are one list, `ownWords` in `pane.tsx` beside the view that draws them: every line it can draw but the offer's preview, arrows included, whatever the mode. The selection rule ignores that list ([selection](#the-selection)), so a word the pane draws is never offered as an Excerpt; adding words to the view means adding them to the list beside it.
 
 ### Back in the prompt box
 
