@@ -1,5 +1,7 @@
 # Everything in a pane, open from the start
 
+**Superseded in part** by [ADR 0012](0012-the-pane-opens-asked.md): the pane now opens only asked, and the offer shows on the line under the prompt while it is closed. The rest — everything drawn in one pane, its first row one row, the placement rules — stands.
+
 add-to-chat draws its whole interface in one pane: the offer to add the selection, a tab per pending Annotation with its Excerpt and Comment, and `[ Send ]`. It draws nothing in the band above the prompt. The pane opens by itself at the start of a fullscreen session (the band's first fullscreen drawing calls `$.ui.open`), and stays open until the person closes it.
 
 The band had room for one row without moving the transcript ([ADR 0002](0002-one-row-band.md)), so Excerpts showed only as previews cut to fit, and the list of Annotations unfolded below the prompt. A docked pane has the height of the transcript: whole Excerpts, a tab each, a Comment field that stays editable.

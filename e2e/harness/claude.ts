@@ -36,6 +36,8 @@ export type LaunchOptions = {
   resume?: string
   /** False runs on the main screen, where no selection can be read. */
   fullscreen?: boolean
+  /** False leaves the pane closed: the offer for a selection shows on the line under the prompt. */
+  openPane?: boolean
   /** Where add-to-chat loads from: a copy a scenario may edit; the repository's own when left out. */
   pluginDir?: string
   /** Variables for Claude Code, through its settings. */
@@ -54,14 +56,18 @@ export class ClaudeSession {
   readonly mouse: Mouse
   readonly isFullscreen: boolean
 
-  private constructor(name: string, cwd: string, term: Terminal, probe: ProbeLog, isFullscreen: boolean) {
+  private constructor(name: string, cwd: string, term: Terminal, probe: ProbeLog, isFullscreen: boolean, opensPane: boolean) {
     this.name = name
     this.cwd = cwd
     this.term = term
     this.probe = probe
     this.mouse = new Mouse(term)
     this.isFullscreen = isFullscreen
+    this.opensPane = opensPane
   }
+
+  /** Whether launch is to open the pane (a scenario may leave it closed to test the line under the prompt). */
+  readonly opensPane: boolean
 
   static async launch(host: Host, runDir: string, model: ModelTarget, o: LaunchOptions): Promise<ClaudeSession> {
     launches += 1
@@ -93,7 +99,7 @@ export class ClaudeSession {
       ...(Object.keys(settings).length === 0 ? [] : ['--settings', JSON.stringify(settings)]),
     ]
     const term = await host.spawn({ name: o.name, cwd: o.cwd, argv, env: { CLAUDE_CODE_NO_FLICKER: fullscreen ? '1' : '0', ATC_PROBE_LOG: probeFile }, slot: o.slot })
-    const session = new ClaudeSession(o.name, o.cwd, term, new ProbeLog(probeFile), fullscreen)
+    const session = new ClaudeSession(o.name, o.cwd, term, new ProbeLog(probeFile), fullscreen, o.openPane ?? true)
     await session.ready()
     return session
   }
@@ -115,9 +121,10 @@ export class ClaudeSession {
     // Startup notices come and go for a moment; a drag over a moving
     // screen selects what moved under it.
     await this.waitStill(1_500, 10_000)
-    // The pane opens by itself only from 144 columns (110 once opened by
-    // hand); /add-to-chat opens it at any width.
-    if (this.isFullscreen) await this.openPane()
+    // The pane opens only asked (/add-to-chat at any width, the count
+    // under the prompt, a sent prompt's 📎 row); a scenario may leave it
+    // closed (`openPane: false`).
+    if (this.isFullscreen && this.opensPane) await this.openPane()
   }
 
   /** Opens the add-to-chat pane if it is not showing, and waits for the transcript to settle beside it. */

@@ -26,7 +26,6 @@ const handled = atom({ plugin: 'add-to-chat', key: 'handled' } as const, null)
 const selectionNote = atom({ plugin: 'add-to-chat', key: 'selectionNote' } as const, null)
 const isPaneOpen = atom({ plugin: 'add-to-chat', key: 'isPaneOpen' } as const, false)
 const isPaneDrawn = atom({ plugin: 'add-to-chat', key: 'isPaneDrawn' } as const, false)
-const isPaneDismissed = atom({ plugin: 'add-to-chat', key: 'isPaneDismissed' } as const, false)
 const paneTab = atom({ plugin: 'add-to-chat', key: 'paneTab' } as const, 1)
 const commentDrafts = atom({ plugin: 'add-to-chat', key: 'commentDrafts' } as const, {})
 const commentSaves = atom({ plugin: 'add-to-chat', key: 'commentSaves' } as const, 0)
@@ -279,15 +278,15 @@ async function dropRecalled($: EngineInterface, only?: Recalled) {
   await editPending($, p => withoutRecalled(p, only))
 }
 
-/** Opens the pane at the person's asking: placed at any width, and no longer dismissed. */
+/** Opens the pane at the person's asking: placed at any width. */
 async function openPane($: EngineInterface) {
   const opened = await $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS })
-  await Promise.all([update($, isPaneOpen, () => true), update($, isPaneDismissed, () => false), update($, isPaneDrawn, () => opened.isPlaced)])
+  await Promise.all([update($, isPaneOpen, () => true), update($, isPaneDrawn, () => opened.isPlaced)])
 }
 
-/** Closes the pane at the person's asking, from the count under the prompt: closed until they ask for it again. */
+/** Closes the pane at the person's asking, from the count under the prompt. */
 async function hidePane($: EngineInterface) {
-  await Promise.all([update($, isPaneOpen, () => false), update($, isPaneDismissed, () => true), update($, isPaneDrawn, () => false)])
+  await Promise.all([update($, isPaneOpen, () => false), update($, isPaneDrawn, () => false)])
   await $.ui.close({ id: PANE_ID })
 }
 
@@ -472,34 +471,27 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The person closing the pane (its ✕, ctrl+x x) keeps it closed until
-  // they ask for it again with /add-to-chat.
+  // The person closing the pane (its ✕, ctrl+x x); it opens again only
+  // asked (/add-to-chat, the count under the prompt, a sent prompt's 📎 row).
   on('ui.close', { id: PANE_ID }, async ($, e, next) => {
     await update($, isPaneOpen, () => false)
-    if (e.origin.kind === 'person') await update($, isPaneDismissed, () => true)
+    await update($, isPaneDrawn, () => false)
     return next(e)
   })
 
-  // Claude Code keeps its band; add-to-chat draws in its pane, which the
-  // band's first fullscreen drawing opens unless the person closed it. Open
-  // from the start, it never narrows the transcript under a mouse mid-drag.
-  // (Opened unasked, a terminal under 144 columns waits for /add-to-chat.)
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.viewport?.isFullscreen === true) {
-      const [isOpen, isDismissed] = await Promise.all([read($, isPaneOpen), read($, isPaneDismissed)])
-      if (!isOpen && !isDismissed) void $.ui.open({ id: PANE_ID, title: PANE_TITLE, columns: PANE_COLUMNS })
-    }
-    return next(e)
-  })
-
-  // While Annotations are pending, the line under the prompt counts them,
-  // and a click shows the pane or hides it.
+  // The line under the prompt: the offer for the selection while the pane
+  // is closed (its first row has it while it is drawn), and the count of
+  // Annotations pending, a click showing the pane or hiding it.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const engine = await next(e)
-    const list = await read($, pending)
-    if (list.length === 0) return engine
-    const isDrawn = await read($, isPaneDrawn)
-    return promptHint($.ui.resolve(e), engine, list.length, isDrawn, () => (isDrawn ? hidePane($) : openPane($)))
+    const [list, offer, isDrawn] = await Promise.all([read($, pending), read($, candidate), read($, isPaneDrawn)])
+    if (list.length === 0 && offer === null) return engine
+    return promptHint(
+      $.ui.resolve(e),
+      engine,
+      { count: list.length, isPaneDrawn: isDrawn, offer: offer === null ? null : offer.text, columns: e.viewport?.columns ?? 80 },
+      { toggle: () => (isDrawn ? hidePane($) : openPane($)), add: () => void addSelection($), dismiss: () => void dismissOffer($) },
+    )
   })
 
   // A rewind or a step through the prompt history (no edit, and not this

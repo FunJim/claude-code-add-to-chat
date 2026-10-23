@@ -44,7 +44,7 @@ Its first row is always there and always one row high:
 - a selection to offer: `[ ✚ Add to chat ] "<Excerpt preview>" ✕`, the preview cut to fit;
 - a selection whose Excerpt is pending (`selectionNote`), dim: `"<preview>" added as ①`, right after Add too, as the selection is still reported.
 
-A selection is readable while the mouse is still dragging, so whatever the poll sees must not move the transcript: an offer that added a row to an inline pane, or a pane that docked in the middle of a drag and narrowed the transcript, would move the text under the mouse. So the offer takes the hint's row, and the pane opens by itself when the session starts, before anything is selected ([ADR 0005](adr/0005-everything-in-a-pane.md)): the band's first fullscreen drawing calls `$.ui.open`. Claude Code places a pane opened unasked only from 144 columns (110 once the person opened it by hand); below that it waits until `/add-to-chat` opens it. If the person closes the pane (its `✕`, ctrl+x x), it stays closed until they run `/add-to-chat`. Outside fullscreen nothing can be selected, and the pane does not open.
+A selection is readable while the mouse is still dragging, so whatever the poll sees must not move the transcript: an offer that added a row to an inline pane, or a pane that docked in the middle of a drag and narrowed the transcript, would move the text under the mouse. So, while the pane is closed, the offer takes a row on the line under the prompt — one row below Claude Code's own hint, whose growing moves nothing above it — and the pane opens only asked ([ADR 0012](adr/0012-the-pane-opens-asked.md)): `/add-to-chat`, the count on that line, a sent prompt's 📎 row. Every opening follows a release of the mouse or a key, so none narrows the transcript mid-drag. Claude Code places a pane opened asked at any width: docked beside a fullscreen transcript from 110 columns, inline above the prompt below that. If the person closes the pane (its `✕`, ctrl+x x), it opens again only asked. Outside fullscreen nothing can be selected, and the pane does not open.
 
 Below the first row, which change only on clicks:
 
@@ -52,7 +52,7 @@ Below the first row, which change only on clicks:
 - **The open tab**: its circled number, as its marks in the transcript carry it, and where the Excerpt was selected (`② from your prompt`), the whole Excerpt, wrapped, in a dim rounded frame (no italics, no quotes: Excerpts are often code or tool output), and its Comment ([Comment](#comment)). A selection across that frame picks up its border, which the own-words check below ignores.
 - **The footer**: `[ Send ] now, or type a prompt and press ↵` with an empty prompt ([An empty prompt](#an-empty-prompt)), else `They go with your next prompt ↵`.
 
-With nothing pending, the pane says `Nothing added yet.` under the first row. While any are pending, the line under the prompt gets `📎 N annotations · hide pane` beneath Claude Code's own hint, `· show pane` while the pane is not drawn (closed, or waiting for room): a toggle. Show opens the pane as `/add-to-chat` does; hide closes it as its `✕` does, so it stays closed until asked for. The hook wraps the engine's drawing of the line (`next(e)` on `PromptHint`) as the 📎 row of a sent prompt does, so Claude Code's hint stays as it draws it. (`$.ui.status`, the pinned `⚠ add-to-chat: …` notice this replaced, takes text only: nothing in it can be pressed.)
+With nothing pending, the pane says `Nothing added yet.` under the first row. While the pane is closed, the line under the prompt carries the offer first: `✚ Add to chat` (the pane's first row has it while the pane is drawn), the Excerpt in quotes cut to the line, and a `✕` that dismisses it as the pane's does. While any are pending, the line also gets `📎 N annotations · hide pane` beneath Claude Code's own hint, `· show pane` while the pane is not drawn: a toggle. Show opens the pane as `/add-to-chat` does; hide closes it as its `✕` does. The hook wraps the engine's drawing of the line (`next(e)` on `PromptHint`) as the 📎 row of a sent prompt does, so Claude Code's hint stays as it draws it. (`$.ui.status`, the pinned `⚠ add-to-chat: …` notice this replaced, takes text only: nothing in it can be pressed.)
 
 The offer's `✕` dismisses it: not this time. As the engine keeps reporting the selection, the mod marks it handled, or the next poll would offer it again; that is all it means, and the first row goes back to the hint. Selected again, it is offered ([Following the selection](#following-the-selection)).
 
@@ -202,9 +202,8 @@ All in `$.state`, declared in [`add-to-chat/types/index.d.ts`](../add-to-chat/ty
 | `handled` | the key of the selection last added or whose offer was dismissed |
 | `selectionNote` | the selection reported, not offered as its Excerpt is pending (as ①), for the first row; null otherwise |
 | `isPaneOpen` | whether the pane is open, as the poll last saw `$.ui.panes()` |
-| `isPaneDismissed` | the person closed the pane; it stays closed until `/add-to-chat` |
 | `paneTab` | the index of the Annotation whose tab the pane shows |
-| `isPaneDrawn` | whether the pane is drawn (open and placed), as the poll last saw; while not, the line under the prompt counts the Annotations |
+| `isPaneDrawn` | whether the pane is drawn (open and placed), as the poll last saw; while not, the line under the prompt carries the offer and counts the Annotations |
 | `commentDrafts` | each Comment field's text by Annotation index, typed since the last save; read by no drawing |
 | `commentSaves` | Comments saved with Enter so far: in the Comment field's key |
 | `recalled` | the Annotations the last recall from the prompt history put back; null once none is pending |

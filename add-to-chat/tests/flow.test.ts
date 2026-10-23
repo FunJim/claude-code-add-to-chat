@@ -166,6 +166,52 @@ describe('the pane', () => {
     })
   }
 
+  for (const surface of SURFACES) {
+    test(`a selection offers on the line under the prompt, the pane staying closed; adding there keeps it closed (${surface})`, async ($, on) => {
+      const w = await start($, on)
+      expect(w.panes.has('add-to-chat')).toBe(false)
+      w.selection = { text: 'npm test', requestId: 'r1' }
+      await tick(w)
+      const hint = await mountHint($, surface)
+      expect((await hint.find({ key: 'hint-add' }))?.text).toBe('✚ Add to chat')
+      expect((await hint.findAll({ type: 'Text' })).map(t => t.text).join('\n')).toContain('“npm test”')
+      await hint.press({ key: 'hint-add' })
+      await hint.unmount()
+      expect(await tabCount($)).toBe(1)
+      expect(w.panes.has('add-to-chat')).toBe(false)
+      expect((await (await mountHint($, surface)).find({ key: 'hint-clip' }))?.text).toBe('📎 1 annotation · show pane')
+    })
+
+    test(`the line's ✕ dismisses the offer; the same text, selected again after another, is offered again (${surface})`, async ($, on) => {
+      const w = await start($, on)
+      w.selection = { text: 'not this', requestId: 'r1' }
+      await tick(w)
+      let hint = await mountHint($, surface)
+      await hint.press({ key: 'hint-dismiss' })
+      await hint.unmount()
+      await tick(w)
+      hint = await mountHint($, surface)
+      expect(await hint.find({ key: 'hint-add' })).toBeUndefined()
+      await hint.unmount()
+      w.selection = { text: 'this one', requestId: 'r1' }
+      await tick(w)
+      hint = await mountHint($, surface)
+      expect((await hint.find({ key: 'hint-add' }))?.text).toBe('✚ Add to chat')
+    })
+
+    test(`while the pane is drawn the line carries no offer: the pane's first row has it (${surface})`, async ($, on) => {
+      const w = await start($, on)
+      await runCommand($, w)
+      w.selection = { text: 'npm test', requestId: 'r1' }
+      await tick(w)
+      const hint = await mountHint($, surface)
+      expect(await hint.find({ key: 'hint-add' })).toBeUndefined()
+      expect(await hint.find({ key: 'hint-clip' })).toBeUndefined()
+      const pane = await mountPane($, surface)
+      expect(await pane.find({ key: 'add' })).toBeDefined()
+    })
+  }
+
   test('the line under the prompt says nothing with nothing pending', async ($, on) => {
     const w = await start($, on)
     w.panes.delete('add-to-chat')
@@ -224,12 +270,12 @@ describe('the pane', () => {
     expect(await shown(pane)).toContain('Nothing added yet.')
   })
 
-  test('the band\'s first fullscreen drawing opens the pane; the main screen does not', async ($, on) => {
+  test('the band draws nothing of add-to-chat, and opens no pane: the pane opens only asked', async ($, on) => {
     const w = await start($, on)
-    await drawBand($, false)
     expect(w.panes.has('add-to-chat')).toBe(false)
+    await drawBand($, false)
     await drawBand($)
-    expect(w.panes.has('add-to-chat')).toBe(true)
+    expect(w.panes.has('add-to-chat')).toBe(false)
     // The band itself is Claude Code's: add-to-chat draws nothing there.
     expect(w.drawnProps.band).toBeDefined()
   })

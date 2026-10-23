@@ -11,5 +11,5 @@ Where a pane sits is the surface's to say: docked beside a fullscreen transcript
 ## Consequences
 
 - On a wide fullscreen terminal the pane stays docked; the inline form shows only below 110 columns or on the main screen, where the mod cannot read the selection anyway ([ADR 0001](0001-fullscreen-only-polled-selection.md)).
-- When the engine ships a placement option, or remembers a person's repositioning of a pane as it keeps a dragged dock width, add the choice beside keeping the person's closed choice (`isPaneDismissed`), and record the option in [the notes](../claude-code-notes.md).
+- When the engine ships a placement option, or remembers a person's repositioning of a pane as it keeps a dragged dock width, add the choice to the pane's asked openings ([ADR 0012](0012-the-pane-opens-asked.md)), and record the option in [the notes](../claude-code-notes.md).
 - After a Claude Code update, check that issue and the API for it.

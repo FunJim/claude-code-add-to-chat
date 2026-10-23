@@ -15,5 +15,6 @@
   - [0009](adr/0009-require-claude-code-2-1-300.md) require Claude Code 2.1.300
   - [0010](adr/0010-no-custom-templates.md) no custom templates: one built-in Annotation Template
   - [0011](adr/0011-band-form-waits-for-the-engine.md) a band-shaped pane waits for the engine's placement choice
+  - [0012](adr/0012-the-pane-opens-asked.md) the pane opens asked; the offer on the line under the prompt
 - [../e2e/README.md](../e2e/README.md) — the end-to-end suite and showcase.
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — setting up, testing, the engine's rules.

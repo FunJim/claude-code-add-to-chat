@@ -12,7 +12,7 @@ import { assert, scenario } from '../harness/scenario.ts'
 const PANE = 'pane'
 
 describe(PANE, () => {
-  scenario(PANE, 'the pane is open from the start: a hint until text is selected', { drivers: ['herdr', 'tmux'] }, async ctx => {
+  scenario(PANE, 'the pane opens asked (/add-to-chat, from launch): a hint until text is selected', { drivers: ['herdr', 'tmux'] }, async ctx => {
     const claude = await ctx.launchFixture()
     await waitFor('the hint', () => claude.paneShows(IDLE_HINT), { timeoutMs: 5_000 })
     assert.ok(await claude.paneShows(PANE_EMPTY))
