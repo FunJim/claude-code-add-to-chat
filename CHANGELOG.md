@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-23
+
 ### Fixed
 
 - The pane's rows that end in an arrow — `History (N) ›` and the sent view's `↑ jump to prompt` — are its own words now: selecting them offers nothing, instead of adding that text as an annotation.
