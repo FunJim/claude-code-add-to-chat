@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-24
+
 ### Changed
 
 - The pane no longer opens itself when a session starts. It opens when you ask for it — `/add-to-chat`, the annotation count under the prompt, or a sent prompt's 📎 row — and on narrow terminals too, where it waited before. The offer for a selection now shows on the line under the prompt while the pane is closed, with the same add button, preview and ✕ as the pane's first row.
