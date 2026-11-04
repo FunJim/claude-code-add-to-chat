@@ -82,4 +82,4 @@ Start with [docs/design.md](docs/design.md). Use the [glossary](docs/glossary.md
 
 ## Releasing
 
-Bump `version` in `add-to-chat/.claude-plugin/plugin.json`, move "Unreleased" in the changelog under the new version, tag `vX.Y.Z` and push the tag.
+Bump `version` in `add-to-chat/.claude-plugin/plugin.json`, move "Unreleased" in the changelog under the new version, commit `Release X.Y.Z`, push, tag `vX.Y.Z` and push the tag. Then publish the GitHub Release for the tag (`gh release create vX.Y.Z --title "add-to-chat X.Y.Z" --notes-file …`): a one-line summary, the Claude Code version required, the changelog's section, and a compare link to the previous tag. The tag alone shows under /tags, not /releases.
