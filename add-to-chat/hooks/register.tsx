@@ -158,6 +158,17 @@ async function poll($: EngineInterface, watch: PollWatch) {
   }
 }
 
+/**
+ * The offer goes when a prompt is sent or the box cleared. The selection
+ * stays as the engine last reported it, so it is marked handled: it is not
+ * offered again until another is made
+ * ([ADR 0013](../docs/adr/0013-the-offer-goes-with-the-highlight.md)).
+ */
+async function closeOffer($: EngineInterface) {
+  const offer = await read($, candidate)
+  if (offer !== null) await markHandled($, selectionKey(offer))
+}
+
 /** Done with a selection: it is not offered again until another is made. */
 async function markHandled($: EngineInterface, key: string | undefined) {
   // `handled` before the offer goes: a poll that reads the offer gone then
@@ -389,6 +400,7 @@ export const register: Register = on => {
 
   on('prompt.submit', async ($, e, next) => {
     if (e.origin.kind !== 'composer') return next(e)
+    await closeOffer($)
     const { list } = (await editPending($, flushed)).now
     if (list.length === 0) {
       replies = settled(replies)
@@ -499,6 +511,8 @@ export const register: Register = on => {
   on('prompt.change', async ($, e, next) => {
     const changed = await next(e)
     if (e.origin.kind === 'clear') {
+      // A key took the highlight down with the box: the offer goes.
+      await closeOffer($)
       // An emptied box shows the prompt no more: what came back with it
       // goes. But a submit empties the box too, before its prompt.submit
       // has read pending: so a moment later, and only if they are still

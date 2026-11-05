@@ -4,6 +4,10 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- The offer for a selection no longer lingers past a prompt: it goes when you send one, or when the box is cleared (Esc Esc over text). Typing, Ctrl+C, commands and presses keep it.
+
 ## [0.5.0] - 2026-10-24
 
 ### Changed

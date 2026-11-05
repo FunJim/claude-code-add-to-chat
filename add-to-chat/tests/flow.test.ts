@@ -212,6 +212,37 @@ describe('the pane', () => {
     })
   }
 
+  test('a prompt sent: the offer goes, and the same selection is not offered again until another', async ($, on) => {
+    const w = await start($, on)
+    w.selection = { text: 'npm test', requestId: 'r1' }
+    await tick(w)
+    const pane = await mountPane($)
+    expect(await pane.find({ key: 'add' })).toBeDefined()
+    await submit($, 'my request')
+    await tick(w)
+    expect(await pane.find({ key: 'add' })).toBeUndefined()
+    await pane.unmount()
+    const hint = await mountHint($)
+    expect(await hint.find({ key: 'hint-add' })).toBeUndefined()
+    await hint.unmount()
+    // Another selection is offered as ever.
+    w.selection = { text: 'another', requestId: 'r1' }
+    await tick(w)
+    const again = await mountHint($)
+    expect(await again.find({ key: 'hint-add' })).toBeDefined()
+  })
+
+  test('the box cleared (Esc Esc, or a submit emptying it): the offer goes', async ($, on) => {
+    const w = await start($, on)
+    w.selection = { text: 'npm test', requestId: 'r1' }
+    await tick(w)
+    const hint = await mountHint($)
+    expect(await hint.find({ key: 'hint-add' })).toBeDefined()
+    await clearBox($, w)
+    await tick(w)
+    expect(await hint.find({ key: 'hint-add' })).toBeUndefined()
+  })
+
   test('the line under the prompt says nothing with nothing pending', async ($, on) => {
     const w = await start($, on)
     w.panes.delete('add-to-chat')

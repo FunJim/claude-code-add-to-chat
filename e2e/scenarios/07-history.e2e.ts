@@ -152,13 +152,16 @@ describe(HISTORY, () => {
     await ctx.step('a new conversation in the same project: ↑ gives back the request as typed, without the Annotation, whose row is not in it')
     await claude.close()
     const fresh = await ctx.launch({ name: 'fresh', cwd: claude.cwd })
-    // The launch opens the pane with /add-to-chat, which enters the project's
-    // prompt history: the first ↑ gives that command, the request typed is
-    // the entry before it.
-    await fresh.press('up')
-    await waitFor('the command the launch ran', async () => (await fresh.draft()) === '/add-to-chat', { timeoutMs: 5_000 })
-    await fresh.press('up')
-    await waitFor('the request as typed', async () => (await fresh.draft()) === RECALL, { timeoutMs: 5_000 })
+    // The launch opens the pane with /add-to-chat, which may or may not be an
+    // entry of the project's prompt history: step up until the request is
+    // back, its text alone.
+    let found = false
+    for (let step = 0; step < 4 && !found; step += 1) {
+      await fresh.press('up')
+      await sleep(400)
+      found = (await fresh.draft()) === RECALL
+    }
+    assert.ok(found, `the request comes back through ↑\n${await fresh.screen()}`)
     await sleep(800)
     assert.deepEqual(await fresh.probe.pending(), [])
   })

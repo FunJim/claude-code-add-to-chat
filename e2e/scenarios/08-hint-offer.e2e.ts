@@ -34,6 +34,33 @@ describe(HINT, () => {
     assert.ok(await claude.paneShows('Ran the'))
   })
 
+  scenario(HINT, 'typing in the prompt keeps the offer; sending the prompt takes it away', { drivers: ['herdr'], usesModel: true }, async ctx => {
+    const claude = await ctx.launchFixture({ openPane: false })
+    await ctx.step('select a phrase, then type the request: the offer stays')
+    await claude.select('Ran the')
+    await waitFor('the offer under the prompt', async () => locate(await claude.screen(), ADD_LABEL) !== undefined, { timeoutMs: 5_000 })
+    await claude.type('what does this mean')
+    await sleep(1_000)
+    assert.ok(await claude.isShowing(ADD_LABEL), 'the offer stays while the request is typed')
+    await ctx.step('Enter: the offer goes with the prompt')
+    await claude.press('enter')
+    await waitFor('the offer gone', async () => !(await claude.isShowing(ADD_LABEL)), { timeoutMs: 5_000 })
+  })
+
+  scenario(HINT, 'text typed, a selection, then Esc Esc: the box empties and the offer goes with it', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture({ openPane: false })
+    await claude.type('a request typed first')
+    await ctx.step('select a phrase beside the typed request: the offer shows')
+    await claude.select('Ran the')
+    await waitFor('the offer under the prompt', async () => locate(await claude.screen(), ADD_LABEL) !== undefined, { timeoutMs: 5_000 })
+    await ctx.step('Esc Esc over text: the box empties, and the offer goes with the highlight')
+    await claude.press('escape')
+    await sleep(150)
+    await claude.press('escape')
+    await waitFor('the box empty', async () => (await claude.draft()) === '', { timeoutMs: 5_000 })
+    await waitFor('the offer gone', async () => !(await claude.isShowing(ADD_LABEL)), { timeoutMs: 5_000 })
+  })
+
   scenario(HINT, "the offer's ✕ on the line takes it away; the same text, selected again after another, is offered again", { drivers: ['herdr', 'tmux'] }, async ctx => {
     const claude = await ctx.launchFixture({ openPane: false })
     await ctx.step('select a phrase: the line offers it, its ✕ dismisses it')
