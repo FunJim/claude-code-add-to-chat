@@ -10,6 +10,7 @@ import { ClaudeSession } from './claude.ts'
 import type { LaunchOptions, ModelTarget } from './claude.ts'
 import { FIXTURE_SESSION, installTranscript, sandbox } from './fixtures.ts'
 import type { Driver, Host } from './terminal.ts'
+import { isAtLeast } from './version.ts'
 
 export type Evidence = { label: string; file: string }
 
@@ -30,6 +31,8 @@ export type World = {
   driver: Driver
   runDir: string
   model: ModelTarget
+  /** What `claude --version` printed: the engine every session runs on. */
+  claudeVersion: string
   /** `--only`: the scenarios whose group or title matches; all without it. */
   only?: RegExp
   results: Result[]
@@ -72,6 +75,8 @@ export type ScenarioMeta = {
   usesModel?: boolean
   /** Models it runs against; both when left out. */
   models?: readonly ModelTarget['kind'][]
+  /** The Claude Code version it needs (what it checks is new there); skipped on an older one, as CI's floor. */
+  since?: string
   timeoutMs?: number
 }
 
@@ -89,6 +94,7 @@ export function scenario(group: string, title: string, meta: ScenarioMeta, body:
     current === undefined ? false
     : !meta.drivers.includes(current.driver) ? `not on ${current.driver}`
     : meta.models !== undefined && !meta.models.includes(current.model.kind) ? `not with the ${current.model.kind} model`
+    : meta.since !== undefined && !isAtLeast(current.claudeVersion, meta.since) ? `needs Claude Code ${meta.since}`
     : false
   // Listed in the report even when this driver or model does not run it.
   if (skip !== false) current!.results.push({ ...base, status: 'skip', evidence: [] })

@@ -79,6 +79,7 @@ scenario('pane', 'what it shows', { drivers: ['herdr', 'tmux'] }, async ctx => {
 - `drivers` says where it runs: tmux runs only the basic scenarios.
 - Set `usesModel: true` when it sends prompts. The mock answers them by what they ask (read a file, run a command in backticks) and the Annotations they carry; assert on what only the real model would write under `if (ctx.isRealModel)`.
 - `models: ['mock']` keeps a scenario off `--model haiku` when only the mock can stage it (an automatic compaction).
+- `since: '2.1.325'` skips a scenario on an older Claude Code (`claude --version`), when what it checks is newer than the floor CI runs on (`CLAUDE_CODE_VERSION` in `.github/workflows/ci.yml`); the mod still loads there and does without it.
 - Select text from inside a line, not at its end.
 - Prefer assertions on the probe's state (`claude.probe.pending()`) and the transcript (`claude.transcript()`) over screen text.
 - Match the pane's words through `add-to-chat/hooks/labels.ts` (`ADD_LABEL`, `clipLine(n)`, …), not literals.

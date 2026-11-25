@@ -160,7 +160,7 @@ describe(PANE, () => {
     assert.deepEqual((await claude.probe.pending()).map(a => a.text), ['Ran the', 'so reading it failed'])
   })
 
-  scenario(PANE, 'while a dialog holds the keys, Send gives way to a line saying it waits; it comes back with the prompt', { drivers: ['herdr', 'tmux'] }, async ctx => {
+  scenario(PANE, 'while a dialog holds the keys, Send gives way to a line saying it waits; it comes back with the prompt', { drivers: ['herdr', 'tmux'], since: '2.1.325' }, async ctx => {
     const claude = await ctx.launchFixture()
     await claude.add('Ran the')
     await waitFor('[ Send ]', () => claude.paneShows(SEND_LABEL), { timeoutMs: 5_000 })

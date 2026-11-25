@@ -99,7 +99,8 @@ const modelName = mock === undefined ? REAL_MODEL : 'mock'
 
 const host: Host = driver === 'herdr' ? new HerdrHost(E2E_PREFIX, REPO_DIR, narration) : new TmuxHost(E2E_PREFIX, narration)
 await host.start()
-const world: World = { host, driver, runDir, model, results: [], ...(args.only === undefined ? {} : { only: new RegExp(args.only, 'i') }) }
+const claudeVersion = (await run('claude', ['--version'])).trim()
+const world: World = { host, driver, runDir, model, claudeVersion, results: [], ...(args.only === undefined ? {} : { only: new RegExp(args.only, 'i') }) }
 setWorld(world)
 await host.narrate(`add-to-chat e2e · driver ${driver} · model ${modelName} · ${startedAt.toLocaleString()}`)
 
@@ -110,7 +111,6 @@ console.log(`\nadd-to-chat e2e · driver: ${driver} · model: ${modelName}`)
 console.log(viewer === undefined ? `watch live:  ${host.watchCommand}` : `watching live in pane ${viewer}`)
 console.log(`results:     ${runDir}\n`)
 
-const claudeVersion = (await run('claude', ['--version'])).trim()
 const stream = runTests({
   files,
   isolation: 'none',
