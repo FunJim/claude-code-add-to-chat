@@ -1,6 +1,6 @@
 # Claude Code behaviours add-to-chat relies on
 
-Measured on Claude Code 2.1.296, and on 2.1.300 where a note says so (October 2026). The mod API is early access; after an update, re-run the end-to-end suite (`npm run e2e`), which exercises most of these. Each note says where the design depends on it.
+Measured on Claude Code 2.1.296, and on 2.1.300 or 2.1.332 where a note says so (October–November 2026); the end-to-end suite passes on 2.1.332. The mod API is early access; after an update, re-run the end-to-end suite (`npm run e2e`), which exercises most of these. Each note says where the design depends on it.
 
 How they were measured: a record-only probe mod (now [`e2e/probe/`](../e2e/probe/)) loaded beside add-to-chat in a fullscreen session in tmux or Herdr, with SGR mouse sequences written to the pane to drag-select (now [`e2e/harness/mouse.ts`](../e2e/harness/mouse.ts)). The probe logs the selection, every row's component, `requestId` and props, prompts and turns; what the model was sent is read from the session's JSONL transcript.
 
@@ -99,6 +99,10 @@ Rows by type (adding from each, with Source and mark):
 - `hover: { display: "flex" }` on a Box drawn `display: "none"` in a keyed Box shows on pointer motion with no button held (SGR `35`); a hover `scope` reveals members in another site (a pane) too.
 - Claude cannot write the tag `<cite …>`: it comes out as `(cite …`.
 - `PromptHint` (the line under the prompt) takes a tree too: `next(e)` wrapped with a `Button` beneath keeps Claude Code's hint as drawn, and a click on the Button raises its press.
+- From 2.1.332, `PromptHint` is raised on phones (`mobile`) too, not only the terminal and desktop.
+- A `Pane`'s props carry `isPromptCovered: true` while keys go to a dialog (a permission prompt, `/model`), a search or a field in the band; `$.prompt.fill` then answers `{ isFilled: false, refusal: 'dialog' }`. From 2.1.325; measured with `/model` in an e2e session on 2.1.332.
+- A `Button`'s `onPress` may return a promise, and the press waits for it (2.1.332's types).
+- `ui.tip` (the spinner's tip between turns, which a plugin may add one to) is an event from 2.1.332: hooking it raises the floor to that version (see `prompt.change` above).
 - An `Input` is emptied on Enter. It keeps its text by its key and fills from `value` again only when `value` changes; a parent remounted under a new key does not reset it, a new key on the `Input` does. `onInput` gets every edit, and the emptying on Enter raises none.
 - A rewind (Esc Esc, a prompt, "Restore conversation") and ↑ through the prompt history fill the prompt box with the prompt as it was sent (after a `prompt.submit` rewrite, the rewritten text). Neither raises `prompt.fill`; both raise `prompt.change`, origin `engine` for the rewind and `history` for every step through the history (↑ ↓, stepping back out to the draft, `text` `''` for an empty one). A `$.prompt.fill` raises it with origin `plugin`. The rewind keeps the session id and the rows' requestIds.
 - A submit raises `prompt.change` origin `clear` (text `''`) before the prompt reaches `prompt.submit`; a quick Esc Esc on a box with text raises it too (one Esc, or Ctrl+C, leaves the text). Nothing in the event tells the two apart.

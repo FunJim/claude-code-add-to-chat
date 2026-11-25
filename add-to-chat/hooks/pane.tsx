@@ -31,6 +31,7 @@ import {
   PANE_EMPTY,
   SAVE_LABEL,
   SEND_BUTTON,
+  SEND_COVERED_HINT,
   SEND_HINT,
   SENT_HINT,
   SENT_TITLE,
@@ -69,6 +70,8 @@ export type PaneValues = {
   /** Comments saved with Enter so far: the field's key (`commentKey`). */
   commentSaves: number
   isDraftEmpty: boolean
+  /** Keys typed go to something other than the prompt or the pane (a dialog, a search, a field in the band): the box takes no fill. */
+  isPromptCovered: boolean
   /** The fullscreen terminal, the only place a selection reads. */
   isFullscreen: boolean
   /** The cells across the pane's body (`bodyColumns`). */
@@ -134,6 +137,7 @@ export function ownWords(v: PaneWords): string[] {
     PANE_EMPTY,
     `${COMMENT_LABEL}: ${COMMENT_PLACEHOLDER} ⏎ ${SAVE_LABEL}`,
     `[ ${SEND_BUTTON} ] ${SEND_HINT}`,
+    SEND_COVERED_HINT,
     SENT_HINT,
     historyRowLabel(v.sent.length),
     ...v.pending.map(a => `${drawnTab(a)} ${CLOSE_TAB}`),
@@ -355,15 +359,19 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
         onSubmit={value => act.comment(open.index, value)}
       />
       {rule('rule-foot')}
-      {v.isDraftEmpty ? (
+      {!v.isDraftEmpty ? (
+        <Text key="footer" dimColor>
+          {SENT_HINT}
+        </Text>
+      ) : v.isPromptCovered ? (
+        <Text key="footer" dimColor>
+          {SEND_COVERED_HINT}
+        </Text>
+      ) : (
         <Box key="footer" gap={1}>
           <Button key="send" variant="primary" label={SEND_BUTTON} onPress={act.send} />
           <Text dimColor>{SEND_HINT}</Text>
         </Box>
-      ) : (
-        <Text key="footer" dimColor>
-          {SENT_HINT}
-        </Text>
       )}
       {historyRow}
     </Box>

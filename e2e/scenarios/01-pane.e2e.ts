@@ -3,13 +3,14 @@
 // pane itself, and the count under the prompt that shows or hides it.
 import { describe } from 'node:test'
 
-import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, PANE_EMPTY, SAVE_LABEL, addedNote, addedToast, hintLabel } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, ALREADY_ADDED, CLOSE_TAB, COMMENT_LABEL, IDLE_HINT, PANE_EMPTY, SAVE_LABEL, SEND_BUTTON, SEND_COVERED_HINT, addedNote, addedToast, hintLabel } from '../../add-to-chat/hooks/labels.ts'
 import { framed } from '../harness/claude.ts'
 import { sleep, waitFor } from '../harness/exec.ts'
 import { locate, paneArea } from '../harness/screen.ts'
 import { assert, scenario } from '../harness/scenario.ts'
 
 const PANE = 'pane'
+const SEND_LABEL = `[ ${SEND_BUTTON} ]`
 
 describe(PANE, () => {
   scenario(PANE, 'the pane opens asked (/add-to-chat, from launch): a hint until text is selected', { drivers: ['herdr', 'tmux'] }, async ctx => {
@@ -157,5 +158,19 @@ describe(PANE, () => {
     await waitFor('the pane', async () => paneArea(await claude.screen()) !== undefined, { timeoutMs: 5_000 })
     await waitFor('the second Annotation', async () => (await claude.probe.pending()).length === 2, { timeoutMs: 3_000 })
     assert.deepEqual((await claude.probe.pending()).map(a => a.text), ['Ran the', 'so reading it failed'])
+  })
+
+  scenario(PANE, 'while a dialog holds the keys, Send gives way to a line saying it waits; it comes back with the prompt', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture()
+    await claude.add('Ran the')
+    await waitFor('[ Send ]', () => claude.paneShows(SEND_LABEL), { timeoutMs: 5_000 })
+    await ctx.step('/model opens its dialog over the prompt: the pane says Send waits')
+    await claude.command('/model')
+    await waitFor('the line in place of Send', () => claude.paneShows(SEND_COVERED_HINT), { timeoutMs: 5_000 })
+    assert.equal(await claude.paneShows(SEND_LABEL), false, 'no Send while the dialog holds the keys')
+    await ctx.evidence('the pane under the dialog', await claude.screen())
+    await ctx.step('Esc closes the dialog: Send is back')
+    await claude.press('escape')
+    await waitFor('[ Send ] again', () => claude.paneShows(SEND_LABEL), { timeoutMs: 5_000 })
   })
 })

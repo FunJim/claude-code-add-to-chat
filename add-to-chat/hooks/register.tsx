@@ -9,7 +9,7 @@ import type { Pending, Recalled } from './annotations'
 import { NO_REPLIES, bound, checked, drawn, ended, promptSent, settled, toCheck } from './answering'
 import type { Replies } from './answering'
 import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts } from './history'
-import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, addedToast } from './labels'
+import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, SEND_REFUSED, addedToast } from './labels'
 import { PANE_COLUMNS, PANE_ID, commentKey, ownWords, paneView } from './pane'
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
@@ -341,6 +341,16 @@ async function editOriginals($: EngineInterface, edit: (map: Originals) => { ori
   for (const w of writes) await ('set' in w ? $.store.set(w.set, w.value) : $.store.delete(w.delete))
 }
 
+/**
+ * The pane's `[ Send ]`: the placeholder in the empty box, for Enter to send
+ * ([ADR 0003](../docs/adr/0003-send-fills-the-draft.md)). A box that does not
+ * take it (a dialog came up over the prompt since the pane drew) says so.
+ */
+async function sendPending($: EngineInterface) {
+  const filled = await $.prompt.fill({ text: SEND_PLACEHOLDER })
+  if (!filled.isFilled) $.ui.toast(SEND_REFUSED)
+}
+
 /** Shows a sent prompt's Annotations in the pane, from its row's 📎. */
 async function showSentPrompt($: EngineInterface, hash: string, requestId: string | undefined) {
   await Promise.all([openPane($), keepDrafts($)])
@@ -495,6 +505,9 @@ export const register: Register = on => {
   // is closed (its first row has it while it is drawn), and the count of
   // Annotations pending, a click showing the pane or hiding it.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    // A phone draws no pane (see the Pane hook): nothing of this line's
+    // would answer there.
+    if (e.surface === 'mobile') return next(e)
     const engine = await next(e)
     const [list, offer, isDrawn] = await Promise.all([read($, pending), read($, candidate), read($, isPaneDrawn)])
     if (list.length === 0 && offer === null) return engine
@@ -502,7 +515,8 @@ export const register: Register = on => {
       $.ui.resolve(e),
       engine,
       { count: list.length, isPaneDrawn: isDrawn, offer: offer === null ? null : offer.text, columns: e.viewport?.columns ?? 80 },
-      { toggle: () => (isDrawn ? hidePane($) : openPane($)), add: () => void addSelection($), dismiss: () => void dismissOffer($) },
+      // Each returns its promise: the press waits for the work it starts.
+      { toggle: () => (isDrawn ? hidePane($) : openPane($)), add: () => addSelection($), dismiss: () => dismissOffer($) },
     )
   })
 
@@ -549,6 +563,7 @@ export const register: Register = on => {
         tab,
         commentSaves: saves,
         isDraftEmpty: isEmpty,
+        isPromptCovered: e.props.isPromptCovered === true,
         isFullscreen: e.viewport?.isFullscreen === true,
         columns: e.props.bodyColumns,
         mode,
@@ -569,7 +584,7 @@ export const register: Register = on => {
         remove: index => removeAnnotation($, index),
         draft: (index, value) => update($, commentDrafts, now => drafted(now, index, value)),
         comment: (index, value) => saveComment($, index, value),
-        send: () => $.prompt.fill({ text: SEND_PLACEHOLDER }),
+        send: () => sendPending($),
         openHistory: async () => {
           await Promise.all([refreshSession($, false), keepDrafts($)])
           await update($, paneMode, () => ({ kind: 'history' }) as const)

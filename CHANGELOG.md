@@ -4,6 +4,11 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- On a phone (Remote Control) the line under the prompt no longer shows the offer and the annotation count, whose buttons opened a pane the phone does not draw.
+- While a dialog (a permission prompt, `/model`) holds the keys, the pane says Send waits for the prompt instead of offering a `[ Send ]` that did nothing; a Send the box refuses says so.
+
 ## [0.5.1] - 2026-11-05
 
 ### Fixed

@@ -24,6 +24,8 @@ export type World = {
   /** The session's id, and its transcript's messages (a submit adds the prompt). */
   sessionId: string
   messages: { role: 'user' | 'assistant'; text: string; toolUses: [] }[]
+  /** Set, the prompt box takes no fill, as when a dialog holds the keys. */
+  fillRefusal?: 'dialog'
   /** Prompts the engine's end refuses, as another plugin would. */
   dropWhen?: (text: string) => boolean
   clock: ReturnType<typeof mock.clock>
@@ -96,6 +98,7 @@ export async function start($: Engine, on: On, store: Record<string, unknown> = 
   })
   on('prompt.change', ($, e) => ({ text: e.text }))
   on('prompt.fill', ($, e) => {
+    if (w.fillRefusal !== undefined) return { isFilled: false, refusal: w.fillRefusal }
     w.fills.push(e.text)
     w.draft = e.text
     return { isFilled: true }
@@ -123,9 +126,17 @@ export function drawBand($: Engine, isFullscreen = true) {
   return $.ui.render({ component: 'AbovePrompt', requestId: 'band', surface: 'terminal', viewport: { columns: 120, rows: 40, isFullscreen }, props: BAND.props } as never)
 }
 
-/** Mounts the add-to-chat pane, docked beside a fullscreen transcript. */
-export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, columns = 60) {
-  const props = { title: 'Add to chat', isFocused: false, bodyColumns: columns, placement: 'dock' as const, scroll: { offset: 0, bodyRows: 30 }, view: {} }
+/** Mounts the add-to-chat pane, docked beside a fullscreen transcript; `isPromptCovered`, while a dialog holds the keys. */
+export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P, columns = 60, isPromptCovered = false) {
+  const props = {
+    title: 'Add to chat',
+    isFocused: false,
+    bodyColumns: columns,
+    placement: 'dock' as const,
+    scroll: { offset: 0, bodyRows: 30 },
+    view: {},
+    ...(isPromptCovered ? { isPromptCovered: true as const } : {}),
+  }
   return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'Pane', requestId: 'add-to-chat', props, viewport: { columns: 160, rows: 40, isFullscreen: true } })
 }
 
@@ -145,7 +156,7 @@ export function clearBox($: Engine, w: World) {
 }
 
 /** Mounts the hint line under the prompt, an empty draft and no turn running. */
-export function mountHint<P extends 'terminal' | 'desktop' = 'terminal'>($: Engine, surface: P = 'terminal' as P) {
+export function mountHint<P extends 'terminal' | 'desktop' | 'mobile' = 'terminal'>($: Engine, surface: P = 'terminal' as P) {
   const props = { isDraft: false, isWorking: false, hint: '? for shortcuts' }
   return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'PromptHint', requestId: 'prompt-hint', props, viewport: { columns: 120, rows: 40, isFullscreen: true } })
 }

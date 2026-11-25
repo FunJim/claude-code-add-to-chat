@@ -3,7 +3,7 @@ import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
 import { originalKey, replyKey } from '../hooks/originals'
-import { NOT_DRAWN } from '../hooks/labels'
+import { NOT_DRAWN, SEND_COVERED_HINT, SEND_REFUSED } from '../hooks/labels'
 import { renderTemplate } from '../hooks/template'
 import { addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, storedOriginals, submit, tick } from './world'
 
@@ -212,6 +212,23 @@ describe('the pane', () => {
     })
   }
 
+  test("on a phone the line is Claude Code's alone: no offer, no count, as no pane draws there", async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'one', 'r1')
+    // The pane closed, and another selection: the terminal's line has both.
+    w.panes.clear()
+    w.selection = { text: 'two', requestId: 'r1' }
+    await tick(w)
+    const hint = await mountHint($, 'mobile')
+    expect(await hint.find({ key: 'hint-add' })).toBeUndefined()
+    expect(await hint.find({ key: 'hint-clip' })).toBeUndefined()
+    await hint.unmount()
+    // The same state draws both on the terminal.
+    const terminal = await mountHint($, 'terminal')
+    expect(await terminal.find({ key: 'hint-add' })).toBeDefined()
+    expect(await terminal.find({ key: 'hint-clip' })).toBeDefined()
+  })
+
   test('a prompt sent: the offer goes, and the same selection is not offered again until another', async ($, on) => {
     const w = await start($, on)
     w.selection = { text: 'npm test', requestId: 'r1' }
@@ -341,6 +358,28 @@ describe('the pane', () => {
       expect(await pane.find({ key: 'send' })).toBeUndefined()
     })
   }
+
+  test('while a dialog holds the keys, the pane says Send waits for them, in its place', async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'npm test', 'r1')
+    await tick(w)
+    const pane = await mountPane($, 'terminal', 60, true)
+    expect(await pane.find({ key: 'send' })).toBeUndefined()
+    expect((await pane.findAll({ type: 'Text' })).map(t => t.text)).toContain(SEND_COVERED_HINT)
+  })
+
+  test('a box that takes no fill: Send says so, and the box stays as it was', async ($, on) => {
+    const w = await start($, on)
+    await addText($, w, 'npm test', 'r1')
+    await tick(w)
+    const pane = await mountPane($)
+    w.fillRefusal = 'dialog'
+    await pane.press({ key: 'send' })
+    expect(w.fills).toEqual([])
+    expect(w.toasts.at(-1)).toBe(SEND_REFUSED)
+    await pane.unmount()
+    expect(await tabCount($)).toBe(1)
+  })
 
   test("the offer's ✕ takes it away until another selection", async ($, on) => {
     const w = await start($, on)

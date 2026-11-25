@@ -51,6 +51,10 @@ export const SEND_BUTTON = 'Send'
 /** Beside `[ Send ]`, while the prompt box is empty. */
 export const SEND_HINT = 'now, or type a prompt and press ↵'
 export const SENT_HINT = 'They go with your next prompt ↵'
+/** In place of `[ Send ]` while a dialog, a search or a field holds the keys: the box takes no text then. */
+export const SEND_COVERED_HINT = 'Send is back once the prompt has the keys'
+/** When the box would not take what `[ Send ]` puts in it. */
+export const SEND_REFUSED = 'The prompt box is busy: Send again once it has the keys'
 /** What `[ Send ]` puts in an empty prompt box. */
 export const SEND_PLACEHOLDER = '(see annotations)'
 
