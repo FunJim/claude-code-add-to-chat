@@ -4,6 +4,14 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- The desktop app: right-click selected text in the transcript and choose `✚ Add to chat`; the pane opens on the new annotation, its Comment field ready. Minimized to a widget, the pane shows the count. Needs Claude Code 2.1.325 or later for the menu row.
+
+### Fixed
+
+- The pane's hint no longer tells desktop users to turn on fullscreen.
+
 ## [0.5.2] - 2026-11-25
 
 ### Fixed

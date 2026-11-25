@@ -3,13 +3,15 @@ import type { Engine } from 'claude-code/testing'
 
 import { hashText } from '../hooks/hash'
 import { originalKey, replyKey } from '../hooks/originals'
-import { NOT_DRAWN, SEND_COVERED_HINT, SEND_REFUSED } from '../hooks/labels'
+import { ADD_LABEL, IDLE_HINT, MENU_HINT, NEEDS_FULLSCREEN_HINT, NOT_DRAWN, PANE_EMPTY, SEND_COVERED_HINT, SEND_REFUSED, clipLine } from '../hooks/labels'
+import { MENU_ROW_KEY } from '../hooks/menu'
+import { idleHintFor } from '../hooks/pane'
 import { renderTemplate } from '../hooks/template'
-import { addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountPane, mountPrompt, runCommand, start, storedOriginals, submit, tick } from './world'
+import { addText, changeBox, clearBox, drawBand, drawRow, endTurn, mountHint, mountMenu, mountPane, mountPrompt, mountWidget, runCommand, start, storedOriginals, submit, tick } from './world'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-type Mounted = Awaited<ReturnType<typeof mountPane<'terminal'>>>
+type Mounted = Awaited<ReturnType<typeof mountPane<'terminal'>>> | Awaited<ReturnType<typeof mountPane<'desktop'>>>
 
 type Sent = { index: number; text: string; source: { role: string; requestId?: string }; annotation?: string }
 
@@ -471,6 +473,57 @@ describe('the pane', () => {
     w.selection = { text: 'npm test before you commit', requestId: 'r1' }
     await tick(w)
     expect(await pane.find({ key: 'add' })).toBeDefined()
+  })
+})
+
+describe('the desktop app', () => {
+  test('right-clicked selected text offers ✚ Add to chat, its preview beneath; picked, it is added and the pane opens on it', async ($, on) => {
+    const w = await start($, on)
+    await drawRow($, w, 'AssistantMessage', 'r1', REPLY)
+    const menu = await mountMenu($, { text: 'npm test before you commit', requestId: 'r1' })
+    const row = await menu.find({ key: MENU_ROW_KEY })
+    expect(row?.text).toContain(ADD_LABEL)
+    expect(row?.text).toContain('“npm test before you commit”')
+    await menu.press({ key: MENU_ROW_KEY })
+    await menu.unmount()
+    expect(w.panes.has('add-to-chat')).toBe(true)
+    const pane = await mountPane($, 'desktop')
+    const text = await shown(pane)
+    expect(text).toContain("① from Claude's reply")
+    expect(text).toContain('npm test before you commit')
+    const [sent] = await submitted($, w)
+    expect(sent).toEqual({ index: 1, text: 'npm test before you commit', source: { role: 'assistant', requestId: 'r1' } })
+  })
+
+  test("the menu has no row of the mod's on a link, nor on text already added", async ($, on) => {
+    const w = await start($, on)
+    const link = await mountMenu($)
+    expect(await link.find({ key: MENU_ROW_KEY })).toBeUndefined()
+    await link.unmount()
+    w.selection = { text: 'npm test', requestId: 'r1' }
+    await runCommand($, w)
+    const again = await mountMenu($, { text: 'npm test', requestId: 'r1' })
+    expect(await again.find({ key: MENU_ROW_KEY })).toBeUndefined()
+  })
+
+  test('with nothing selected the pane says to right-click the selection; the terminal says to select, or to go fullscreen', async ($, on) => {
+    await start($, on)
+    const pane = await mountPane($, 'desktop')
+    expect(await pane.find({ type: 'Text', text: MENU_HINT })).toBeDefined()
+    expect(idleHintFor('terminal', true)).toBe(IDLE_HINT)
+    expect(idleHintFor('terminal', false)).toBe(NEEDS_FULLSCREEN_HINT)
+  })
+
+  test('minimized to a widget, the pane is one line: the count, no button to miss', async ($, on) => {
+    const w = await start($, on)
+    let widget = await mountWidget($)
+    expect((await widget.findAll({ type: 'Text' })).map(t => t.text)).toEqual([PANE_EMPTY])
+    await widget.unmount()
+    await addText($, w, 'one', 'r1')
+    await addText($, w, 'two', 'r1')
+    widget = await mountWidget($)
+    expect((await widget.findAll({ type: 'Text' })).map(t => t.text)).toEqual([clipLine(2)])
+    expect(await widget.findAll({ type: 'Button' })).toEqual([])
   })
 })
 

@@ -10,12 +10,13 @@ import { NO_REPLIES, bound, checked, drawn, ended, promptSent, settled, toCheck 
 import type { Replies } from './answering'
 import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts } from './history'
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, SEND_REFUSED, addedToast } from './labels'
-import { PANE_COLUMNS, PANE_ID, commentKey, ownWords, paneView } from './pane'
+import { menuRow } from './menu'
+import { PANE_COLUMNS, PANE_ID, commentKey, idleHintFor, ownWords, paneGlance, paneView } from './pane'
 import { promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
 import { promptRowView, replyText } from './rows'
 import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, noteOf, rowSource, selectionKey } from './selection'
-import type { Surroundings, Verdict } from './selection'
+import type { Selection, Surroundings, Verdict } from './selection'
 import { forgotten, keysToLoad, loaded, originalOf, promptHash, remembered, stored, withReplies } from './originals'
 import type { Originals, StoreWrite } from './originals'
 import { annotated } from './send'
@@ -169,6 +170,15 @@ async function closeOffer($: EngineInterface) {
   if (offer !== null) await markHandled($, selectionKey(offer))
 }
 
+/**
+ * The right-click menu's `✚ Add to chat` on the desktop app: adds what was
+ * selected there and shows the pane, open on it, its Comment field ready.
+ */
+async function addFromMenu($: EngineInterface, selection: Selection) {
+  const added = await addSelection($, true, selection)
+  if ('annotation' in added || added.reason === 'pending') await openPane($)
+}
+
 /** Done with a selection: it is not offered again until another is made. */
 async function markHandled($: EngineInterface, key: string | undefined) {
   // `handled` before the offer goes: a poll that reads the offer gone then
@@ -178,13 +188,17 @@ async function markHandled($: EngineInterface, key: string | undefined) {
 }
 
 /**
- * Adds the selection as an Annotation, if it can be. `isAsked` (from
- * /add-to-chat) adds a selection last added or dismissed too: the command
- * is the person asking for it; one pending is still not added twice.
+ * Adds the selection as an Annotation, if it can be: the one the engine
+ * reports, or `given` (the desktop's right-click menu hands its own).
+ * `isAsked` (from /add-to-chat, the menu) adds a selection last added or
+ * dismissed too: the person is asking for it; one pending is still not
+ * added twice.
  */
-async function addSelection($: EngineInterface, isAsked = false): Promise<{ annotation: Annotation } | Exclude<Verdict, { key: string }>> {
-  const around = await surroundings($)
-  const verdict = judge(await $.ui.selection(), isAsked ? { ...around, handled: null } : around)
+async function addSelection($: EngineInterface, isAsked = false, given?: Selection): Promise<{ annotation: Annotation } | Exclude<Verdict, { key: string }>> {
+  const [around, selection] = await Promise.all([surroundings($), given ?? $.ui.selection()])
+  // A selection the menu hands over lies in the transcript, as the menu's row judged it.
+  const where = given === undefined ? around : { ...around, draft: '', paneWords: [] }
+  const verdict = judge(selection, isAsked ? { ...where, handled: null } : where)
   if (!('key' in verdict)) return verdict
 
   const { excerpt } = verdict
@@ -539,9 +553,24 @@ export const register: Register = on => {
     return changed
   })
 
+  // The desktop app's right-click menu on selected transcript text: a row
+  // that adds it, unless its Excerpt is pending already. The menu hands the
+  // selection over, so the desktop needs no poll and no fullscreen.
+  on('ui.render', { component: 'ContextMenu' }, async ($, e, next) => {
+    const selection = e.props.selection
+    if (selection === undefined) return next(e)
+    const list = await read($, pending)
+    // Opened on the transcript: nothing of the prompt box or the pane to tell apart.
+    const verdict = judge(selection, { draft: '', pending: list, handled: null, paneWords: [] })
+    if (!('key' in verdict)) return next(e)
+    return menuRow($.ui.resolve(e), verdict.excerpt.text, () => addFromMenu($, selection))
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e, next) => {
     // Mobile has no text field to edit a Comment in.
     if (e.surface === 'mobile') return next(e)
+    // The desktop's widget: one line, at a glance.
+    if (e.props.placement === 'widget') return paneGlance($.ui.resolve(e), (await read($, pending)).length)
     const [offer, note, list, tab, saves, isEmpty, mode, map, inSession] = await Promise.all([
       read($, candidate),
       read($, selectionNote),
@@ -564,7 +593,7 @@ export const register: Register = on => {
         commentSaves: saves,
         isDraftEmpty: isEmpty,
         isPromptCovered: e.props.isPromptCovered === true,
-        isFullscreen: e.viewport?.isFullscreen === true,
+        idleHint: idleHintFor(e.surface, e.viewport?.isFullscreen === true),
         columns: e.props.bodyColumns,
         mode,
         sent: sentPrompts(map, inSession),

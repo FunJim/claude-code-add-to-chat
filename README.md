@@ -40,7 +40,8 @@ Sent, the prompt row shows what you typed; Claude's reply cites each annotation:
 ## Requirements
 
 - Claude Code 2.1.300 or later, with mods. Earlier versions do not load this version of the mod; on them, use 0.2.1.
-- **Fullscreen mode**: `CLAUDE_CODE_NO_FLICKER=1`. Outside it the terminal owns the mouse selection and no mod can read it ([why](docs/adr/0001-fullscreen-only-polled-selection.md)).
+- In a terminal, **fullscreen mode**: `CLAUDE_CODE_NO_FLICKER=1`. Outside it the terminal owns the mouse selection and no mod can read it ([why](docs/adr/0001-fullscreen-only-polled-selection.md)).
+- On the desktop app, Claude Code 2.1.325 or later for the right-click row ([Desktop app](#desktop-app)).
 
 ## Install
 
@@ -54,9 +55,9 @@ Answer `y` to add the marketplace, then pick a scope. Start Claude Code with `CL
 
 ## Use
 
-A pane sits beside the transcript, open from the start (in a terminal under 144 columns, run `/add-to-chat` once to open it; under 110 it sits above the prompt instead). Its first row says `Select text in the transcript to add it.`
+The pane opens when you ask for it: `/add-to-chat`, or the count under the prompt once something is added. It sits beside the transcript, or above the prompt under 110 columns. Its first row says `Select text in the transcript to add it.`
 
-1. **Select** text in the transcript with the mouse. The pane's first row becomes `[ ✚ Add to chat ] "…" ✕`. Click the button, or run `/add-to-chat`; `✕` dismisses the offer.
+1. **Select** text in the transcript with the mouse. The line under the prompt offers `[ ✚ Add to chat ] "…" ✕` (the pane's first row does, while the pane is open). Click the button, or run `/add-to-chat`; `✕` dismisses the offer.
 2. The annotation gets a **tab** (`1: Claude ✕   2: You ✕`); press its digit to switch to it. The open tab shows the whole excerpt, where it came from, and a **Comment** field: click it and type (Enter saves it; switching tabs or sending keeps it too). Or leave it empty.
 3. Repeat. Each annotated text gets a mark like `⁽¹⁾` in the transcript. Close a tab with its `✕` to remove that annotation. `📎 N annotations · hide pane` under the prompt counts them; click it to hide the pane or show it again.
 4. **Send** your prompt as usual. Your message shows as what you typed plus `📎 N annotations ↗`; ctrl+o shows what the model received. With nothing to type, `[ Send ]` puts `(see annotations)` in the prompt for you to send.
@@ -64,7 +65,11 @@ A pane sits beside the transcript, open from the start (in a terminal under 144 
 
 Claude's reply cites what it answers: `:annotation{index="1"}` in its text is drawn as ①.
 
-The pane opens before you select anything and its first row never grows, so nothing moves under a mouse still dragging. Closed with its `✕`, it stays closed until you run `/add-to-chat`.
+Nothing opens or grows while you drag: the offer takes one row under the prompt, or the pane's first row, which never grows, so nothing moves under a mouse still dragging. The offer goes when you send a prompt or clear the box. Closed with its `✕`, the pane stays closed until you ask for it again.
+
+### Desktop app
+
+Select text in the transcript, right-click it, and choose `✚ Add to chat` (the excerpt is the line under it). The pane opens on the new annotation, its Comment field ready; the rest works as above. Minimized to a widget, the pane shows how many annotations are pending.
 
 ## The Annotation Template
 
@@ -92,7 +97,7 @@ The wording is fixed: it was chosen by an eval over haiku and sonnet ([ADR 0007]
 
 ## Limitations
 
-- Fullscreen only (see above).
+- In a terminal, fullscreen only (see above). `/add-to-chat` run from the desktop app also asks for fullscreen: use the right-click menu there.
 - Selecting the same text in the same row twice can't add it twice.
 - An excerpt is marked where it first occurs in its row; text in a code block or across table cells is marked at the start of the row instead.
 - A selection spanning several rows has the Source `transcript`: it can't be pinned to one row.

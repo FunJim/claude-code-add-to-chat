@@ -37,7 +37,8 @@ https://github.com/user-attachments/assets/5044dd19-1656-4286-bbdd-48e61a96fe1a
 ## 环境要求
 
 - Claude Code 2.1.300 或更新版本，需要支持 mods。更早的版本无法加载当前版本的 mod，请使用 0.2.1。
-- **fullscreen 模式**：`CLAUDE_CODE_NO_FLICKER=1`。非 fullscreen 时鼠标选区由终端管理，插件读不到（[原因](docs/adr/0001-fullscreen-only-polled-selection.md)）。
+- 在终端里需要 **fullscreen 模式**：`CLAUDE_CODE_NO_FLICKER=1`。非 fullscreen 时鼠标选区由终端管理，插件读不到（[原因](docs/adr/0001-fullscreen-only-polled-selection.md)）。
+- 在 desktop app 里，右键菜单那一项需要 Claude Code 2.1.325 或更新版本（见 [Desktop app](#desktop-app)）。
 
 ## 安装
 
@@ -51,9 +52,9 @@ https://github.com/user-attachments/assets/5044dd19-1656-4286-bbdd-48e61a96fe1a
 
 ## 使用
 
-transcript 旁边有一个面板，会话开始时自动打开（终端窄于 144 列时需要执行一次 `/add-to-chat` 打开；窄于 110 列时面板显示在输入框上方）。面板第一行显示 `Select text in the transcript to add it.`。
+面板在你需要时才打开：执行 `/add-to-chat`，或者收录内容后点输入框下方的计数。它显示在 transcript 旁边，终端窄于 110 列时显示在输入框上方。面板第一行显示 `Select text in the transcript to add it.`。
 
-1. **选中**：用鼠标在 transcript 里选中一段文字，面板第一行会变成 `[ ✚ Add to chat ] "…" ✕`。点按钮，或者执行 `/add-to-chat`；点 `✕` 关掉这次的提议。
+1. **选中**：用鼠标在 transcript 里选中一段文字，输入框下方会出现 `[ ✚ Add to chat ] "…" ✕`（面板打开时则出现在面板第一行）。点按钮，或者执行 `/add-to-chat`；点 `✕` 关掉这次的提议。
 2. 每条 annotation 会有一个 **tab**（`1: Claude ✕   2: You ✕`），按对应的数字键可以切换。当前 tab 显示完整的原文、来源和一个 **Comment** 输入框：点击后输入即可（按 Enter 保存；切换 tab 或发送时也会自动保留）。也可以留空。
 3. 可以重复多次。每段被收录的文字在 transcript 里会带上 `⁽¹⁾` 这样的标记。点 tab 上的 `✕` 会删除这条 annotation。输入框下方的 `📎 N annotations · hide pane` 会显示数量，点击可以隐藏或重新显示面板。
 4. **发送**：像平常一样发送 prompt。transcript 里你的消息显示为你输入的内容加一行 `📎 N annotations ↗`，按 ctrl+o 可以看到模型实际收到的完整内容。如果没有要输入的内容，点 `[ Send ]` 会在输入框里填上 `(see annotations)`，再按 Enter 发送即可。
@@ -61,7 +62,11 @@ transcript 旁边有一个面板，会话开始时自动打开（终端窄于 14
 
 Claude 回复里的 `:annotation{index="1"}` 会显示为 ①。
 
-面板在选中任何文字之前就已经打开，而且第一行始终只占一行，所以拖选时鼠标下方的内容不会移动。用面板上的 `✕` 关闭后，它会保持关闭，直到你再执行 `/add-to-chat`。
+拖选时不会有东西打开或变高：提议只占输入框下方的一行，或者面板第一行（始终只占一行），所以鼠标下方的内容不会移动。发送 prompt 或清空输入框后，提议会消失。用面板上的 `✕` 关闭后，面板会保持关闭，直到你再次打开它。
+
+### Desktop app
+
+在 transcript 里选中文字，右键，选 `✚ Add to chat`（下面一行是选中的内容）。面板会打开到新加的 annotation，Comment 输入框可以直接填写；其余用法同上。面板最小化成小部件时，显示待发送的 annotation 数量。
 
 ## Annotation Template（注释模板）
 
@@ -89,7 +94,7 @@ answer my comment
 
 ## 限制
 
-- 只支持 fullscreen 模式。
+- 在终端里只支持 fullscreen 模式。在 desktop app 里执行 `/add-to-chat` 也会提示需要 fullscreen：请用右键菜单。
 - 同一行里同样的文字不能重复收录。
 - 标记加在 Excerpt 在该行里第一次出现的位置。代码块里的文字和跨表格单元格的选区，标记加在行首。
 - 跨多行的选区没法归到某一行上，来源记为 `transcript`。

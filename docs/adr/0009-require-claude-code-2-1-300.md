@@ -18,5 +18,5 @@ Measured on 2.1.296, an engine without the event refuses the whole hooks module,
 
 ## Consequences
 
-- CI pins 2.1.300; README, CONTRIBUTING and the changelog name it.
+- CI pins 2.1.300; README, CONTRIBUTING and the changelog name it. Since [ADR 0014](0014-the-desktop-adds-from-its-menu.md) CI validates the mod on 2.1.300 and runs the tests on a newer build.
 - On an earlier version the mod does not load, saying so in the debug log only (a session hot-reloading the folder shows a line in the transcript).

@@ -5,6 +5,7 @@
 //   can be edited there; closing a tab removes its Annotation;
 // - history: the prompts sent with Annotations, newest first;
 // - sent: one of them, its Annotations in tabs, read-only.
+// Minimized to the desktop app's widget, it is one line: the count.
 // A view: it draws from the values and calls back the actions register.tsx
 // hands it.
 //
@@ -26,6 +27,7 @@ import {
   IDLE_HINT,
   JUMP_ROW_LABEL,
   MAX_TAB_HOTKEY,
+  MENU_HINT,
   NEEDS_FULLSCREEN_HINT,
   NO_COMMENT,
   PANE_EMPTY,
@@ -72,8 +74,8 @@ export type PaneValues = {
   isDraftEmpty: boolean
   /** Keys typed go to something other than the prompt or the pane (a dialog, a search, a field in the band): the box takes no fill. */
   isPromptCovered: boolean
-  /** The fullscreen terminal, the only place a selection reads. */
-  isFullscreen: boolean
+  /** What the first row says with nothing selected: how to select, where the surface can (`idleHintFor`). */
+  idleHint: string
   /** The cells across the pane's body (`bodyColumns`). */
   columns: number
   mode: PaneMode
@@ -111,6 +113,26 @@ export function commentKey(index: number, saves: number): string {
   return `comment-${index}-${saves}`
 }
 
+/**
+ * How a selection is made where the pane draws: dragged in the fullscreen
+ * terminal, where the mod reads it; picked from the desktop app's
+ * right-click menu, which hands it over; else not at all, and the row says
+ * how to get to fullscreen.
+ */
+export function idleHintFor(surface: string, isFullscreen: boolean): string {
+  if (surface === 'desktop') return MENU_HINT
+  return surface === 'terminal' && isFullscreen ? IDLE_HINT : NEEDS_FULLSCREEN_HINT
+}
+
+/**
+ * The pane as the desktop app's widget, the small form of a minimized pane:
+ * what reads at a glance, as clicks may not reach it there.
+ */
+export function paneGlance(el: Pick<PaneElements, 'Text'>, count: number): RenderElement {
+  const { Text } = el
+  return (count === 0 ? <Text dimColor>{PANE_EMPTY}</Text> : <Text>{clipLine(count)}</Text>) as RenderElement
+}
+
 /** The tab open for `count` Annotations: `tab`, kept within them. */
 export function shownTab(tab: number, count: number): number {
   return Math.min(Math.max(1, tab), count)
@@ -134,6 +156,7 @@ export function ownWords(v: PaneWords): string[] {
     ADD_LABEL,
     IDLE_HINT,
     NEEDS_FULLSCREEN_HINT,
+    MENU_HINT,
     PANE_EMPTY,
     `${COMMENT_LABEL}: ${COMMENT_PLACEHOLDER} ⏎ ${SAVE_LABEL}`,
     `[ ${SEND_BUTTON} ] ${SEND_HINT}`,
@@ -249,7 +272,7 @@ export function paneView(el: PaneElements, v: PaneValues, act: PaneActions): Ren
       </Text>
     ) : (
       <Text key="offer" dimColor wrap="truncate">
-        {v.isFullscreen ? IDLE_HINT : NEEDS_FULLSCREEN_HINT}
+        {v.idleHint}
       </Text>
     )
 

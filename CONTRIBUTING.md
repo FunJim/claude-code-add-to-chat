@@ -43,6 +43,7 @@ add-to-chat/                  the mod (what gets installed)
   hooks/*.ts(x)               pure modules: selection, annotations (what is pending), rows, send,
                               pane (the view), prompt-row (a sent prompt's 📎 row),
                               prompt-hint (the count under the prompt),
+                              menu (the desktop's right-click row),
                               originals (sent prompts' Originals, in state and the
                               store), history (which are this conversation's),
                               answering (which prompt a reply answers), excerpt (markdown

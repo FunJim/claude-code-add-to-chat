@@ -11,3 +11,4 @@ add-to-chat works only in fullscreen TUI and finds the person's selection by pol
 
 - The selection keeps returning the last value after a click or key takes the highlight down, so the mod remembers the last `text + requestId` it handled. Selecting the same text in the same row a second time can't be added again.
 - If Claude Code adds a selection-change event or clipboard read, revisit this decision.
+- The desktop app hands a selection to its right-click menu, and adds from there with neither condition ([ADR 0014](0014-the-desktop-adds-from-its-menu.md)); this decision is the terminal's.

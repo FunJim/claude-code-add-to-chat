@@ -36,6 +36,8 @@ export const ADD_LABEL = '✚ Add to chat'
 /** What the pane's first row says while nothing is selected. */
 export const IDLE_HINT = 'Select text in the transcript to add it.'
 export const NEEDS_FULLSCREEN_HINT = 'Selections show here in fullscreen (CLAUDE_CODE_NO_FLICKER=1).'
+/** The first row's hint on the desktop app, where a selection is added from its right-click menu. */
+export const MENU_HINT = 'Select text in the transcript, right-click it, and choose ✚ Add to chat.'
 /** The first row's word for a selection already pending, after its preview. */
 export function addedNote(index: number): string {
   return `added as ${circled(index)}`

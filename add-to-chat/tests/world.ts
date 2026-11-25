@@ -140,6 +140,21 @@ export function mountPane<P extends 'terminal' | 'desktop' = 'terminal'>($: Engi
   return $.ui.mount({ plugin: 'add-to-chat', surface, component: 'Pane', requestId: 'add-to-chat', props, viewport: { columns: 160, rows: 40, isFullscreen: true } })
 }
 
+/** Mounts the add-to-chat pane minimized to the desktop app's widget. */
+export function mountWidget($: Engine) {
+  const props = { title: 'Add to chat', isFocused: false, bodyColumns: 30, placement: 'widget' as const, anchoredEdges: ['bottom', 'right'] as const, scroll: { offset: 0, bodyRows: 3 }, view: {} }
+  return $.ui.mount({ plugin: 'add-to-chat', surface: 'desktop', component: 'Pane', requestId: 'add-to-chat', props })
+}
+
+/** Mounts the desktop app's right-click menu, opened on `selection` (or on a link, with none). */
+export function mountMenu($: Engine, selection?: { text: string; requestId?: string }) {
+  const props =
+    selection === undefined
+      ? { link: { href: 'https://example.com/' } }
+      : { selection, ...(selection.requestId === undefined ? {} : { row: { component: 'AssistantMessage' as const, requestId: selection.requestId } }) }
+  return $.ui.mount({ plugin: 'add-to-chat', surface: 'desktop', component: 'ContextMenu', requestId: 'menu', props })
+}
+
 /** The prompt box changed by no edit, as Claude Code raises it: a step through the prompt history, or `engine` (a rewind putting a prompt back). */
 export function changeBox($: Engine, w: World, text: string, origin: 'history' | 'engine') {
   w.draft = text

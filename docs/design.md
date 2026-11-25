@@ -19,6 +19,12 @@ A selection outlives its highlight: Esc, a click elsewhere or typing take the hi
 
 `handled` holds only while the engine still reports that selection: once the poll sees none or another, it is forgotten, so the same text selected after a command or a turn is offered. Selecting the very same text again while the engine still reports it is no change the poll can see (there is no selection event, and a mod cannot dismiss a selection). Two consequences: a selection whose offer was dismissed, selected again at once (a double click on the same word), is not offered until another is made, though `/add-to-chat` adds it; and closing an Annotation's tab, while the engine still reports the selection it came from, forgets `handled`, so that selection is offered again at once, to be added again or dismissed.
 
+### On the desktop app
+
+The desktop app answers no `$.ui.selection()`; it hands the selection to the menu the person opens on it ([ADR 0014](adr/0014-the-desktop-adds-from-its-menu.md)). A `ui.render` hook on `ContextMenu` answers one row while `props.selection` holds an Excerpt not pending: a `Button`, `✚ Add to chat`, the Excerpt's preview in quotes the dim line under it. Picked, it adds that selection (as `/add-to-chat` does, a dismissal not counting) and opens the pane, which shows the new tab. On a link, on code with nothing selected, or on text already added, the menu gets no row of the mod's. The pane's first row, with nothing offered, says `Select text in the transcript, right-click it, and choose ✚ Add to chat.` there (in the terminal, `Select text in the transcript to add it.` in fullscreen, and how to get fullscreen otherwise).
+
+Minimized to the desktop's widget (`Pane` props' `placement: "widget"`) the pane is one line, `📎 N annotations` or `Nothing added yet.`, and no control: clicks may not reach a widget.
+
 ### The pane
 
 add-to-chat draws in a pane (`$.ui.open`, id `add-to-chat`), not in the band above the prompt. In a fullscreen terminal from 110 columns it docks beside the transcript; narrower, it is framed above the prompt.
@@ -219,10 +225,10 @@ The API (`claude-code.d.ts`, laid by the engine in `add-to-chat/.claude-plugin/t
 
 | For | Symbol |
 |---|---|
-| the selection | `$.ui.selection()` |
+| the selection | `$.ui.selection()`; on the desktop, `ui.render` on `ContextMenu` (`props.selection`), a `Button` |
+| the desktop's widget | `Pane` props' `placement` |
 | the poll | `$.clock.every(ms, fn)` |
 | the pane | `$.ui.open`, `$.ui.panes`, `ui.render` on `Pane`, `ui.close`; `Box`, `Text`, `Button`, `Input` from `$.ui.resolve(e)` |
-| opening it at the start | `ui.render` on `AbovePrompt` (drawing nothing), `viewport.isFullscreen` |
 | the pending count, a click from the pane | `ui.render` on `PromptHint` wrapping `next(e)`; `Button` |
 | marks, Citations, compact prompt rows | `ui.render` on `AssistantMessage`, `UserMessage` |
 | the 📎 row and its card | `ui.render` on `UserMessage` wrapping `next(e)` (an `engine` node); `Box` `position: "absolute"`, `display: "none"`, `hover` |
