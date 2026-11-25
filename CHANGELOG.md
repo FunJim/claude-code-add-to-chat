@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-25
+
 ### Fixed
 
 - On a phone (Remote Control) the line under the prompt no longer shows the offer and the annotation count, whose buttons opened a pane the phone does not draw.
@@ -103,7 +105,11 @@ First release, for Claude Code 2.1.296.
 - The Annotation Template: a Codex-style default, or a Mustache-subset file (`templatePath`) that replaces the prompt or rides beside it as context.
 - Prompt rows drawn as what was typed plus `📎 N annotations`, kept across `--resume`.
 
-[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.3...v0.5.0
+[0.4.3]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.3.0...v0.4.0
