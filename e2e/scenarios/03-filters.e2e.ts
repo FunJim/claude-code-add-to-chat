@@ -2,7 +2,8 @@
 // box, and the pane's own words.
 import { describe } from 'node:test'
 
-import { COMMENT_LABEL, SOURCE_HINT, addedNote } from '../../add-to-chat/hooks/labels.ts'
+import { ADD_LABEL, COMMENT_LABEL, SOURCE_HINT, addedNote } from '../../add-to-chat/hooks/labels.ts'
+import { sleep } from '../harness/exec.ts'
 import { assert, scenario } from '../harness/scenario.ts'
 
 const FILTERS = 'filters'
@@ -16,6 +17,19 @@ describe(FILTERS, () => {
     const spot = await claude.findInPrompt('DRAFT-WORDS in my')
     await claude.mouse.drag({ x: spot.x, y: spot.y }, { x: spot.x + spot.width - 1, y: spot.y })
     assert.equal(await claude.offers(), false)
+    await claude.press('ctrl+u')
+  })
+
+  scenario(FILTERS, 'a drag from the prompt box down onto the line under it is not offered', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture({ openPane: false })
+    await claude.type('DRAFT-WORDS in my own prompt')
+    await claude.waitShowing('DRAFT-WORDS')
+    await ctx.step('drag from the draft down over the box\'s rule onto the hint line')
+    const spot = await claude.findInPrompt('DRAFT-WORDS in my')
+    await claude.mouse.drag({ x: spot.x + 2, y: spot.y }, { x: spot.x + 10, y: spot.y + 3 })
+    await sleep(1_000)
+    assert.notEqual(await claude.probe.selection(), null, 'something is selected')
+    assert.equal(await claude.isShowing(ADD_LABEL), false, 'nothing is offered')
     await claude.press('ctrl+u')
   })
 

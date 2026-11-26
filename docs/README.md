@@ -18,5 +18,6 @@
   - [0012](adr/0012-the-pane-opens-asked.md) the pane opens asked; the offer on the line under the prompt
   - [0013](adr/0013-the-offer-goes-with-the-highlight.md) the offer goes when the highlight does
   - [0014](adr/0014-the-desktop-adds-from-its-menu.md) the desktop app adds a selection from its right-click menu
+  - [0015](adr/0015-the-offer-takes-no-row.md) the offer under the prompt takes no row of its own
 - [../e2e/README.md](../e2e/README.md) — the end-to-end suite and showcase.
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — setting up, testing, the engine's rules.

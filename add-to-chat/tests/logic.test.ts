@@ -8,6 +8,8 @@ import { promptRowView, replyText } from '../hooks/rows'
 import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { ownWords } from '../hooks/pane'
+import { lineWords, offerFit } from '../hooks/prompt-hint'
+import { width } from '../hooks/text'
 import { annotated } from '../hooks/send'
 import { renderTemplate } from '../hooks/template'
 import { promptsIn, replyCountsOf, sameRecord, sentPrompts } from '../hooks/history'
@@ -20,7 +22,7 @@ const A: Annotation[] = [
   { index: 2, text: 'two', source: 'user', requestId: 'u1', comment: 'hm' },
   { index: 3, text: 'three', source: 'transcript' },
 ]
-const QUIET: Surroundings = { draft: '', pending: [], handled: null, paneWords: [] }
+const QUIET: Surroundings = { draft: '', pending: [], handled: null, paneWords: [], footer: lineWords('(shift+tab to cycle) · ← for agents') }
 /** The pane showing the list above, as its own words say it. */
 const SHOWN: Surroundings = { ...QUIET, pending: A, paneWords: ownWords({ mode: { kind: 'pending' }, pending: A, sent: [] }) }
 
@@ -83,7 +85,35 @@ describe('judging a selection', () => {
     expect(judge({ text: '│ one │\n╰───╯' }, SHOWN)).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'Comment: hm' }, SHOWN)).toEqual({ reason: 'nothing' })
     expect(judge({ text: 'added as ②' }, SHOWN)).toEqual({ reason: 'nothing' })
-    expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toHaveProperty('excerpt')
+    expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ excerpt: { text: 'my draft', requestId: 'r1' }, key: 'r1\u0000my draft' })
+  })
+  test('a drag from the prompt box down onto the line under it, or along that line, is not offered', () => {
+    const rule = '─'.repeat(60)
+    const draft = { ...QUIET, draft: 'DRAFT-WORDS in my own prompt' }
+    // Down from the draft, over the box's rule, onto the hint and the offer floated there.
+    expect(judge({ text: `AFT-WORDS in my own prompt\n${rule}\n\n  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents\n` }, draft)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: `${rule}\n\n  ⏵⏵ bypass permissions on (shift+tab` }, draft)).toEqual({ reason: 'nothing' })
+    // Along the hint's row, the offer drawn at its end.
+    expect(judge({ text: '⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents        [ ✚ Add to chat ] “Ran the” ✕' }, QUIET)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '[ ✚ Add to' }, QUIET)).toEqual({ reason: 'nothing' })
+  })
+  test('transcript text across rows is still offered, a rule among it or not', () => {
+    expect(judge({ text: 'Ran the subagent\n2. Read th' }, QUIET)).toHaveProperty('excerpt')
+    expect(judge({ text: `the first part\n${'─'.repeat(40)}\nthe second part` }, QUIET)).toHaveProperty('excerpt')
+    // The hint's words in a reply are a reply's, in its row.
+    expect(judge({ text: 'press (shift+tab to cycle) · ← for agents', requestId: 'r1' }, QUIET)).toHaveProperty('excerpt')
+  })
+  test("the offer goes beside the hint at the line's right end, or in its place where it does not fit; never on a row of its own", () => {
+    const hint = '(shift+tab to cycle) · ← for agents'
+    const wide = offerFit(131, hint, 'Ran the')
+    expect(wide).toEqual({ at: 'beside', preview: 'Ran the', left: 99 })
+    // Its last cell, the ✕, one in from the right end (the row counts from its indent, two in).
+    expect(2 + (wide as { left: number }).left + width('[ ✚ Add to chat ] “Ran the” ✕')).toBe(130)
+    expect(offerFit(131, hint, 'x'.repeat(200)).preview).toMatch(/…$/)
+    expect(offerFit(79, hint, 'Ran the')).toEqual({ at: 'instead', preview: 'Ran the' })
+    // Just room for the button and the ✕: no preview.
+    const tight = 2 + 26 + 3 + width(hint) + 1 + width('[ ✚ Add to chat ] ✕')
+    expect(offerFit(tight, hint, 'Ran the')).toEqual({ at: 'beside', preview: null, left: tight - 2 - 1 - width('[ ✚ Add to chat ] ✕') })
   })
   test('rowSource: replies, typed prompts, tool rows, and Claude Code\'s own', () => {
     expect(rowSource('AssistantMessage', {})).toBe('assistant')

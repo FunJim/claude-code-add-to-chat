@@ -19,6 +19,6 @@ The person closing the pane (its `✕`, ctrl+x x) needs no `isPaneDismissed` any
 
 - Claude Code places a pane opened asked at any width — docked beside a fullscreen transcript from 110 columns, inline above the prompt below — where an unasked opening waited undrawn under 144. On a narrow terminal `/add-to-chat` now shows the pane at once, in its inline form.
 - Adding from the line under the prompt keeps the pane closed; the toast points at it, and the count row beside it opens it.
-- The offer row shows only while the pane is not drawn: the pane's first row has it otherwise, and the line counts instead.
+- The offer row shows only while the pane is not drawn: the pane's first row has it otherwise, and the line counts instead. Its own row moved the transcript under a dragging mouse; it is on the hint's row now ([ADR 0015](0015-the-offer-takes-no-row.md)).
 - A band-shaped pane by the person's choice still waits for the engine ([ADR 0011](0011-band-form-waits-for-the-engine.md)).
 - Supersedes the opening rule of [ADR 0005](0005-everything-in-a-pane.md); the rest of it — the pane holds the whole interface, its first row one row — stands.

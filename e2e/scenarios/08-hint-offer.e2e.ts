@@ -81,4 +81,21 @@ describe(HINT, () => {
     await waitFor('the offer under the prompt', async () => locate(await claude.screen(), ADD_LABEL) !== undefined, { timeoutMs: 5_000 })
     assert.ok((await claude.screen()).includes('“Ran the”'))
   })
+
+  scenario(HINT, 'a drag held halfway: the offer comes onto the hint\'s own row, and nothing moves under the mouse', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture({ openPane: false })
+    const rows = async () => (await claude.screen()).split('\n')
+    const rowOf = async (text: string) => (await rows()).findIndex(r => r.includes(text)) + 1
+    const [reply, prompt, lines] = [await rowOf('Ran the'), await rowOf('❯'), (await rows()).length]
+    await ctx.step('press on “Ran the”, hold still halfway while the offer comes, then go on and let go')
+    const selected = await claude.slowSelect('Ran the', 900)
+    assert.equal(selected?.text, 'Ran the', 'the drag ends where it was aimed')
+    assert.equal(await rowOf('Ran the'), reply, 'the transcript did not move')
+    assert.equal(await rowOf('❯'), prompt, 'the prompt did not move')
+    const screen = await claude.screen()
+    const at = screen.split('\n').find(r => r.includes(ADD_LABEL)) ?? ''
+    assert.ok(at.includes('shift+tab'), `the offer is on the hint's row:\n${screen}`)
+    assert.equal(screen.split('\n').length, lines)
+    await ctx.evidence('the offer on the hint row', screen)
+  })
 })

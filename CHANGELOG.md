@@ -4,6 +4,10 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Selecting text no longer makes the prompt jump: the offer under the prompt sits on Claude Code's own hint row instead of adding a row, which moved the transcript and the prompt under the mouse mid-drag. A drag from the prompt box down onto the line under it is no longer offered.
+
 ## [0.5.3] - 2026-11-26
 
 ### Added

@@ -15,3 +15,4 @@ A selection is readable while the mouse is still dragging, and a mod gets no "re
 
 - The band takes one row of the fullscreen terminal at all times.
 - In a narrow terminal the head row drops words in a fixed order to keep at least 12 cells of preview.
+- The same holds for the offer on the line under the prompt: it takes no row of its own ([ADR 0015](0015-the-offer-takes-no-row.md)).

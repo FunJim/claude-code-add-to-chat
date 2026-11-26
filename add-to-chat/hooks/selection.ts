@@ -63,16 +63,40 @@ export type Surroundings = {
   handled: string | null
   /** Every word the pane draws, beyond the offer's preview: a selection of them is the pane's own. */
   paneWords: readonly string[]
+  /** What the line under the prompt draws (`lineWords`): a selection's line holding one, or held in one, is that line's. */
+  footer: readonly string[]
+}
+
+/** The box-drawing characters of a frame or a rule, which a selection across one picks up. */
+const FRAME = /[│╭╮╰╯─]/g
+
+/** A rule across the screen, as the prompt box has above and below it. */
+function isRule(line: string): boolean {
+  return /^\s*─{10,}\s*$/.test(line)
 }
 
 /**
- * Whether a selection with no row lies in the prompt box or in the pane
- * rather than in the transcript: its text is the draft's or the pane's own.
+ * Whether a selection with no row lies in the prompt box, the pane or the
+ * line under the prompt rather than in the transcript: its text is the
+ * draft's or the pane's own; or each of its lines is (a drag from the box
+ * down into the line under it, over the box's rule), every line below its
+ * last rule being under the prompt box.
  */
 function isOutsideTranscript(excerpt: Selection, around: Surroundings): boolean {
   if (excerpt.requestId !== undefined) return false
   // A selection across the Excerpt's frame in the pane picks up its border.
-  const text = flatten(excerpt.text.replace(/[│╭╮╰╯─]/g, ' '))
+  const text = flatten(excerpt.text.replace(FRAME, ' '))
+  if (isOwn(text, around)) return true
+  const lines = excerpt.text.split('\n')
+  const lastRule = lines.findLastIndex(isRule)
+  return lines.every((line, i) => {
+    const words = flatten(line.replace(FRAME, ' '))
+    return words === '' || (lastRule >= 0 && i > lastRule) || isOwn(words, around) || around.footer.some(w => w.includes(words) || (w.length >= 8 && words.includes(w)))
+  })
+}
+
+/** Whether `text` (flattened) is a piece of the draft or of a line of the pane's. */
+function isOwn(text: string, around: Surroundings): boolean {
   return flatten(around.draft).includes(text) || around.paneWords.some(line => flatten(line).includes(text))
 }
 

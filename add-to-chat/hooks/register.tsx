@@ -12,7 +12,7 @@ import { promptsIn, replyCountsOf, sameRecord, sentInBox, sentPrompts } from './
 import { ALREADY_ADDED, NEEDS_FULLSCREEN, NOT_DRAWN, PANE_TITLE, SEND_PLACEHOLDER, SEND_REFUSED, addedToast } from './labels'
 import { menuRow } from './menu'
 import { PANE_COLUMNS, PANE_ID, commentKey, idleHintFor, ownWords, paneGlance, paneView } from './pane'
-import { promptHint } from './prompt-hint'
+import { lineWords, promptHint } from './prompt-hint'
 import { promptRow } from './prompt-row'
 import { promptRowView, replyText } from './rows'
 import { SYSTEM_ROWS, TOOL_ROWS, isSelectionOf, judge, noteOf, rowSource, selectionKey } from './selection'
@@ -61,6 +61,14 @@ function rememberRole(requestId: string | undefined, component: string, props: u
 const promptRows = new Map<string, string>()
 
 /**
+ * Claude Code's hint on the line under the prompt, as last drawn: what a
+ * drag from the prompt box down onto that line takes, and is not offered.
+ * Noted by the line's render hook, like `roles`; a reload draws the line
+ * again.
+ */
+let hintLine = ''
+
+/**
  * The reply rows drawn since the load and the prompt they may answer (see
  * answering.ts). Render hooks note rows here and may not write state; the
  * poll checks them once the turn has ended and keeps them with the prompt.
@@ -93,7 +101,7 @@ async function surroundings($: EngineInterface): Promise<Surroundings> {
     read($, originals),
     read($, sessionPrompts),
   ])
-  return { draft: prompt.text, pending: list, handled: key, paneWords: ownWords({ mode, pending: list, sent: sentPrompts(map, inSession) }) }
+  return { draft: prompt.text, pending: list, handled: key, paneWords: ownWords({ mode, pending: list, sent: sentPrompts(map, inSession) }), footer: lineWords(hintLine) }
 }
 
 /** What the poll last wrote, so it writes state only on a change. */
@@ -197,7 +205,7 @@ async function markHandled($: EngineInterface, key: string | undefined) {
 async function addSelection($: EngineInterface, isAsked = false, given?: Selection): Promise<{ annotation: Annotation } | Exclude<Verdict, { key: string }>> {
   const [around, selection] = await Promise.all([surroundings($), given ?? $.ui.selection()])
   // A selection the menu hands over lies in the transcript, as the menu's row judged it.
-  const where = given === undefined ? around : { ...around, draft: '', paneWords: [] }
+  const where = given === undefined ? around : { ...around, draft: '', paneWords: [], footer: [] }
   const verdict = judge(selection, isAsked ? { ...where, handled: null } : where)
   if (!('key' in verdict)) return verdict
 
@@ -522,13 +530,14 @@ export const register: Register = on => {
     // A phone draws no pane (see the Pane hook): nothing of this line's
     // would answer there.
     if (e.surface === 'mobile') return next(e)
+    if (e.surface === 'terminal') hintLine = e.props.hint
     const engine = await next(e)
     const [list, offer, isDrawn] = await Promise.all([read($, pending), read($, candidate), read($, isPaneDrawn)])
     if (list.length === 0 && offer === null) return engine
     return promptHint(
       $.ui.resolve(e),
       engine,
-      { count: list.length, isPaneDrawn: isDrawn, offer: offer === null ? null : offer.text, columns: e.viewport?.columns ?? 80 },
+      { count: list.length, isPaneDrawn: isDrawn, offer: offer === null ? null : offer.text, columns: e.viewport?.columns ?? 80, hint: e.props.hint },
       // Each returns its promise: the press waits for the work it starts.
       { toggle: () => (isDrawn ? hidePane($) : openPane($)), add: () => addSelection($), dismiss: () => dismissOffer($) },
     )
@@ -561,7 +570,7 @@ export const register: Register = on => {
     if (selection === undefined) return next(e)
     const list = await read($, pending)
     // Opened on the transcript: nothing of the prompt box or the pane to tell apart.
-    const verdict = judge(selection, { draft: '', pending: list, handled: null, paneWords: [] })
+    const verdict = judge(selection, { draft: '', pending: list, handled: null, paneWords: [], footer: [] })
     if (!('key' in verdict)) return next(e)
     return menuRow($.ui.resolve(e), verdict.excerpt.text, () => addFromMenu($, selection))
   })
