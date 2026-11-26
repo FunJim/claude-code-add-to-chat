@@ -4,6 +4,10 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- The mods directory's scanner no longer warns of control characters in the mod's source: the key that tells one selection from another no longer uses one.
+
 ## [0.5.4] - 2026-11-26
 
 ### Fixed

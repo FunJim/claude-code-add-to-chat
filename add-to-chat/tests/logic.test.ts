@@ -5,7 +5,7 @@ import type { Annotation } from '../types'
 import { marksFor } from '../hooks/annotations'
 import { shownTab } from '../hooks/pane'
 import { promptRowView, replyText } from '../hooks/rows'
-import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
+import { excerptOf, judge, noteOf, rowSource, selectionKey } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { ownWords } from '../hooks/pane'
 import { countRowFit, lineWords, offerFit } from '../hooks/prompt-hint'
@@ -61,7 +61,7 @@ describe("the pane's own words", () => {
 
 describe('judging a selection', () => {
   test('an Excerpt in a row is offered', () => {
-    expect(judge({ text: ' npm test ', requestId: 'r1' }, QUIET)).toEqual({ excerpt: { text: 'npm test', requestId: 'r1' }, key: 'r1\u0000 npm test ' })
+    expect(judge({ text: ' npm test ', requestId: 'r1' }, QUIET)).toEqual({ excerpt: { text: 'npm test', requestId: 'r1' }, key: selectionKey({ text: ' npm test ', requestId: 'r1' }) })
   })
   test('nothing selected, or only marks', () => {
     expect(judge(undefined, QUIET)).toEqual({ reason: 'nothing' })
@@ -69,7 +69,7 @@ describe('judging a selection', () => {
   })
   test('one pending in the same row (as which Annotation), or the last handled selection (added, or its offer dismissed)', () => {
     expect(judge({ text: 'one', requestId: 'r1' }, SHOWN)).toEqual({ reason: 'pending', text: 'one', index: 1 })
-    expect(judge({ text: 'x', requestId: 'r1' }, { ...QUIET, handled: 'r1\u0000x' })).toEqual({ reason: 'handled' })
+    expect(judge({ text: 'x', requestId: 'r1' }, { ...QUIET, handled: selectionKey({ text: 'x', requestId: 'r1' }) })).toEqual({ reason: 'handled' })
     expect(judge({ text: 'one', requestId: 'r2' }, SHOWN)).toHaveProperty('key')
   })
   test('what the first row says of a selection not offered: added as ①; nothing else', () => {
@@ -85,7 +85,7 @@ describe('judging a selection', () => {
     expect(judge({ text: '│ one │\n╰───╯' }, SHOWN)).toEqual({ reason: 'outside' })
     expect(judge({ text: 'Comment: hm' }, SHOWN)).toEqual({ reason: 'outside' })
     expect(judge({ text: 'added as ②' }, SHOWN)).toEqual({ reason: 'outside' })
-    expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ excerpt: { text: 'my draft', requestId: 'r1' }, key: 'r1\u0000my draft' })
+    expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ excerpt: { text: 'my draft', requestId: 'r1' }, key: selectionKey({ text: 'my draft', requestId: 'r1' }) })
   })
   test('a drag from the prompt box down onto the line under it, or along that line, is not offered', () => {
     const rule = '─'.repeat(60)
@@ -107,7 +107,7 @@ describe('judging a selection', () => {
     expect(countRowFit(bare - 1, label, 'running or done')).toBeNull()
   })
   test("a selection once outside the transcript stays outside while the engine reports it, its text the draft's no more", () => {
-    const once = { ...QUIET, draft: 'DRAFT-TEXT her in the prompt box', outside: '\u0000DRAFT-TEXT here' }
+    const once = { ...QUIET, draft: 'DRAFT-TEXT her in the prompt box', outside: selectionKey({ text: 'DRAFT-TEXT here' }) }
     expect(judge({ text: 'DRAFT-TEXT here' }, once)).toEqual({ reason: 'outside' })
     // The same text in a row is another selection.
     expect(judge({ text: 'DRAFT-TEXT here', requestId: 'r1' }, once)).toHaveProperty('excerpt')
@@ -142,6 +142,17 @@ describe('judging a selection', () => {
   test('excerptOf drops the 📎 line and any head of it', () => {
     expect(excerptOf({ text: 'q\n📎 3 annotations' })).toEqual({ text: 'q' })
     expect(excerptOf({ text: 'q\n  📎 3 ann' })).toEqual({ text: 'q' })
+  })
+  test('selectionKey tells row and text apart, with no control characters', () => {
+    const keys = [
+      selectionKey({ text: 'b', requestId: 'a' }),
+      selectionKey({ text: 'b' }),
+      selectionKey({ text: 'ab' }),
+      selectionKey({ text: '', requestId: 'ab' }),
+    ]
+    expect(new Set(keys).size).toBe(keys.length)
+    for (const k of keys) expect([...k].some(c => c.charCodeAt(0) < 32)).toBe(false)
+    expect(selectionKey({ text: 'b', requestId: 'a' })).toBe(selectionKey({ text: 'b', requestId: 'a' }))
   })
 })
 

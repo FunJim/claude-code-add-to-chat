@@ -33,8 +33,9 @@ export function rowSource(component: string, props: unknown): AnnotationSource {
   return 'transcript'
 }
 
+/** Tells one selection from another: its row and its text, as JSON (no control characters, which the mods scanner flags). */
 export function selectionKey(s: Selection): string {
-  return `${s.requestId ?? ''}\u0000${s.text}`
+  return JSON.stringify([s.requestId ?? '', s.text])
 }
 
 /**
