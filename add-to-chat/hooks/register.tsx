@@ -24,6 +24,7 @@ import { annotated } from './send'
 const pending = atom({ plugin: 'add-to-chat', key: 'pending' } as const, [])
 const candidate = atom({ plugin: 'add-to-chat', key: 'candidate' } as const, null)
 const handled = atom({ plugin: 'add-to-chat', key: 'handled' } as const, null)
+const outside = atom({ plugin: 'add-to-chat', key: 'outside' } as const, null)
 const selectionNote = atom({ plugin: 'add-to-chat', key: 'selectionNote' } as const, null)
 const isPaneOpen = atom({ plugin: 'add-to-chat', key: 'isPaneOpen' } as const, false)
 const isPaneDrawn = atom({ plugin: 'add-to-chat', key: 'isPaneDrawn' } as const, false)
@@ -93,15 +94,16 @@ async function keepReplies($: EngineInterface) {
 }
 
 async function surroundings($: EngineInterface): Promise<Surroundings> {
-  const [prompt, list, key, mode, map, inSession] = await Promise.all([
+  const [prompt, list, key, away, mode, map, inSession] = await Promise.all([
     $.prompt.read(),
     read($, pending),
     read($, handled),
+    read($, outside),
     read($, paneMode),
     read($, originals),
     read($, sessionPrompts),
   ])
-  return { draft: prompt.text, pending: list, handled: key, paneWords: ownWords({ mode, pending: list, sent: sentPrompts(map, inSession) }), footer: lineWords(hintLine) }
+  return { draft: prompt.text, pending: list, handled: key, outside: away, paneWords: ownWords({ mode, pending: list, sent: sentPrompts(map, inSession) }), footer: lineWords(hintLine) }
 }
 
 /** What the poll last wrote, so it writes state only on a change. */
@@ -157,6 +159,11 @@ async function poll($: EngineInterface, watch: PollWatch) {
   // The pane previews the Excerpt as it will be kept, marks and 📎 gone;
   // or says why it offers nothing.
   const verdict = judge(selection, decide)
+  // A selection outside the transcript stays outside while the engine
+  // reports it: an edit of the draft it lies in leaves it reported, no
+  // longer the draft's text (ADR 0015).
+  const away = 'reason' in verdict && verdict.reason === 'outside' && selection !== undefined ? selectionKey(selection) : null
+  if (away !== around.outside) await update($, outside, () => away)
   const offer = 'key' in verdict ? verdict.excerpt : null
   if (offerKey(offer) !== offerKey(offered)) await update($, candidate, () => offer)
   const note = noteOf(verdict)
@@ -205,7 +212,7 @@ async function markHandled($: EngineInterface, key: string | undefined) {
 async function addSelection($: EngineInterface, isAsked = false, given?: Selection): Promise<{ annotation: Annotation } | Exclude<Verdict, { key: string }>> {
   const [around, selection] = await Promise.all([surroundings($), given ?? $.ui.selection()])
   // A selection the menu hands over lies in the transcript, as the menu's row judged it.
-  const where = given === undefined ? around : { ...around, draft: '', paneWords: [], footer: [] }
+  const where = given === undefined ? around : { ...around, draft: '', paneWords: [], footer: [], outside: null }
   const verdict = judge(selection, isAsked ? { ...where, handled: null } : where)
   if (!('key' in verdict)) return verdict
 
@@ -570,7 +577,7 @@ export const register: Register = on => {
     if (selection === undefined) return next(e)
     const list = await read($, pending)
     // Opened on the transcript: nothing of the prompt box or the pane to tell apart.
-    const verdict = judge(selection, { draft: '', pending: list, handled: null, paneWords: [], footer: [] })
+    const verdict = judge(selection, { draft: '', pending: list, handled: null, outside: null, paneWords: [], footer: [] })
     if (!('key' in verdict)) return next(e)
     return menuRow($.ui.resolve(e), verdict.excerpt.text, () => addFromMenu($, selection))
   })

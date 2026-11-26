@@ -582,6 +582,30 @@ describe('adding a selection', () => {
       expect(await tabsOf(pane)).toBe(0)
     })
 
+    test('the draft, edited after its words were selected: still not offered, on the line or by /add-to-chat, until another selection', async ($, on) => {
+      const w = await start($, on)
+      w.draft = 'DRAFT-TEXT here in the prompt box'
+      w.selection = { text: 'DRAFT-TEXT here' }
+      await tick(w)
+      let hint = await mountHint($)
+      expect(await hint.find({ key: 'hint-add' })).toBeUndefined()
+      await hint.unmount()
+      // A character deleted: the engine still reports the selection, no longer the draft's text.
+      w.draft = 'DRAFT-TEXT her in the prompt box'
+      await tick(w)
+      hint = await mountHint($)
+      expect(await hint.find({ key: 'hint-add' })).toBeUndefined()
+      await hint.unmount()
+      await runCommand($, w)
+      const pane = await mountPane($)
+      expect(await tabsOf(pane)).toBe(0)
+      expect(await pane.find({ key: 'add' })).toBeUndefined()
+      // Another selection, of the transcript: offered.
+      w.selection = { text: 'npm test', requestId: 'r1' }
+      await tick(w)
+      expect(await pane.find({ key: 'add' })).toBeDefined()
+    })
+
     test("the pane's own words", async ($, on) => {
       const w = await start($, on)
       await addText($, w, 'npm test', 'r1')

@@ -22,7 +22,7 @@ const A: Annotation[] = [
   { index: 2, text: 'two', source: 'user', requestId: 'u1', comment: 'hm' },
   { index: 3, text: 'three', source: 'transcript' },
 ]
-const QUIET: Surroundings = { draft: '', pending: [], handled: null, paneWords: [], footer: lineWords('(shift+tab to cycle) · ← for agents') }
+const QUIET: Surroundings = { draft: '', pending: [], handled: null, outside: null, paneWords: [], footer: lineWords('(shift+tab to cycle) · ← for agents') }
 /** The pane showing the list above, as its own words say it. */
 const SHOWN: Surroundings = { ...QUIET, pending: A, paneWords: ownWords({ mode: { kind: 'pending' }, pending: A, sent: [] }) }
 
@@ -79,23 +79,29 @@ describe('judging a selection', () => {
     expect(noteOf({ excerpt: { text: 'x' }, key: 'x' })).toBeNull()
   })
   test("the draft's and the pane's own words", () => {
-    expect(judge({ text: 'my draft' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '2: You ✕' }, SHOWN)).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '② from your' }, SHOWN)).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '│ one │\n╰───╯' }, SHOWN)).toEqual({ reason: 'nothing' })
-    expect(judge({ text: 'Comment: hm' }, SHOWN)).toEqual({ reason: 'nothing' })
-    expect(judge({ text: 'added as ②' }, SHOWN)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: 'my draft' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ reason: 'outside' })
+    expect(judge({ text: '2: You ✕' }, SHOWN)).toEqual({ reason: 'outside' })
+    expect(judge({ text: '② from your' }, SHOWN)).toEqual({ reason: 'outside' })
+    expect(judge({ text: '│ one │\n╰───╯' }, SHOWN)).toEqual({ reason: 'outside' })
+    expect(judge({ text: 'Comment: hm' }, SHOWN)).toEqual({ reason: 'outside' })
+    expect(judge({ text: 'added as ②' }, SHOWN)).toEqual({ reason: 'outside' })
     expect(judge({ text: 'my draft', requestId: 'r1' }, { ...QUIET, draft: 'this is my draft' })).toEqual({ excerpt: { text: 'my draft', requestId: 'r1' }, key: 'r1\u0000my draft' })
   })
   test('a drag from the prompt box down onto the line under it, or along that line, is not offered', () => {
     const rule = '─'.repeat(60)
     const draft = { ...QUIET, draft: 'DRAFT-WORDS in my own prompt' }
     // Down from the draft, over the box's rule, onto the hint and the offer floated there.
-    expect(judge({ text: `AFT-WORDS in my own prompt\n${rule}\n\n  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents\n` }, draft)).toEqual({ reason: 'nothing' })
-    expect(judge({ text: `${rule}\n\n  ⏵⏵ bypass permissions on (shift+tab` }, draft)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: `AFT-WORDS in my own prompt\n${rule}\n\n  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents\n` }, draft)).toEqual({ reason: 'outside' })
+    expect(judge({ text: `${rule}\n\n  ⏵⏵ bypass permissions on (shift+tab` }, draft)).toEqual({ reason: 'outside' })
     // Along the hint's row, the offer drawn at its end.
-    expect(judge({ text: '⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents        [ ✚ Add to chat ] “Ran the” ✕' }, QUIET)).toEqual({ reason: 'nothing' })
-    expect(judge({ text: '[ ✚ Add to' }, QUIET)).toEqual({ reason: 'nothing' })
+    expect(judge({ text: '⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents        [ ✚ Add to chat ] “Ran the” ✕' }, QUIET)).toEqual({ reason: 'outside' })
+    expect(judge({ text: '[ ✚ Add to' }, QUIET)).toEqual({ reason: 'outside' })
+  })
+  test("a selection once outside the transcript stays outside while the engine reports it, its text the draft's no more", () => {
+    const once = { ...QUIET, draft: 'DRAFT-TEXT her in the prompt box', outside: '\u0000DRAFT-TEXT here' }
+    expect(judge({ text: 'DRAFT-TEXT here' }, once)).toEqual({ reason: 'outside' })
+    // The same text in a row is another selection.
+    expect(judge({ text: 'DRAFT-TEXT here', requestId: 'r1' }, once)).toHaveProperty('excerpt')
   })
   test('transcript text across rows is still offered, a rule among it or not', () => {
     expect(judge({ text: 'Ran the subagent\n2. Read th' }, QUIET)).toHaveProperty('excerpt')

@@ -3,7 +3,7 @@
 import { describe } from 'node:test'
 
 import { ADD_LABEL, COMMENT_LABEL, SOURCE_HINT, addedNote } from '../../add-to-chat/hooks/labels.ts'
-import { sleep } from '../harness/exec.ts'
+import { sleep, waitFor } from '../harness/exec.ts'
 import { assert, scenario } from '../harness/scenario.ts'
 
 const FILTERS = 'filters'
@@ -17,6 +17,25 @@ describe(FILTERS, () => {
     const spot = await claude.findInPrompt('DRAFT-WORDS in my')
     await claude.mouse.drag({ x: spot.x, y: spot.y }, { x: spot.x + spot.width - 1, y: spot.y })
     assert.equal(await claude.offers(), false)
+    await claude.press('ctrl+u')
+  })
+
+  scenario(FILTERS, 'words of the draft selected, then the draft edited: still not offered', { drivers: ['herdr', 'tmux'] }, async ctx => {
+    const claude = await ctx.launchFixture({ openPane: false })
+    await claude.type('DRAFT-WORDS in my own prompt')
+    await claude.waitShowing('DRAFT-WORDS')
+    await ctx.step('select words of the draft: no offer')
+    const spot = await claude.findInPrompt('DRAFT-WORDS in my')
+    await claude.mouse.drag({ x: spot.x, y: spot.y }, { x: spot.x + spot.width - 1, y: spot.y })
+    await sleep(1_000)
+    assert.equal(await claude.isShowing(ADD_LABEL), false, 'not offered as selected')
+    await ctx.step('Backspace: the draft changes, the engine still reports the selection, and it is still not offered')
+    await claude.press('backspace')
+    // With words of the draft selected, Backspace takes them out ("own prompt" left).
+    await waitFor('the draft edited', async () => (await claude.draft()) !== 'DRAFT-WORDS in my own prompt', { timeoutMs: 3_000 })
+    await sleep(1_000)
+    assert.notEqual(await claude.probe.selection(), null, 'the selection is still reported')
+    assert.equal(await claude.isShowing(ADD_LABEL), false, 'not offered once the draft changed')
     await claude.press('ctrl+u')
   })
 

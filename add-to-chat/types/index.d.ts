@@ -46,6 +46,8 @@ declare module 'claude-code' {
       candidate: Candidate | null
       /** `selectionKey` of the selection last added or ignored; outlives a submit. */
       handled: string | null
+      /** `selectionKey` of the selection last found outside the transcript (the draft, the pane, the line under the prompt), while the engine still reports it. */
+      outside: string | null
       /** What the pane's first row says of the selection reported when its Excerpt is pending, or null. */
       selectionNote: SelectionNote | null
       /** Whether the pane is open, as the poll last saw `$.ui.panes()`. */

@@ -6,7 +6,7 @@ While the pane is closed, the offer for a selection (`[ ✚ Add to chat ] “…
 
 Claude Code draws its row first and what a `PromptHint` hook adds under it, so the hook draws a Box of no height there holding the offer `position: "absolute"`, `top: -1`: the offer paints on the hint's row, moves nothing, and its buttons take clicks. `hint` leaves out what leads the row (its indent, the permission mode's label), so the room beside it is reckoned with the longest label kept clear.
 
-A selection with no row whose every line is the draft's, the pane's, the hint's or the offer's, or lies below the prompt box's rule, is no longer offered: a drag from the box down onto the line under it is not transcript text.
+A selection with no row whose every line is the draft's, the pane's, the hint's or the offer's, or lies below the prompt box's rule, is no longer offered: a drag from the box down onto the line under it is not transcript text. Found so, it stays so (`outside`, a state key) while the engine reports it: Backspace over selected words of the draft takes them out, and the selection, still reported, is the draft's text no more.
 
 ## Considered Options
 

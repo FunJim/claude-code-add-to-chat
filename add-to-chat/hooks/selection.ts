@@ -61,6 +61,8 @@ export type Surroundings = {
   pending: readonly Annotation[]
   /** `selectionKey` of the selection last added or dismissed. */
   handled: string | null
+  /** `selectionKey` of the selection last found outside the transcript: it stays so while the engine reports it. */
+  outside: string | null
   /** Every word the pane draws, beyond the offer's preview: a selection of them is the pane's own. */
   paneWords: readonly string[]
   /** What the line under the prompt draws (`lineWords`): a selection's line holding one, or held in one, is that line's. */
@@ -108,24 +110,28 @@ export function isSelectionOf(selection: Selection | undefined, a: { text: strin
 
 /**
  * An Excerpt to offer, with the key that marks its selection handled; or
- * why not: `nothing` to offer, `pending` as Annotation `index`, or
- * `handled` (just added, or its offer dismissed).
+ * why not: `nothing` to offer, `outside` the transcript, `pending` as
+ * Annotation `index`, or `handled` (just added, or its offer dismissed).
  */
 export type Verdict =
   | { excerpt: Selection; key: string }
   | { reason: 'nothing' }
+  | { reason: 'outside' }
   | { reason: 'pending'; text: string; index: number }
   | { reason: 'handled' }
 
 /**
  * What to do with a selection: offer (and add) its Excerpt, or not —
- * `nothing` when it holds none or lies outside the transcript, `pending`
- * when its Excerpt is (same Excerpt, same row), `handled` when it was last
- * added or its offer dismissed.
+ * `nothing` when it holds none, `outside` when it lies outside the
+ * transcript (or did when first seen: the engine keeps reporting a
+ * selection of the draft after the draft is edited, when it is no longer
+ * the draft's text), `pending` when its Excerpt is (same Excerpt, same
+ * row), `handled` when it was last added or its offer dismissed.
  */
 export function judge(selection: Selection | undefined, around: Surroundings): Verdict {
   const excerpt = excerptOf(selection)
-  if (selection === undefined || excerpt === null || isOutsideTranscript(excerpt, around)) return { reason: 'nothing' }
+  if (selection === undefined || excerpt === null) return { reason: 'nothing' }
+  if (selectionKey(selection) === around.outside || isOutsideTranscript(excerpt, around)) return { reason: 'outside' }
   const added = around.pending.find(a => isSameExcerpt(a, excerpt))
   if (added !== undefined) return { reason: 'pending', text: excerpt.text, index: added.index }
   const key = selectionKey(selection)
