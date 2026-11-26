@@ -4,6 +4,8 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-11-26
+
 ### Fixed
 
 - The mods directory's scanner no longer warns of control characters in the mod's source: the key that tells one selection from another no longer uses one.
@@ -125,7 +127,8 @@ First release, for Claude Code 2.1.296.
 - The Annotation Template: a Codex-style default, or a Mustache-subset file (`templatePath`) that replaces the prompt or rides beside it as context.
 - Prompt rows drawn as what was typed plus `📎 N annotations`, kept across `--resume`.
 
-[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.1...v0.5.2
