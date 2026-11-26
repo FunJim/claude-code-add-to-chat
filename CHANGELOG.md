@@ -4,9 +4,11 @@ All notable changes to add-to-chat are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-11-26
+
 ### Fixed
 
-- Selecting text no longer makes the prompt jump: the offer under the prompt sits on Claude Code's own hint row instead of adding a row, which moved the transcript and the prompt under the mouse mid-drag. A drag from the prompt box down onto the line under it is no longer offered, nor are words of the draft once the draft is edited (Backspace over them).
+- Selecting text no longer makes the prompt jump: the offer under the prompt sits on a row already there (Claude Code's hint row, or the annotation count's) instead of adding one, which moved the transcript and the prompt under the mouse mid-drag. A drag from the prompt box down onto the line under it is no longer offered, nor are words of the draft once the draft is edited (Backspace over them).
 
 ## [0.5.3] - 2026-11-26
 
@@ -119,7 +121,8 @@ First release, for Claude Code 2.1.296.
 - The Annotation Template: a Codex-style default, or a Mustache-subset file (`templatePath`) that replaces the prompt or rides beside it as context.
 - Prompt rows drawn as what was typed plus `📎 N annotations`, kept across `--resume`.
 
-[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/FunJim/claude-code-add-to-chat/compare/v0.5.0...v0.5.1
