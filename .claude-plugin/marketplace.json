@@ -1,6 +1,6 @@
 {
   "name": "add-to-chat",
-  "description": "Codex-style \"Add to chat\" for Claude Code's fullscreen transcript",
+  "description": "Codex-style \"Add to chat\" for Claude Code, in the terminal and the desktop app",
   "owner": {
     "name": "FunJim"
   },

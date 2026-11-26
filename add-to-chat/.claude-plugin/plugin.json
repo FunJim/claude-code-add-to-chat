@@ -1,7 +1,7 @@
 {
   "name": "add-to-chat",
   "version": "0.5.5",
-  "description": "Select text in the fullscreen transcript and attach it, with an optional comment, to your next prompt",
+  "description": "Codex-style Add to chat: select text in the transcript (terminal or desktop app), add a comment, and send it with your next prompt; Claude cites each one",
   "author": {
     "name": "FunJim"
   },
