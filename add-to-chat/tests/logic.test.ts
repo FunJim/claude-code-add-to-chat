@@ -8,7 +8,7 @@ import { promptRowView, replyText } from '../hooks/rows'
 import { excerptOf, judge, noteOf, rowSource } from '../hooks/selection'
 import type { Surroundings } from '../hooks/selection'
 import { ownWords } from '../hooks/pane'
-import { lineWords, offerFit } from '../hooks/prompt-hint'
+import { countRowFit, lineWords, offerFit } from '../hooks/prompt-hint'
 import { width } from '../hooks/text'
 import { annotated } from '../hooks/send'
 import { renderTemplate } from '../hooks/template'
@@ -96,6 +96,15 @@ describe('judging a selection', () => {
     // Along the hint's row, the offer drawn at its end.
     expect(judge({ text: '⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents        [ ✚ Add to chat ] “Ran the” ✕' }, QUIET)).toEqual({ reason: 'outside' })
     expect(judge({ text: '[ ✚ Add to' }, QUIET)).toEqual({ reason: 'outside' })
+  })
+  test('with Annotations pending the offer goes on the count row, after the count, where it fits', () => {
+    const label = '📎 1 annotation · show pane'
+    expect(countRowFit(131, label, 'running or done')).toEqual({ preview: 'running or done' })
+    expect(countRowFit(131, label, 'x'.repeat(200))?.preview).toMatch(/…$/)
+    // Room for the button and the ✕ alone; then none, and the hint's row takes it.
+    const bare = 2 + width(label) + 3 + width('[ ✚ Add to chat ] ✕') + 1
+    expect(countRowFit(bare, label, 'running or done')).toEqual({ preview: null })
+    expect(countRowFit(bare - 1, label, 'running or done')).toBeNull()
   })
   test("a selection once outside the transcript stays outside while the engine reports it, its text the draft's no more", () => {
     const once = { ...QUIET, draft: 'DRAFT-TEXT her in the prompt box', outside: '\u0000DRAFT-TEXT here' }

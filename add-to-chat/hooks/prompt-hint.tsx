@@ -65,6 +65,19 @@ export function offerFit(columns: number, hint: string, offer: string): { at: 'b
 }
 
 /**
+ * Whether the offer fits on the count row, after `📎 N annotations · show
+ * pane` (`label`), and with what preview: a row that is already there,
+ * since it comes and goes on clicks and sends, never mid-drag. Null where
+ * even the button and ✕ do not fit after it.
+ */
+export function countRowFit(columns: number, label: string, offer: string): { preview: string | null } | null {
+  const free = columns - ROW_INDENT - width(label) - 3 - RIGHT_MARGIN
+  const quoted = free - OFFER_CHROME >= MIN_PREVIEW ? preview(offer, free - OFFER_CHROME) : null
+  const cells = quoted === null ? BUTTON_CELLS + 1 + width(CLOSE_TAB) : OFFER_CHROME + width(quoted)
+  return cells <= free ? { preview: quoted } : null
+}
+
+/**
  * What the line under the prompt draws that a selection may take: Claude
  * Code's hint as last drawn, and the offer's button. (Its count row is a
  * 📎 line, which no Excerpt keeps.)
@@ -97,12 +110,19 @@ export function promptHint(
   act: { toggle: () => unknown; add: () => unknown; dismiss: () => unknown },
 ): RenderElement {
   const { Box, Button } = el
-  // Claude Code draws its row first; what the hook adds stacks under it. So
-  // a Box of no height there floats the offer one row up, onto that row.
+  const label = hintLabel(v.count, v.isPaneDrawn)
+  const isOffered = v.offer !== null && !v.isPaneDrawn
+  // With Annotations pending the count row is there already: the offer
+  // goes on it, after the count, where it fits.
+  const onCount = isOffered && v.count > 0 ? countRowFit(v.columns, label, v.offer!) : null
+  // Else on Claude Code's row. It draws that row first; what the hook adds
+  // stacks under it. So a Box of no height there floats the offer one row
+  // up, onto that row. (Under it, with the count row drawn too, the float
+  // does not show: hence the count row first.)
   let line: RenderElement | null = engine
   let float: RenderElement | null = null
-  if (v.offer !== null && !v.isPaneDrawn) {
-    const fit = offerFit(v.columns, v.hint, v.offer)
+  if (isOffered && onCount === null) {
+    const fit = offerFit(v.columns, v.hint, v.offer!)
     const parts = offerParts(el, fit.preview, act.add, act.dismiss)
     if (fit.at === 'beside') {
       float = (
@@ -122,8 +142,13 @@ export function promptHint(
   }
   const clip =
     v.count === 0 ? null : (
-      <Box key="hint-clip-row" paddingLeft={2}>
-        <Button key="hint-clip" plain dimColor label={hintLabel(v.count, v.isPaneDrawn)} onPress={act.toggle} />
+      <Box key="hint-clip-row" paddingLeft={2} gap={3}>
+        <Button key="hint-clip" plain dimColor label={label} onPress={act.toggle} />
+        {onCount === null ? null : (
+          <Box key="hint-offer" gap={1}>
+            {offerParts(el, onCount.preview, act.add, act.dismiss)}
+          </Box>
+        )}
       </Box>
     )
   return (

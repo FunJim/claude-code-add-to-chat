@@ -11,7 +11,7 @@ import { assert, scenario } from '../harness/scenario.ts'
 const HINT = 'hint offer'
 
 describe(HINT, () => {
-  scenario(HINT, 'a session starts with no pane; a selection offers on the line under the prompt, added there with the pane staying closed', { drivers: ['herdr', 'tmux'] }, async ctx => {
+  scenario(HINT, 'a session starts with no pane; a selection offers on the line under the prompt, added there with the pane staying closed; the next is offered on the count row', { drivers: ['herdr', 'tmux'] }, async ctx => {
     const claude = await ctx.launchFixture({ openPane: false })
     assert.equal(paneArea(await claude.screen()), undefined, 'no pane at the start')
     await ctx.step('select a phrase in the report: the line under the prompt offers it')
@@ -27,11 +27,27 @@ describe(HINT, () => {
     await waitFor('the Annotation', async () => (await claude.probe.pending()).length === 1, { timeoutMs: 3_000 })
     await waitFor('the count under the prompt', async () => locate(await claude.screen(), hintLabel(1, false)) !== undefined, { timeoutMs: 5_000 })
     assert.equal(paneArea(await claude.screen()), undefined, 'the pane stays closed')
+    await ctx.step('another selection: offered on the count row, nothing moving; added there too')
+    // The last ❯ is the prompt's; the transcript has its own.
+    const rowOf = async (text: string) => (await claude.screen()).split('\n').findLastIndex(r => r.includes(text)) + 1
+    // From the prompt to the count row: Claude Code's copy notice, above the prompt, may move both.
+    const below = async () => (await rowOf(hintLabel(1, false))) - (await rowOf('❯'))
+    const gap = await below()
+    await claude.select('running or done')
+    await waitFor('the second offer', async () => locate(await claude.screen(), ADD_LABEL) !== undefined, { timeoutMs: 5_000 })
+    const second = await claude.screen()
+    assert.ok(second.split('\n').some(r => r.includes(hintLabel(1, false)) && r.includes(ADD_LABEL)), `offered on the count row:\n${second}`)
+    assert.equal(await below(), gap, 'the offer added no row under the prompt')
+    const again = locate(second, ADD_LABEL)!
+    await claude.mouse.click({ x: again.x + 2, y: again.y })
+    await waitFor('the second Annotation', async () => (await claude.probe.pending()).length === 2, { timeoutMs: 3_000 })
+    await waitFor('the count of two', async () => locate(await claude.screen(), hintLabel(2, false)) !== undefined, { timeoutMs: 5_000 })
     await ctx.step('the count opens the pane')
-    const count = locate(await claude.screen(), hintLabel(1, false))!
+    const count = locate(await claude.screen(), hintLabel(2, false))!
     await claude.mouse.click({ x: count.x + 2, y: count.y })
     await waitFor('the pane', async () => paneArea(await claude.screen()) !== undefined, { timeoutMs: 5_000 })
-    assert.ok(await claude.paneShows('Ran the'))
+    // Open on the last added.
+    assert.ok(await claude.paneShows('running or done'))
   })
 
   scenario(HINT, 'typing in the prompt keeps the offer; sending the prompt takes it away', { drivers: ['herdr'], usesModel: true }, async ctx => {
@@ -86,12 +102,14 @@ describe(HINT, () => {
     const claude = await ctx.launchFixture({ openPane: false })
     const rows = async () => (await claude.screen()).split('\n')
     const rowOf = async (text: string) => (await rows()).findIndex(r => r.includes(text)) + 1
-    const [reply, prompt, lines] = [await rowOf('Ran the'), await rowOf('❯'), (await rows()).length]
+    // The last ❯ is the prompt's; the transcript has its own.
+    const promptRow = async () => (await rows()).findLastIndex(r => r.includes('❯')) + 1
+    const [reply, prompt, lines] = [await rowOf('Ran the'), await promptRow(), (await rows()).length]
     await ctx.step('press on “Ran the”, hold still halfway while the offer comes, then go on and let go')
     const selected = await claude.slowSelect('Ran the', 900)
     assert.equal(selected?.text, 'Ran the', 'the drag ends where it was aimed')
     assert.equal(await rowOf('Ran the'), reply, 'the transcript did not move')
-    assert.equal(await rowOf('❯'), prompt, 'the prompt did not move')
+    assert.equal(await promptRow(), prompt, 'the prompt did not move')
     const screen = await claude.screen()
     const at = screen.split('\n').find(r => r.includes(ADD_LABEL)) ?? ''
     assert.ok(at.includes('shift+tab'), `the offer is on the hint's row:\n${screen}`)
